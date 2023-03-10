@@ -49,7 +49,7 @@ impl LibraryManager {
         // TODO: Errors will considered failed entry as resolved. Need to filter
         // entries with error (beyond failed to match, which is handled
         // correctly) and retry them.
-        for store_entry in store_entries.into_iter() {
+        for store_entry in store_entries {
             let igdb = Arc::clone(&igdb);
             let steam = Arc::clone(&steam);
 
