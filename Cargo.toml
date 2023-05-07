@@ -1,5 +1,5 @@
 [package]
-name = "espy_server"
+name = "espy_backend"
 version = "0.1.1"
 authors = ["bourdenas"]
 edition = "2021"

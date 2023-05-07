@@ -1,5 +1,5 @@
 use clap::Parser;
-use espy_server::*;
+use espy_backend::*;
 use std::{
     sync::{Arc, Mutex},
     time::{Duration, SystemTime},

@@ -1,5 +1,5 @@
 use clap::Parser;
-use espy_server::{api, documents::ExternalGame, library::firestore, util, Tracing};
+use espy_backend::{api, documents::ExternalGame, library::firestore, util, Tracing};
 use tracing::{error, info};
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use clap::Parser;
-use espy_server::{
+use espy_backend::{
     api::{FirestoreApi, IgdbApi},
     documents::{Library, LibraryEntry},
     library, util, Status, Tracing,

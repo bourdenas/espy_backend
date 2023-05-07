@@ -1,5 +1,5 @@
 use clap::Parser;
-use espy_server::{documents::StoreEntry, *};
+use espy_backend::{documents::StoreEntry, *};
 use itertools::Itertools;
 
 /// IGDB search utility.

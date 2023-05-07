@@ -1,5 +1,5 @@
 use clap::Parser;
-use espy_server::{
+use espy_backend::{
     documents::{GameDigest, IgdbCollection},
     *,
 };
