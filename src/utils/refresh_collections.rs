@@ -84,7 +84,7 @@ fn refresh(collections: Vec<IgdbCollection>, firestore_credentials: &str) -> Res
             .into_iter()
             .map(|digest| library::firestore::games::read(&firestore, digest.id))
             .filter_map(|e| e.ok())
-            .map(|game_entry| GameDigest::new(game_entry))
+            .map(|game_entry| GameDigest::from(game_entry))
             .collect();
         let collection = IgdbCollection {
             id: collection.id,

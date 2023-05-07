@@ -36,7 +36,7 @@ impl LibraryEntry {
         LibraryEntry {
             id: game.id,
             parent_digest: game.parent.clone(),
-            digest: GameDigest::new(game),
+            digest: GameDigest::from(game),
             store_entries,
 
             added_date: Some(

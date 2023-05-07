@@ -146,7 +146,7 @@ pub async fn resolve_game_info(
     if let Some(parent_id) = parent_id {
         if let Ok(game) = get_game(&connection, parent_id).await {
             if let Ok(game) = resolve_game_digest(Arc::clone(&connection), &game).await {
-                game_entry.parent = Some(GameDigest::new(game));
+                game_entry.parent = Some(GameDigest::from(game));
             }
         }
     }
@@ -154,28 +154,28 @@ pub async fn resolve_game_info(
     for expansion_id in igdb_game.expansions.into_iter() {
         if let Ok(game) = get_game(&connection, expansion_id).await {
             if let Ok(game) = resolve_game_digest(Arc::clone(&connection), &game).await {
-                game_entry.expansions.push(GameDigest::new(game));
+                game_entry.expansions.push(GameDigest::from(game));
             }
         }
     }
     for dlc_id in igdb_game.dlcs.into_iter() {
         if let Ok(game) = get_game(&connection, dlc_id).await {
             if let Ok(game) = resolve_game_digest(Arc::clone(&connection), &game).await {
-                game_entry.dlcs.push(GameDigest::new(game));
+                game_entry.dlcs.push(GameDigest::from(game));
             }
         }
     }
     for remake_id in igdb_game.remakes.into_iter() {
         if let Ok(game) = get_game(&connection, remake_id).await {
             if let Ok(game) = resolve_game_digest(Arc::clone(&connection), &game).await {
-                game_entry.remakes.push(GameDigest::new(game));
+                game_entry.remakes.push(GameDigest::from(game));
             }
         }
     }
     for remaster_id in igdb_game.remasters.into_iter() {
         if let Ok(game) = get_game(&connection, remaster_id).await {
             if let Ok(game) = resolve_game_digest(Arc::clone(&connection), &game).await {
-                game_entry.remasters.push(GameDigest::new(game));
+                game_entry.remasters.push(GameDigest::from(game));
             }
         }
     }

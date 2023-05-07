@@ -98,7 +98,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 }
 
                 match firestore::games::read(&firestore, *game) {
-                    Ok(game_entry) => igdb_collection.games.push(GameDigest::new(game_entry)),
+                    Ok(game_entry) => igdb_collection.games.push(GameDigest::from(game_entry)),
                     Err(Status::NotFound(_)) => {
                         let igdb_game = match igdb.get(*game).await {
                             Ok(game) => game,
@@ -124,7 +124,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                             error!("Failed to save '{}' in Firestore: {e}", game_entry.name);
                         }
                         info!("#{} Resolved '{}' ({})", k, game_entry.name, game_entry.id);
-                        igdb_collection.games.push(GameDigest::new(game_entry))
+                        igdb_collection.games.push(GameDigest::from(game_entry))
                     }
                     Err(e) => error!("Failed to read from Firestore game with id={game}: {e}"),
                 }
