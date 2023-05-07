@@ -80,15 +80,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
 
         for collection in collections {
-            let mut igdb_collection = IgdbCollection {
-                id: collection.id,
-                name: collection.name,
-                slug: collection.slug,
-                url: collection.url,
-                games: vec![],
-            };
+            let mut igdb_collection =
+                match firestore::collections::read(&firestore, &collection.slug) {
+                    Ok(igdb_collection) => igdb_collection,
+                    Err(_) => IgdbCollection {
+                        id: collection.id,
+                        name: collection.name,
+                        slug: collection.slug,
+                        url: collection.url,
+                        games: vec![],
+                    },
+                };
 
             for game in &collection.games {
+                if let Some(_) = igdb_collection.games.iter().find(|e| e.id == *game) {
+                    continue;
+                }
+
                 match firestore::games::read(&firestore, *game) {
                     Ok(game_entry) => igdb_collection.games.push(GameDigest::new(game_entry)),
                     Err(Status::NotFound(_)) => {

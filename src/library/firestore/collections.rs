@@ -7,10 +7,10 @@ pub fn list(firestore: &FirestoreApi) -> Result<Vec<IgdbCollection>, Status> {
     firestore.list(&format!("collections"))
 }
 
-/// Returns an IgdbCollection doc based on `collection_id` from Firestore.
+/// Returns an IgdbCollection doc based on its `slug` from Firestore.
 #[instrument(name = "collections::read", level = "trace", skip(firestore))]
-pub fn read(firestore: &FirestoreApi, collection_id: u64) -> Result<IgdbCollection, Status> {
-    firestore.read::<IgdbCollection>("collections", &collection_id.to_string())
+pub fn read(firestore: &FirestoreApi, slug: &str) -> Result<IgdbCollection, Status> {
+    firestore.read::<IgdbCollection>("collections", slug)
 }
 
 /// Writes an IgdbCollection doc in Firestore.
@@ -23,12 +23,12 @@ pub fn read(firestore: &FirestoreApi, collection_id: u64) -> Result<IgdbCollecti
     )
 )]
 pub fn write(firestore: &FirestoreApi, collection: &IgdbCollection) -> Result<(), Status> {
-    firestore.write("collections", Some(&collection.id.to_string()), collection)?;
+    firestore.write("collections", Some(&collection.slug), collection)?;
     Ok(())
 }
 
 /// Deletes an IgdbCollection doc from Firestore.
 #[instrument(name = "collections::delete", level = "trace", skip(firestore))]
-pub fn delete(firestore: &FirestoreApi, collection_id: u64) -> Result<(), Status> {
-    firestore.delete(&format!("collections/{}", collection_id.to_string()))
+pub fn delete(firestore: &FirestoreApi, slug: &str) -> Result<(), Status> {
+    firestore.delete(&format!("collections/{}", slug))
 }

@@ -11,7 +11,7 @@ use tracing::{info, instrument};
 struct Opts {
     /// Refresh only game with specified id.
     #[clap(long)]
-    id: Option<u64>,
+    id: Option<String>,
 
     /// If set, delete game entry instead of refreshing it.
     #[clap(long)]
@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let opts: Opts = Opts::parse();
 
-    if let Some(id) = opts.id {
+    if let Some(id) = &opts.id {
         match opts.delete {
             false => refresh_collection(id, &opts.firestore_credentials).await?,
             true => {
@@ -47,11 +47,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
-async fn refresh_collection(id: u64, firestore_credentials: &str) -> Result<(), Status> {
+async fn refresh_collection(slug: &str, firestore_credentials: &str) -> Result<(), Status> {
     let firestore = api::FirestoreApi::from_credentials(firestore_credentials)
         .expect("FirestoreApi.from_credentials()");
 
-    let collection = library::firestore::collections::read(&firestore, id)?;
+    let collection = library::firestore::collections::read(&firestore, slug)?;
     refresh(vec![collection], firestore_credentials)
 }
 
