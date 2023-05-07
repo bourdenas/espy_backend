@@ -1,4 +1,5 @@
 pub mod collections;
+pub mod companies;
 pub mod external_games;
 pub mod failed;
 pub mod games;

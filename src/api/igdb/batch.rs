@@ -3,8 +3,11 @@ use tracing::instrument;
 
 use super::{
     backend::post,
-    docs::{Collection, ExternalGame},
-    resolve::{COLLECTIONS_ENDPOINT, EXTERNAL_GAMES_ENDPOINT, FRANCHISES_ENDPOINT, GAMES_ENDPOINT},
+    docs::{Collection, Company, ExternalGame},
+    resolve::{
+        COLLECTIONS_ENDPOINT, COMPANIES_ENDPOINT, EXTERNAL_GAMES_ENDPOINT, FRANCHISES_ENDPOINT,
+        GAMES_ENDPOINT,
+    },
     IgdbApi, IgdbGame,
 };
 
@@ -58,6 +61,21 @@ impl IgdbBatchApi {
             &connection,
             FRANCHISES_ENDPOINT,
             &format!("fields *; sort first_release_date desc; where updated_at >= {updated_since}; limit 500; offset {offset};"),
+        )
+        .await
+    }
+
+    #[instrument(level = "trace", skip(self))]
+    pub async fn collect_companies(
+        &self,
+        updated_since: u64,
+        offset: u64,
+    ) -> Result<Vec<Company>, Status> {
+        let connection = self.service.connection()?;
+        post::<Vec<Company>>(
+            &connection,
+            COMPANIES_ENDPOINT,
+            &format!("fields *; where updated_at >= {updated_since}; limit 500; offset {offset};"),
         )
         .await
     }

@@ -122,6 +122,14 @@ pub struct Company {
 
     #[serde(default)]
     pub logo: Option<u64>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub developed: Vec<u64>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub published: Vec<u64>,
 }
 
 #[derive(Deserialize, Default, Debug)]

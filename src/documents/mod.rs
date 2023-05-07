@@ -1,4 +1,5 @@
 mod collection;
+mod company;
 mod external_game;
 mod game_digest;
 mod game_entry;
@@ -11,6 +12,7 @@ mod user_data;
 mod user_tags;
 
 pub use collection::IgdbCollection;
+pub use company::IgdbCompany;
 pub use external_game::ExternalGame;
 pub use game_digest::GameDigest;
 pub use game_entry::*;
