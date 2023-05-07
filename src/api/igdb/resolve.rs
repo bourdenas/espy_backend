@@ -434,9 +434,9 @@ async fn get_companies(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<C
 pub const GAMES_ENDPOINT: &str = "games";
 pub const EXTERNAL_GAMES_ENDPOINT: &str = "external_games";
 pub const COLLECTIONS_ENDPOINT: &str = "collections";
+pub const FRANCHISES_ENDPOINT: &str = "franchises";
 const COVERS_ENDPOINT: &str = "covers";
 const COMPANY_LOGOS_ENDPOINT: &str = "company_logos";
-const FRANCHISES_ENDPOINT: &str = "franchises";
 const ARTWORKS_ENDPOINT: &str = "artworks";
 const GENRES_ENDPOINT: &str = "genres";
 const KEYWORDS_ENDPOINT: &str = "keywords";
