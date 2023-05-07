@@ -74,6 +74,7 @@ fn refresh(collections: Vec<IgdbCollection>, firestore_credentials: &str) -> Res
     info!("Updating {} collections...", collections.len());
 
     for collection in collections {
+        info!("updating {}", &collection.slug);
         if next_refresh < SystemTime::now() {
             firestore = api::FirestoreApi::from_credentials(firestore_credentials)
                 .expect("FirestoreApi.from_credentials()");
