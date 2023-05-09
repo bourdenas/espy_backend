@@ -108,6 +108,7 @@ pub enum GameCategory {
     Remake,
     Remaster,
     ExpandedGame,
+    Version,
     Ignore,
 }
 
@@ -214,16 +215,19 @@ impl From<IgdbGame> for GameEntry {
             igdb_rating: igdb_game.aggregated_rating,
             igdb_follows: igdb_game.follows,
             igdb_hypes: igdb_game.hypes,
-            category: match igdb_game.category {
-                0 => GameCategory::Main,
-                1 => GameCategory::Dlc,
-                2 => GameCategory::Expansion,
-                4 => GameCategory::StandaloneExpansion,
-                6 => GameCategory::Episode,
-                7 => GameCategory::Season,
-                8 => GameCategory::Remake,
-                9 => GameCategory::Remaster,
-                _ => GameCategory::Ignore,
+            category: match igdb_game.version_parent {
+                Some(_) => GameCategory::Version,
+                None => match igdb_game.category {
+                    0 => GameCategory::Main,
+                    1 => GameCategory::Dlc,
+                    2 => GameCategory::Expansion,
+                    4 => GameCategory::StandaloneExpansion,
+                    6 => GameCategory::Episode,
+                    7 => GameCategory::Season,
+                    8 => GameCategory::Remake,
+                    9 => GameCategory::Remaster,
+                    _ => GameCategory::Ignore,
+                },
             },
 
             websites: vec![Website {
@@ -247,16 +251,19 @@ impl From<&IgdbGame> for GameEntry {
             igdb_rating: igdb_game.aggregated_rating,
             igdb_follows: igdb_game.follows,
             igdb_hypes: igdb_game.hypes,
-            category: match igdb_game.category {
-                0 => GameCategory::Main,
-                1 => GameCategory::Dlc,
-                2 => GameCategory::Expansion,
-                4 => GameCategory::StandaloneExpansion,
-                6 => GameCategory::Episode,
-                7 => GameCategory::Season,
-                8 => GameCategory::Remake,
-                9 => GameCategory::Remaster,
-                _ => GameCategory::Ignore,
+            category: match igdb_game.version_parent {
+                Some(_) => GameCategory::Version,
+                None => match igdb_game.category {
+                    0 => GameCategory::Main,
+                    1 => GameCategory::Dlc,
+                    2 => GameCategory::Expansion,
+                    4 => GameCategory::StandaloneExpansion,
+                    6 => GameCategory::Episode,
+                    7 => GameCategory::Season,
+                    8 => GameCategory::Remake,
+                    9 => GameCategory::Remaster,
+                    _ => GameCategory::Ignore,
+                },
             },
 
             websites: vec![Website {

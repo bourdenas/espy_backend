@@ -1,9 +1,5 @@
 use clap::Parser;
-use espy_backend::*;
-use std::{
-    sync::{Arc, Mutex},
-    time::{Duration, SystemTime},
-};
+use espy_backend::{api::FirestoreApi, library::firestore, *};
 use tracing::{error, info, instrument};
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
@@ -20,6 +16,9 @@ struct Opts {
     /// JSON file that contains application keys for espy service.
     #[clap(long, default_value = "keys.json")]
     key_store: String,
+
+    #[clap(long, default_value = "0")]
+    offset: u64,
 
     /// JSON file containing Firestore credentials for espy service.
     #[clap(
@@ -41,77 +40,90 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let steam = games::SteamDataApi::new();
 
+    let firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
+        .expect("FirestoreApi.from_credentials()");
+
     if let Some(id) = opts.id {
         match opts.delete {
-            false => refresh_game(id, &opts.firestore_credentials, igdb, steam).await?,
-            true => {
-                let firestore = api::FirestoreApi::from_credentials(&opts.firestore_credentials)
-                    .expect("FirestoreApi.from_credentials()");
-                library::firestore::games::delete(&firestore, id)?
-            }
+            false => refresh_game(firestore, id, igdb, steam).await?,
+            true => library::firestore::games::delete(&firestore, id)?,
         }
     } else {
-        refresh_entries(&opts.firestore_credentials, igdb, steam).await?;
+        refresh_entries(firestore, igdb, steam, opts.offset).await?;
     }
 
     Ok(())
 }
 
 async fn refresh_game(
+    firestore: FirestoreApi,
     id: u64,
-    firestore_credentials: &str,
     igdb: api::IgdbApi,
     steam: games::SteamDataApi,
 ) -> Result<(), Status> {
-    let firestore = api::FirestoreApi::from_credentials(firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
-
     let game = library::firestore::games::read(&firestore, id)?;
-    refresh(vec![game], firestore_credentials, igdb, steam).await
+    refresh(firestore, vec![game], igdb, steam).await
 }
 
-#[instrument(level = "trace", skip(firestore_credentials, igdb, steam))]
+#[instrument(level = "trace", skip(firestore, igdb, steam))]
 async fn refresh_entries(
-    firestore_credentials: &str,
+    firestore: FirestoreApi,
     igdb: api::IgdbApi,
     steam: games::SteamDataApi,
+    offset: u64,
 ) -> Result<(), Status> {
-    let firestore = api::FirestoreApi::from_credentials(firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
-
-    let game_entries = library::firestore::games::list(&firestore)?;
-    refresh(game_entries, firestore_credentials, igdb, steam).await
+    let game_entries = library::firestore::games::list(&firestore)?
+        .into_iter()
+        .skip_while(|e| e.id != offset)
+        .collect();
+    refresh(firestore, game_entries, igdb, steam).await
 }
 
 async fn refresh(
+    mut firestore: FirestoreApi,
     game_entries: Vec<documents::GameEntry>,
-    firestore_credentials: &str,
     igdb: api::IgdbApi,
     steam: games::SteamDataApi,
 ) -> Result<(), Status> {
-    let mut firestore = Arc::new(Mutex::new(
-        api::FirestoreApi::from_credentials(firestore_credentials)
-            .expect("FirestoreApi.from_credentials()"),
-    ));
-    let next_refresh = SystemTime::now()
-        .checked_add(Duration::from_secs(30 * 60))
-        .unwrap();
-
     info!("Updating {} game entries...", game_entries.len());
+    let mut k = 0;
 
     for game_entry in game_entries {
-        if next_refresh < SystemTime::now() {
-            firestore = Arc::new(Mutex::new(
-                api::FirestoreApi::from_credentials(firestore_credentials)
-                    .expect("FirestoreApi.from_credentials()"),
-            ));
-        }
+        info!("#{k} Updating {} ({})", &game_entry.name, game_entry.id);
+        firestore.validate();
 
-        // if let Err(e) =
-        //     Resolver::resolve(game_entry.id, &igdb, &steam, Arc::clone(&firestore)).await
-        // {
-        //     error!("Failed to refresh '{}': {e}", game_entry.name);
-        // }
+        if game_entry.igdb_hypes == 0 && game_entry.igdb_follows == 0 {
+            if let Err(e) = firestore::games::delete(&firestore, game_entry.id) {
+                error!("{e}");
+            }
+        } else {
+            let igdb_game = match igdb.get(game_entry.id).await {
+                Ok(game) => game,
+                Err(e) => {
+                    error!("{e}");
+                    k += 1;
+                    continue;
+                }
+            };
+
+            let mut game_entry = match igdb.resolve(igdb_game).await {
+                Ok(game_entry) => game_entry,
+                Err(e) => {
+                    error!("{e}");
+                    k += 1;
+                    continue;
+                }
+            };
+
+            if let Err(e) = steam.retrieve_steam_data(&mut game_entry).await {
+                error!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
+            }
+
+            if let Err(e) = firestore::games::write(&firestore, &game_entry) {
+                error!("Failed to save '{}' in Firestore: {e}", game_entry.name);
+            }
+        }
+        k += 1;
     }
 
     Ok(())

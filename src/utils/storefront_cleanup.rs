@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let opts: Opts = Opts::parse();
 
-    let firestore = FirestoreApi::from_credentials(&opts.firestore_credentials)
+    let firestore = FirestoreApi::from_credentials(opts.firestore_credentials)
         .expect("FirestoreApi.from_credentials()");
 
     let user_library = firestore::library::read(&firestore, &opts.user)?;

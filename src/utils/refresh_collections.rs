@@ -1,9 +1,9 @@
 use clap::Parser;
 use espy_backend::{
+    api::FirestoreApi,
     documents::{GameDigest, IgdbCollection},
     *,
 };
-use std::time::{Duration, SystemTime};
 use tracing::{info, instrument};
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
@@ -31,54 +31,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let opts: Opts = Opts::parse();
 
+    let firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
+        .expect("FirestoreApi.from_credentials()");
+
     if let Some(id) = &opts.id {
         match opts.delete {
-            false => refresh_collection(id, &opts.firestore_credentials).await?,
-            true => {
-                let firestore = api::FirestoreApi::from_credentials(&opts.firestore_credentials)
-                    .expect("FirestoreApi.from_credentials()");
-                library::firestore::collections::delete(&firestore, id)?
-            }
+            false => refresh_collection(firestore, id).await?,
+            true => library::firestore::collections::delete(&firestore, id)?,
         }
     } else {
-        refresh_collections(&opts.firestore_credentials).await?;
+        refresh_collections(firestore).await?;
     }
 
     Ok(())
 }
 
-async fn refresh_collection(slug: &str, firestore_credentials: &str) -> Result<(), Status> {
-    let firestore = api::FirestoreApi::from_credentials(firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
-
+async fn refresh_collection(firestore: FirestoreApi, slug: &str) -> Result<(), Status> {
     let collection = library::firestore::collections::read(&firestore, slug)?;
-    refresh(vec![collection], firestore_credentials)
+    refresh(firestore, vec![collection])
 }
 
-#[instrument(level = "trace", skip(firestore_credentials))]
-async fn refresh_collections(firestore_credentials: &str) -> Result<(), Status> {
-    let firestore = api::FirestoreApi::from_credentials(firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
-
+#[instrument(level = "trace", skip(firestore))]
+async fn refresh_collections(firestore: FirestoreApi) -> Result<(), Status> {
     let collections = library::firestore::collections::list(&firestore)?;
-    refresh(collections, firestore_credentials)
+    refresh(firestore, collections)
 }
 
-fn refresh(collections: Vec<IgdbCollection>, firestore_credentials: &str) -> Result<(), Status> {
-    let mut firestore = api::FirestoreApi::from_credentials(firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
-    let next_refresh = SystemTime::now()
-        .checked_add(Duration::from_secs(30 * 60))
-        .unwrap();
-
+fn refresh(mut firestore: FirestoreApi, collections: Vec<IgdbCollection>) -> Result<(), Status> {
     info!("Updating {} collections...", collections.len());
 
     for collection in collections {
         info!("updating {}", &collection.slug);
-        if next_refresh < SystemTime::now() {
-            firestore = api::FirestoreApi::from_credentials(firestore_credentials)
-                .expect("FirestoreApi.from_credentials()");
-        }
+        firestore.validate();
 
         let game_digest = collection
             .games

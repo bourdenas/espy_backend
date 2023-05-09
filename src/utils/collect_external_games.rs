@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     igdb.connect().await?;
     let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
 
-    let firestore = api::FirestoreApi::from_credentials(&opts.firestore_credentials)
+    let mut firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
         .expect("FirestoreApi.from_credentials()");
 
     let mut k = opts.offset;
@@ -52,6 +52,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         );
 
         for external_game in external_games {
+            firestore.validate();
+
             let external_game =
                 ExternalGame::new(external_game.game, external_game.uid, external_game.url);
             if let Err(e) =

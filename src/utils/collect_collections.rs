@@ -48,11 +48,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let steam = games::SteamDataApi::new();
 
-    let mut firestore = api::FirestoreApi::from_credentials(&opts.firestore_credentials)
+    let mut firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
         .expect("FirestoreApi.from_credentials()");
-    let mut next_refresh = SystemTime::now()
-        .checked_add(Duration::from_secs(30 * 60))
-        .unwrap();
 
     let updated_timestamp = SystemTime::now()
         .checked_sub(Duration::from_secs(24 * 60 * 60 * opts.updated_since))
@@ -80,6 +77,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
 
         for collection in collections {
+            firestore.validate();
+
             let mut igdb_collection =
                 match firestore::collections::read(&firestore, &collection.slug) {
                     Ok(igdb_collection) => igdb_collection,
@@ -97,6 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     continue;
                 }
 
+                firestore.validate();
                 match firestore::games::read(&firestore, *game) {
                     Ok(game_entry) => igdb_collection.games.push(GameDigest::from(game_entry)),
                     Err(Status::NotFound(_)) => {
@@ -131,6 +131,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             }
 
             if !igdb_collection.games.is_empty() {
+                firestore.validate();
                 if let Err(e) = firestore::collections::write(&firestore, &igdb_collection) {
                     error!(
                         "Failed to save '{}' in Firestore: {e}",
@@ -143,16 +144,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 );
             }
             k += 1;
-
-            if next_refresh < SystemTime::now() {
-                info!("Refreshing Firestore credentials...");
-                firestore = api::FirestoreApi::from_credentials(&opts.firestore_credentials)
-                    .expect("FirestoreApi.from_credentials()");
-
-                next_refresh = SystemTime::now()
-                    .checked_add(Duration::from_secs(30 * 60))
-                    .unwrap();
-            }
         }
     }
 

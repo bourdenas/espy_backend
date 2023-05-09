@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use clap::Parser;
 use espy_backend::{
     api::{FirestoreApi, IgdbApi},
@@ -31,21 +29,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Tracing::setup("utils/refresh_library_entries")?;
 
     let opts: Opts = Opts::parse();
-    let firestore = FirestoreApi::from_credentials(&opts.firestore_credentials)
+    let firestore = FirestoreApi::from_credentials(opts.firestore_credentials)
         .expect("FirestoreApi.from_credentials()");
 
     let keys = util::keys::Keys::from_file(&opts.key_store).unwrap();
     let mut igdb = IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
     igdb.connect().await?;
 
-    refresh_library_entries(Arc::new(firestore), igdb, &opts.user).await?;
+    refresh_library_entries(firestore, igdb, &opts.user).await?;
 
     Ok(())
 }
 
 #[instrument(level = "trace", skip(firestore, igdb, user_id))]
 async fn refresh_library_entries(
-    firestore: Arc<FirestoreApi>,
+    mut firestore: FirestoreApi,
     igdb: IgdbApi,
     user_id: &str,
 ) -> Result<(), Status> {
@@ -54,6 +52,7 @@ async fn refresh_library_entries(
 
     let mut library = Library { entries: vec![] };
     for entry in legacy_library.entries {
+        firestore.validate();
         match library::firestore::games::read(&firestore, entry.id) {
             Ok(game_entry) => {
                 info!("updated from firestore '{title}'", title = game_entry.name);

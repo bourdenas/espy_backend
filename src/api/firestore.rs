@@ -1,25 +1,44 @@
+use std::time::{Duration, SystemTime};
+
 use crate::Status;
 use firestore::errors::FirebaseError;
 use firestore_db_and_auth as firestore;
 use firestore_db_and_auth::{documents, dto, Credentials, ServiceSession};
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 pub struct FirestoreApi {
+    credentials_file: String,
     session: ServiceSession,
+    next_refresh: SystemTime,
 }
 
 impl FirestoreApi {
     /// Returns a Firestore session created from input credentials.
     pub fn from_credentials(
-        credentials_file: &str,
+        credentials_file: String,
     ) -> Result<Self, firestore::errors::FirebaseError> {
-        let mut cred = Credentials::from_file(credentials_file).expect("Read credentials file");
+        let mut cred = Credentials::from_file(&credentials_file).expect("Read credentials file");
         cred.download_google_jwks()
             .expect("Failed to download public keys");
 
         Ok(FirestoreApi {
+            credentials_file,
             session: ServiceSession::new(cred).expect("Create a service account session"),
+            next_refresh: SystemTime::now()
+                .checked_add(Duration::from_secs(30 * 60))
+                .unwrap(),
         })
+    }
+
+    pub fn validate(&mut self) {
+        if self.next_refresh <= SystemTime::now() {
+            let mut cred =
+                Credentials::from_file(&self.credentials_file).expect("Read credentials file");
+            cred.download_google_jwks()
+                .expect("Failed to download public keys");
+            self.session = ServiceSession::new(cred).expect("Create a service account session");
+        }
     }
 
     /// Returns a document based on its id.
@@ -85,14 +104,18 @@ impl FirestoreApi {
     /// Returns all Firestore documents in the specified path.
     pub fn list<T>(&self, path: &str) -> Result<Vec<T>, Status>
     where
-        for<'a> T: Deserialize<'a>,
+        for<'a> T: Deserialize<'a> + Default,
     {
         let collection: documents::List<T, _> = documents::list(&self.session, path);
         collection
             .into_iter()
             .map(|result| match result {
                 Ok((doc, _metadata)) => Ok(doc),
-                Err(e) => Err(Status::new("Firestore.list: ", e)),
+                Err(e) => {
+                    // Err(Status::new("Firestore.list: ", e))
+                    error!("Failed to parse doc: {e}");
+                    Ok(T::default())
+                }
             })
             .collect()
     }

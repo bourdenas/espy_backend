@@ -58,7 +58,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     );
 
     if opts.expand && !games.is_empty() {
-        todo!("implement game resolution")
+        let igdb_game = igdb.get(games.first().unwrap().id).await?;
+        println!("{:?}", igdb_game);
     }
 
     Ok(())

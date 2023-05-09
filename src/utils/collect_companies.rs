@@ -48,11 +48,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let steam = games::SteamDataApi::new();
 
-    let mut firestore = api::FirestoreApi::from_credentials(&opts.firestore_credentials)
+    let mut firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
         .expect("FirestoreApi.from_credentials()");
-    let mut next_refresh = SystemTime::now()
-        .checked_add(Duration::from_secs(30 * 60))
-        .unwrap();
 
     let updated_timestamp = SystemTime::now()
         .checked_sub(Duration::from_secs(24 * 60 * 60 * opts.updated_since))
@@ -146,17 +143,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     k, igdb_company.name, igdb_company.id
                 );
             }
+
             k += 1;
-
-            if next_refresh < SystemTime::now() {
-                info!("Refreshing Firestore credentials...");
-                firestore = api::FirestoreApi::from_credentials(&opts.firestore_credentials)
-                    .expect("FirestoreApi.from_credentials()");
-
-                next_refresh = SystemTime::now()
-                    .checked_add(Duration::from_secs(30 * 60))
-                    .unwrap();
-            }
+            firestore.validate();
         }
     }
 

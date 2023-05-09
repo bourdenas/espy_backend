@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let igdb = Arc::new(igdb);
 
     let firestore = Arc::new(Mutex::new(
-        api::FirestoreApi::from_credentials(&opts.firestore_credentials)
+        api::FirestoreApi::from_credentials(opts.firestore_credentials)
             .expect("FirestoreApi.from_credentials()"),
     ));
 

@@ -45,7 +45,7 @@ async fn main() -> Result<(), Status> {
     igdb.connect().await?;
 
     let firestore = Arc::new(Mutex::new(
-        FirestoreApi::from_credentials(&opts.firestore_credentials)
+        FirestoreApi::from_credentials(opts.firestore_credentials)
             .expect("FirestoreApi.from_credentials()"),
     ));
 
