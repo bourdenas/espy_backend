@@ -38,6 +38,9 @@ impl FirestoreApi {
             cred.download_google_jwks()
                 .expect("Failed to download public keys");
             self.session = ServiceSession::new(cred).expect("Create a service account session");
+            self.next_refresh = SystemTime::now()
+                .checked_add(Duration::from_secs(30 * 60))
+                .unwrap();
         }
     }
 
