@@ -4,7 +4,7 @@ use espy_backend::{
     documents::{GameDigest, IgdbCollection},
     *,
 };
-use tracing::{info, instrument};
+use tracing::{error, info, instrument};
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
 #[derive(Parser)]
@@ -78,7 +78,9 @@ fn refresh(mut firestore: FirestoreApi, collections: Vec<IgdbCollection>) -> Res
             url: collection.url,
             games: game_digest,
         };
-        library::firestore::collections::write(&firestore, &collection)?;
+        if let Err(e) = library::firestore::collections::write(&firestore, &collection) {
+            error!("{e}");
+        }
     }
 
     Ok(())
