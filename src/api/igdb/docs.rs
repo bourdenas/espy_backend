@@ -41,6 +41,9 @@ pub struct IgdbGame {
     pub expansions: Vec<u64>,
 
     #[serde(default)]
+    pub standalone_expansions: Vec<u64>,
+
+    #[serde(default)]
     pub dlcs: Vec<u64>,
 
     #[serde(default)]
@@ -57,6 +60,9 @@ pub struct IgdbGame {
 
     #[serde(default)]
     pub version_parent: Option<u64>,
+
+    #[serde(default)]
+    pub version_title: Option<String>,
 
     #[serde(default)]
     pub collection: Option<u64>,

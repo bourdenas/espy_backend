@@ -158,6 +158,13 @@ pub async fn resolve_game_info(
             }
         }
     }
+    for expansion_id in igdb_game.standalone_expansions.into_iter() {
+        if let Ok(game) = get_game(&connection, expansion_id).await {
+            if let Ok(game) = resolve_game_digest(Arc::clone(&connection), &game).await {
+                game_entry.expansions.push(GameDigest::from(game));
+            }
+        }
+    }
     for dlc_id in igdb_game.dlcs.into_iter() {
         if let Ok(game) = get_game(&connection, dlc_id).await {
             if let Ok(game) = resolve_game_digest(Arc::clone(&connection), &game).await {
