@@ -9,6 +9,10 @@ struct Opts {
     #[clap(short, long, default_value = "")]
     search: String,
 
+    /// Game title to search for in IGDB.
+    #[clap(long, default_value = "0")]
+    id: u64,
+
     /// External store ID used for retrieving game info.
     #[clap(long, default_value = "")]
     external: String,
@@ -50,7 +54,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         return Ok(());
     }
 
-    let games = igdb.search_by_title(&opts.search).await?;
+    let games = match opts.id {
+        0 => igdb.search_by_title(&opts.search).await?,
+        id => vec![igdb.get(id).await?],
+    };
+
     println!(
         "Found {} candidates.\n{}",
         games.len(),
