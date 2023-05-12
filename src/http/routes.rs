@@ -13,7 +13,7 @@ pub fn routes(
     keys: Arc<util::keys::Keys>,
     igdb: Arc<IgdbApi>,
     firestore: Arc<Mutex<FirestoreApi>>,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     home()
         .or(post_search(Arc::clone(&igdb)))
         .or(post_resolve(Arc::clone(&firestore), Arc::clone(&igdb)))
@@ -30,14 +30,14 @@ pub fn routes(
 }
 
 /// GET /
-fn home() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+fn home() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!().and(warp::get()).and_then(handlers::welcome)
 }
 
 /// POST /search
 fn post_search(
     igdb: Arc<IgdbApi>,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("search")
         .and(warp::post())
         .and(json_body::<models::Search>())
@@ -49,7 +49,7 @@ fn post_search(
 fn post_resolve(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("resolve")
         .and(warp::post())
         .and(json_body::<models::Resolve>())
@@ -61,7 +61,7 @@ fn post_resolve(
 /// POST /library/{user_id}/match
 fn post_match(
     firestore: Arc<Mutex<FirestoreApi>>,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("library" / String / "match")
         .and(warp::post())
         .and(json_body::<models::MatchOp>())
@@ -72,7 +72,7 @@ fn post_match(
 /// POST /library/{user_id}/wishlist
 fn post_wishlist(
     firestore: Arc<Mutex<FirestoreApi>>,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("library" / String / "wishlist")
         .and(warp::post())
         .and(json_body::<models::WishlistOp>())
@@ -83,7 +83,7 @@ fn post_wishlist(
 /// POST /library/{user_id}/unlink
 fn post_unlink(
     firestore: Arc<Mutex<FirestoreApi>>,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("library" / String / "unlink")
         .and(warp::post())
         .and(json_body::<models::Unlink>())
@@ -96,7 +96,7 @@ fn post_sync(
     keys: Arc<util::keys::Keys>,
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("library" / String / "sync")
         .and(warp::post())
         .and(with_keys(keys))
@@ -109,7 +109,7 @@ fn post_sync(
 fn post_upload(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("library" / String / "upload")
         .and(warp::post())
         .and(json_body::<models::Upload>())
@@ -119,7 +119,7 @@ fn post_upload(
 }
 
 /// GET /images/{resolution}/{image_id}
-fn get_images() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+fn get_images() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("images" / String / String)
         .and(warp::get())
         .and_then(handlers::get_images)
