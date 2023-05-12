@@ -31,6 +31,35 @@ pub async fn get_game(connection: &IgdbConnection, id: u64) -> Result<IgdbGame, 
     }
 }
 
+#[instrument(level = "trace", skip(connection))]
+pub async fn get_game_with_cover(
+    connection: &IgdbConnection,
+    id: u64,
+) -> Result<GameEntry, Status> {
+    let result: Vec<IgdbGame> = post(
+        &connection,
+        GAMES_ENDPOINT,
+        &format!("fields id, name, cover, first_release_date, category, aggregated_rating; where id={id};"),
+    )
+    .await?;
+
+    match result.into_iter().next() {
+        Some(igdb_game) => {
+            let cover = match igdb_game.cover {
+                Some(cover_id) => get_cover(&connection, cover_id).await?,
+                None => None,
+            };
+
+            let mut game_entry = GameEntry::from(igdb_game);
+            game_entry.cover = cover;
+            Ok(game_entry)
+        }
+        None => Err(Status::not_found(format!(
+            "IgdbGame with id={id} was not found."
+        ))),
+    }
+}
+
 /// Returns a GameEntry from IGDB that can build the GameDigest doc.
 #[instrument(
     level = "trace",
@@ -143,48 +172,35 @@ pub async fn resolve_game_info(
         },
     };
 
-    if let Some(parent_id) = parent_id {
-        if let Ok(game) = get_game(&connection, parent_id).await {
-            if let Ok(game) = resolve_game_digest(Arc::clone(&connection), &game).await {
-                game_entry.parent = Some(GameDigest::from(game));
-            }
-        }
+    if let Some(id) = parent_id {
+        if let Ok(game) = get_game_with_cover(&connection, id).await {
+            game_entry.parent = Some(GameDigest::from(game));
+        };
     }
-
-    for expansion_id in igdb_game.expansions.into_iter() {
-        if let Ok(game) = get_game(&connection, expansion_id).await {
-            if let Ok(game) = resolve_game_digest(Arc::clone(&connection), &game).await {
-                game_entry.expansions.push(GameDigest::from(game));
-            }
-        }
+    for id in igdb_game.expansions.into_iter() {
+        if let Ok(game) = get_game_with_cover(&connection, id).await {
+            game_entry.expansions.push(GameDigest::from(game));
+        };
     }
-    for expansion_id in igdb_game.standalone_expansions.into_iter() {
-        if let Ok(game) = get_game(&connection, expansion_id).await {
-            if let Ok(game) = resolve_game_digest(Arc::clone(&connection), &game).await {
-                game_entry.expansions.push(GameDigest::from(game));
-            }
-        }
+    for id in igdb_game.standalone_expansions.into_iter() {
+        if let Ok(game) = get_game_with_cover(&connection, id).await {
+            game_entry.expansions.push(GameDigest::from(game));
+        };
     }
-    for dlc_id in igdb_game.dlcs.into_iter() {
-        if let Ok(game) = get_game(&connection, dlc_id).await {
-            if let Ok(game) = resolve_game_digest(Arc::clone(&connection), &game).await {
-                game_entry.dlcs.push(GameDigest::from(game));
-            }
-        }
+    for id in igdb_game.dlcs.into_iter() {
+        if let Ok(game) = get_game_with_cover(&connection, id).await {
+            game_entry.dlcs.push(GameDigest::from(game));
+        };
     }
-    for remake_id in igdb_game.remakes.into_iter() {
-        if let Ok(game) = get_game(&connection, remake_id).await {
-            if let Ok(game) = resolve_game_digest(Arc::clone(&connection), &game).await {
-                game_entry.remakes.push(GameDigest::from(game));
-            }
-        }
+    for id in igdb_game.remakes.into_iter() {
+        if let Ok(game) = get_game_with_cover(&connection, id).await {
+            game_entry.remakes.push(GameDigest::from(game));
+        };
     }
-    for remaster_id in igdb_game.remasters.into_iter() {
-        if let Ok(game) = get_game(&connection, remaster_id).await {
-            if let Ok(game) = resolve_game_digest(Arc::clone(&connection), &game).await {
-                game_entry.remasters.push(GameDigest::from(game));
-            }
-        }
+    for id in igdb_game.remasters.into_iter() {
+        if let Ok(game) = get_game_with_cover(&connection, id).await {
+            game_entry.remasters.push(GameDigest::from(game));
+        };
     }
 
     Ok(())
