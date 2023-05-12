@@ -5,6 +5,8 @@ pub struct IgdbGame {
     // #[serde(default)]
     pub id: u64,
     pub name: String,
+
+    #[serde(default)]
     pub url: String,
 
     #[serde(default)]

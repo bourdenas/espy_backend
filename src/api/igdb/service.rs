@@ -127,13 +127,13 @@ impl IgdbApi {
     ///
     /// The returned GameEntry is a shallow copy but it contains a game cover image.
     #[instrument(level = "trace", skip(self))]
-    pub async fn get_with_cover(&self, id: u64) -> Result<Option<GameEntry>, Status> {
+    pub async fn get_with_cover(&self, id: u64) -> Result<GameEntry, Status> {
         let connection = self.connection()?;
 
         let result: Vec<IgdbGame> = post(
             &connection,
             GAMES_ENDPOINT,
-            &format!("fields *; where id={id};"),
+            &format!("fields id, name, cover, first_release_date, category, aggregated_rating; where id={id} & platforms = (6);"),
         )
         .await?;
 
@@ -146,9 +146,11 @@ impl IgdbApi {
 
                 let mut game_entry = GameEntry::from(igdb_game);
                 game_entry.cover = cover;
-                Ok(Some(game_entry))
+                Ok(game_entry)
             }
-            None => Ok(None),
+            None => Err(Status::not_found(format!(
+                "IgdbGame with id={id} was not found."
+            ))),
         }
     }
 
