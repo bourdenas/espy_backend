@@ -2,7 +2,6 @@ use serde::Deserialize;
 
 #[derive(Deserialize, Default, Debug, Clone)]
 pub struct IgdbGame {
-    // #[serde(default)]
     pub id: u64,
     pub name: String,
 
@@ -56,6 +55,9 @@ pub struct IgdbGame {
 
     #[serde(default)]
     pub bundles: Vec<u64>,
+
+    #[serde(default)]
+    pub platforms: Vec<u64>,
 
     #[serde(default)]
     pub parent_game: Option<u64>,
