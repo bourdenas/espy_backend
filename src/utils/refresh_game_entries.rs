@@ -74,7 +74,7 @@ async fn refresh_entries(
 ) -> Result<(), Status> {
     let game_entries = library::firestore::games::list(&firestore)?
         .into_iter()
-        .skip_while(|e| e.id != offset)
+        .skip_while(|e| offset != 0 && e.id != offset)
         .collect();
     refresh(firestore, game_entries, igdb, steam).await
 }
@@ -92,36 +92,30 @@ async fn refresh(
         info!("#{k} Updating {} ({})", &game_entry.name, game_entry.id);
         firestore.validate();
 
-        if game_entry.igdb_hypes == 0 && game_entry.igdb_follows == 0 {
-            if let Err(e) = firestore::games::delete(&firestore, game_entry.id) {
+        let igdb_game = match igdb.get(game_entry.id).await {
+            Ok(game) => game,
+            Err(e) => {
                 error!("{e}");
+                k += 1;
+                continue;
             }
-        } else {
-            let igdb_game = match igdb.get(game_entry.id).await {
-                Ok(game) => game,
-                Err(e) => {
-                    error!("{e}");
-                    k += 1;
-                    continue;
-                }
-            };
+        };
 
-            let mut game_entry = match igdb.resolve(igdb_game).await {
-                Ok(game_entry) => game_entry,
-                Err(e) => {
-                    error!("{e}");
-                    k += 1;
-                    continue;
-                }
-            };
-
-            if let Err(e) = steam.retrieve_steam_data(&mut game_entry).await {
-                error!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
+        let mut game_entry = match igdb.resolve(igdb_game).await {
+            Ok(game_entry) => game_entry,
+            Err(e) => {
+                error!("{e}");
+                k += 1;
+                continue;
             }
+        };
 
-            if let Err(e) = firestore::games::write(&firestore, &game_entry) {
-                error!("Failed to save '{}' in Firestore: {e}", game_entry.name);
-            }
+        if let Err(e) = steam.retrieve_steam_data(&mut game_entry).await {
+            error!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
+        }
+
+        if let Err(e) = firestore::games::write(&firestore, &game_entry) {
+            error!("Failed to save '{}' in Firestore: {e}", game_entry.name);
         }
         k += 1;
     }
