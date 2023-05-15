@@ -4,7 +4,6 @@ use clap::Parser;
 use espy_backend::{
     api,
     documents::{GameDigest, IgdbCollection},
-    games,
     library::firestore,
     util, Status, Tracing,
 };
@@ -45,8 +44,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut igdb = api::IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
     igdb.connect().await?;
     let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
-
-    let steam = games::SteamDataApi::new();
 
     let mut firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
         .expect("FirestoreApi.from_credentials()");
@@ -100,30 +97,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 match firestore::games::read(&firestore, *game) {
                     Ok(game_entry) => igdb_collection.games.push(GameDigest::from(game_entry)),
                     Err(Status::NotFound(_)) => {
-                        let igdb_game = match igdb.get(*game).await {
+                        let game_entry = match igdb.get_with_cover(*game).await {
                             Ok(game) => game,
                             Err(e) => {
-                                error!("{e}");
+                                error!("  collection={}: {e}", &igdb_collection.name);
                                 continue;
                             }
                         };
 
-                        let mut game_entry = match igdb.resolve(igdb_game).await {
-                            Ok(game_entry) => game_entry,
-                            Err(e) => {
-                                error!("{e}");
-                                continue;
-                            }
-                        };
-
-                        if let Err(e) = steam.retrieve_steam_data(&mut game_entry).await {
-                            error!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
-                        }
-
-                        if let Err(e) = firestore::games::write(&firestore, &game_entry) {
-                            error!("Failed to save '{}' in Firestore: {e}", game_entry.name);
-                        }
-                        info!("#{} Resolved '{}' ({})", k, game_entry.name, game_entry.id);
+                        info!("  #{} fetched '{}' ({})", k, game_entry.name, game_entry.id);
                         igdb_collection.games.push(GameDigest::from(game_entry))
                     }
                     Err(e) => error!("Failed to read from Firestore game with id={game}: {e}"),
