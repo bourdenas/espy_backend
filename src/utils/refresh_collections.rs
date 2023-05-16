@@ -9,9 +9,9 @@ use tracing::{error, info, instrument};
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
 #[derive(Parser)]
 struct Opts {
-    /// Refresh only game with specified id.
+    /// Refresh collection with specified slug (id).
     #[clap(long)]
-    id: Option<String>,
+    slug: Option<String>,
 
     /// If set, delete game entry instead of refreshing it.
     #[clap(long)]
@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
         .expect("FirestoreApi.from_credentials()");
 
-    if let Some(id) = &opts.id {
+    if let Some(id) = &opts.slug {
         match opts.delete {
             false => refresh_collection(firestore, id).await?,
             true => library::firestore::collections::delete(&firestore, id)?,

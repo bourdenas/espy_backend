@@ -133,27 +133,32 @@ impl IgdbApi {
         let result: Vec<IgdbGame> = post(
             &connection,
             GAMES_ENDPOINT,
-            &format!("fields id, name, cover, first_release_date, category, aggregated_rating; where id={id};"),
+            &format!("fields *; where id={id};"),
         )
         .await?;
 
         match result.into_iter().next() {
             Some(igdb_game) => {
-                if !igdb_game.platforms.is_empty() && !igdb_game.platforms.contains(&6) {
-                    return Err(Status::not_found(format!(
+                match igdb_game.platforms.contains(&6)
+                    || igdb_game.platforms.contains(&13)
+                    || igdb_game.platforms.contains(&14)
+                    || igdb_game.platforms.is_empty()
+                {
+                    true => {
+                        let cover = match igdb_game.cover {
+                            Some(cover_id) => get_cover(&connection, cover_id).await?,
+                            None => None,
+                        };
+
+                        let mut game_entry = GameEntry::from(igdb_game);
+                        game_entry.cover = cover;
+                        Ok(game_entry)
+                    }
+                    false => Err(Status::not_found(format!(
                         "IgdbGame '{}' is not a PC game.",
                         igdb_game.name,
-                    )));
+                    ))),
                 }
-
-                let cover = match igdb_game.cover {
-                    Some(cover_id) => get_cover(&connection, cover_id).await?,
-                    None => None,
-                };
-
-                let mut game_entry = GameEntry::from(igdb_game);
-                game_entry.cover = cover;
-                Ok(game_entry)
             }
             None => Err(Status::not_found(format!(
                 "IgdbGame with id={id} was not found."
@@ -228,7 +233,7 @@ impl IgdbApi {
         post::<Vec<IgdbGame>>(
             &connection,
             GAMES_ENDPOINT,
-            &format!("search \"{title}\"; fields *; where platforms = (6);"),
+            &format!("search \"{title}\"; fields *; where platforms = (6,13,14);"),
         )
         .await
     }

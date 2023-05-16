@@ -27,9 +27,19 @@ struct Opts {
     #[clap(long, default_value = "60")]
     updated_since: u64,
 
+    /// Collect collection with specified slug (id).
+    #[clap(long)]
+    slug: Option<String>,
+
     #[clap(long, default_value = "0")]
     offset: u64,
 
+    /// If set, look up franchises instead of collections.
+    #[clap(long)]
+    franchises: bool,
+
+    /// If set, will only count # of collections in IGDB but not try to collect
+    /// them.
     #[clap(long)]
     count: bool,
 }
@@ -57,9 +67,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let mut k = opts.offset;
     for i in 0.. {
-        let collections = igdb_batch
-            .collect_collections(updated_timestamp, opts.offset + i * 500)
-            .await?;
+        let collections = match &opts.slug {
+            Some(slug) => match opts.franchises {
+                false => igdb_batch.search_collection(slug).await?,
+                true => igdb_batch.search_franchises(slug).await?,
+            },
+            None => match opts.franchises {
+                false => {
+                    igdb_batch
+                        .collect_collections(updated_timestamp, opts.offset + i * 500)
+                        .await?
+                }
+                true => {
+                    igdb_batch
+                        .collect_franchises(updated_timestamp, opts.offset + i * 500)
+                        .await?
+                }
+            },
+        };
         if collections.len() == 0 {
             break;
         }

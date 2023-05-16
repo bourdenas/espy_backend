@@ -39,7 +39,7 @@ pub async fn get_game_with_cover(
     let result: Vec<IgdbGame> = post(
         &connection,
         GAMES_ENDPOINT,
-        &format!("fields id, name, cover, first_release_date, category, aggregated_rating; where id={id};"),
+        &format!("fields *; where id={id};"),
     )
     .await?;
 

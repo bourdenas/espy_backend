@@ -30,7 +30,7 @@ impl IgdbBatchApi {
         post::<Vec<IgdbGame>>(
             &connection,
             GAMES_ENDPOINT,
-            &format!("fields *; sort first_release_date desc; where platforms = (6) & updated_at >= {updated_since} & (follows > 3 | hypes > 3) & (category = 0 | category = 1 | category = 2 | category = 4 | category = 8 | category = 9); limit 500; offset {offset};"),
+            &format!("fields *; where platforms = (6,13,14) & updated_at >= {updated_since} & (follows > 3 | hypes > 3) & (category = 0 | category = 1 | category = 2 | category = 4 | category = 8 | category = 9); limit 500; offset {offset};"),
         )
         .await
     }
@@ -45,7 +45,18 @@ impl IgdbBatchApi {
         post::<Vec<Collection>>(
             &connection,
             COLLECTIONS_ENDPOINT,
-            &format!("fields *; sort first_release_date desc; where updated_at >= {updated_since}; limit 500; offset {offset};"),
+            &format!("fields *; where updated_at >= {updated_since}; limit 500; offset {offset};"),
+        )
+        .await
+    }
+
+    #[instrument(level = "trace", skip(self))]
+    pub async fn search_collection(&self, slug: &str) -> Result<Vec<Collection>, Status> {
+        let connection = self.service.connection()?;
+        post::<Vec<Collection>>(
+            &connection,
+            COLLECTIONS_ENDPOINT,
+            &format!("fields *; where slug = \"{slug}\"; limit 500;"),
         )
         .await
     }
@@ -60,7 +71,18 @@ impl IgdbBatchApi {
         post::<Vec<Collection>>(
             &connection,
             FRANCHISES_ENDPOINT,
-            &format!("fields *; sort first_release_date desc; where updated_at >= {updated_since}; limit 500; offset {offset};"),
+            &format!("fields *; where updated_at >= {updated_since}; limit 500; offset {offset};"),
+        )
+        .await
+    }
+
+    #[instrument(level = "trace", skip(self))]
+    pub async fn search_franchises(&self, slug: &str) -> Result<Vec<Collection>, Status> {
+        let connection = self.service.connection()?;
+        post::<Vec<Collection>>(
+            &connection,
+            FRANCHISES_ENDPOINT,
+            &format!("fields *; where slug = \"{slug}\"; limit 500;"),
         )
         .await
     }
