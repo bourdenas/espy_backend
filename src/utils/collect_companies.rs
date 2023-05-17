@@ -30,6 +30,11 @@ struct Opts {
     #[clap(long, default_value = "0")]
     offset: u64,
 
+    /// If set, build company info from scratch ignoring existing data in
+    /// Firestore.
+    #[clap(long)]
+    rebuild: bool,
+
     #[clap(long)]
     count: bool,
 }
@@ -75,28 +80,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         for company in companies {
             firestore.validate();
-            let mut igdb_company = match firestore::companies::read(&firestore, &company.slug) {
-                Ok(igdb_company) => igdb_company,
-                Err(_) => IgdbCompany {
-                    id: company.id,
-                    name: company.name,
-                    slug: company.slug,
-                    developed: vec![],
-                    published: vec![],
-                },
+            let mut igdb_company = IgdbCompany {
+                id: company.id,
+                name: company.name,
+                slug: company.slug,
+                developed: vec![],
+                published: vec![],
             };
 
-            for (input, output) in vec![
+            if !opts.rebuild {
+                if let Ok(company) = firestore::companies::read(&firestore, &igdb_company.slug) {
+                    igdb_company = company;
+                }
+            }
+
+            for (game_ids, game_digests) in vec![
                 (&company.developed, &mut igdb_company.developed),
                 (&company.published, &mut igdb_company.published),
             ] {
-                for game in input {
-                    if let Some(_) = output.iter().find(|e| e.id == *game) {
+                for game in game_ids {
+                    if let Some(_) = game_digests.iter().find(|e| e.id == *game) {
                         continue;
                     }
 
                     match firestore::games::read(&firestore, *game) {
-                        Ok(game_entry) => output.push(GameDigest::from(game_entry)),
+                        Ok(game_entry) => game_digests.push(GameDigest::from(game_entry)),
                         Err(Status::NotFound(_)) => {
                             let game_entry = match igdb.get_with_cover(*game).await {
                                 Ok(game) => game,
@@ -107,7 +115,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                             };
 
                             info!("  #{} fetched '{}' ({})", k, game_entry.name, game_entry.id);
-                            output.push(GameDigest::from(game_entry))
+                            game_digests.push(GameDigest::from(game_entry))
                         }
                         Err(e) => error!("Failed to read from Firestore game with id={game}: {e}"),
                     }
