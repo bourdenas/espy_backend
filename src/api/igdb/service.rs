@@ -238,6 +238,16 @@ impl IgdbApi {
         .await
     }
 
+    pub async fn expand_bundle(&self, bundle_id: u64) -> Result<Vec<IgdbGame>, Status> {
+        let connection = self.connection()?;
+        post::<Vec<IgdbGame>>(
+            &connection,
+            GAMES_ENDPOINT,
+            &format!("fields *; where bundles = ({bundle_id});"),
+        )
+        .await
+    }
+
     #[instrument(
         level = "trace",
         skip(self, igdb_game)

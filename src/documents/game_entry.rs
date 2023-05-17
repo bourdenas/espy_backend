@@ -109,6 +109,7 @@ pub enum GameCategory {
     Remaster,
     ExpandedGame,
     Version,
+    Bundle,
     Ignore,
 }
 
@@ -221,6 +222,7 @@ impl From<IgdbGame> for GameEntry {
                     0 => GameCategory::Main,
                     1 => GameCategory::Dlc,
                     2 => GameCategory::Expansion,
+                    3 => GameCategory::Bundle,
                     4 => GameCategory::StandaloneExpansion,
                     6 => GameCategory::Episode,
                     7 => GameCategory::Season,
@@ -257,6 +259,7 @@ impl From<&IgdbGame> for GameEntry {
                     0 => GameCategory::Main,
                     1 => GameCategory::Dlc,
                     2 => GameCategory::Expansion,
+                    3 => GameCategory::Bundle,
                     4 => GameCategory::StandaloneExpansion,
                     6 => GameCategory::Episode,
                     7 => GameCategory::Season,
