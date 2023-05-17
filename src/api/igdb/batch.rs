@@ -103,6 +103,17 @@ impl IgdbBatchApi {
     }
 
     #[instrument(level = "trace", skip(self))]
+    pub async fn search_company(&self, slug: &str) -> Result<Vec<Company>, Status> {
+        let connection = self.service.connection()?;
+        post::<Vec<Company>>(
+            &connection,
+            COMPANIES_ENDPOINT,
+            &format!("fields *; where slug = \"{slug}\"; limit 500;"),
+        )
+        .await
+    }
+
+    #[instrument(level = "trace", skip(self))]
     pub async fn collect_external_games(
         &self,
         external_source: &str,

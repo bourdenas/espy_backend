@@ -27,6 +27,10 @@ struct Opts {
     #[clap(long, default_value = "60")]
     updated_since: u64,
 
+    /// Collect company with specified slug (id).
+    #[clap(long)]
+    slug: Option<String>,
+
     #[clap(long, default_value = "0")]
     offset: u64,
 
@@ -62,12 +66,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let mut k = opts.offset;
     for i in 0.. {
-        let companies = igdb_batch
-            .collect_companies(updated_timestamp, opts.offset + i * 500)
-            .await?;
+        let companies = match &opts.slug {
+            Some(slug) => igdb_batch.search_company(slug).await?,
+            None => {
+                igdb_batch
+                    .collect_companies(updated_timestamp, opts.offset + i * 500)
+                    .await?
+            }
+        };
+
         if companies.len() == 0 {
             break;
         }
+
         info!(
             "\nWorking on {}:{}",
             opts.offset + i * 500,
