@@ -90,7 +90,7 @@ pub async fn post_match(
         // Match StoreEntry to GameEntry and add in Library.
         (Some(game_entry), None) => match manager.get_game_entry(game_entry.id).await {
             Ok(game_entry) => {
-                match manager.create_library_entry(match_op.store_entry, game_entry) {
+                match manager.create_library_entry(match_op.store_entry, vec![game_entry]) {
                     Ok(()) => Ok(StatusCode::OK),
                     Err(err) => {
                         error!("{err}");

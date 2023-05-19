@@ -129,21 +129,22 @@ impl LibraryManager {
 
     #[instrument(
         level = "trace",
-        skip(self, store_entry, game_entry)
+        skip(self, store_entry, game_entries)
         fields(
             store_game = %store_entry.title,
-            matched_game = %game_entry.name
         ),
     )]
     pub fn create_library_entry(
         &self,
         store_entry: StoreEntry,
-        game_entry: GameEntry,
+        game_entries: Vec<GameEntry>,
     ) -> Result<(), Status> {
         let firestore = &self.firestore.lock().unwrap();
         firestore::failed::remove_entry(firestore, &self.user_id, &store_entry)?;
-        firestore::wishlist::remove_entry(firestore, &self.user_id, game_entry.id)?;
-        firestore::library::add_entry(firestore, &self.user_id, store_entry, game_entry)
+        for game_entry in &game_entries {
+            firestore::wishlist::remove_entry(firestore, &self.user_id, game_entry.id)?;
+        }
+        firestore::library::add_entry(firestore, &self.user_id, store_entry, game_entries)
     }
 
     /// Unmatch a `StoreEntry` from user's library. The StoreEntry is not
@@ -186,7 +187,7 @@ impl LibraryManager {
             &store_entry,
             existing_library_entry,
         )?;
-        firestore::library::add_entry(firestore, &self.user_id, store_entry, game_entry)
+        firestore::library::add_entry(firestore, &self.user_id, store_entry, vec![game_entry])
     }
 
     #[instrument(level = "trace", skip(self))]

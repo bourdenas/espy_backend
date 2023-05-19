@@ -25,25 +25,25 @@ pub fn write(firestore: &FirestoreApi, user_id: &str, library: &Library) -> Resu
 }
 
 #[instrument(
-    name = "library::add_entry", 
+    name = "library::add_entry",
     level = "trace",
-    skip(firestore, user_id, game_entry),
-    fields(
-        game_id = %game_entry.id,
-    ),
+    skip(firestore, user_id, game_entries)
 )]
 pub fn add_entry(
     firestore: &FirestoreApi,
     user_id: &str,
     store_entry: StoreEntry,
-    game_entry: GameEntry,
+    game_entries: Vec<GameEntry>,
 ) -> Result<(), Status> {
-    let library_entry = LibraryEntry::new(game_entry, vec![store_entry]);
     let mut library = read(firestore, user_id)?;
-    if add(library_entry, &mut library) {
-        write(firestore, user_id, &library)?;
+
+    for game_entry in game_entries {
+        add(
+            LibraryEntry::new(game_entry, vec![store_entry.clone()]),
+            &mut library,
+        );
     }
-    Ok(())
+    write(firestore, user_id, &library)
 }
 
 /// NOTE: This is an odd interface to expose that has to do with particularities
@@ -66,13 +66,13 @@ pub fn add_entries(
 
     for (games, store_entry) in entries {
         for game_entry in games {
-            let library_entry = LibraryEntry::new(game_entry, vec![store_entry.clone()]);
-            add(library_entry, &mut library);
+            add(
+                LibraryEntry::new(game_entry, vec![store_entry.clone()]),
+                &mut library,
+            );
         }
     }
-    write(firestore, user_id, &library)?;
-
-    Ok(())
+    write(firestore, user_id, &library)
 }
 
 #[instrument(
