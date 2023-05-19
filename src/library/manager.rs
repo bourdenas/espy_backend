@@ -50,20 +50,29 @@ impl LibraryManager {
         for store_entry in store_entries {
             let igdb = Arc::clone(&igdb);
 
-            match self.match_entry(igdb, store_entry).await {
+            match self.match_entry(igdb, store_entry.clone()).await {
                 Ok(result) => resolved_entries.push(result),
-                Err(e) => report.lines.push(e.to_string()),
+                Err(e) => {
+                    // TODO: This needs to move somewhere else.
+                    // e.g. inside the upload_entries.
+                    firestore::failed::add_entry(
+                        &self.firestore.lock().unwrap(),
+                        &self.user_id,
+                        store_entry,
+                    )?;
+                    report.lines.push(e.to_string())
+                }
             }
 
-            // Updates progressively the user Library with resolved entries.
+            // Batch user library updates because writes on larges libraries
+            // become costly.
             if resolved_entries.len() == 10 {
-                let upload_entries = resolved_entries;
-                resolved_entries = vec![];
+                let entries = resolved_entries.drain(..).collect();
                 let firestore = Arc::clone(&self.firestore);
                 let user_id = self.user_id.clone();
                 tokio::spawn(
                     async move {
-                        if let Err(e) = Self::upload_entries(firestore, &user_id, upload_entries) {
+                        if let Err(e) = Self::upload_entries(firestore, &user_id, entries) {
                             error!("{e}");
                         }
                     }
@@ -81,18 +90,18 @@ impl LibraryManager {
     fn upload_entries(
         firestore: Arc<Mutex<FirestoreApi>>,
         user_id: &str,
-        entries: Vec<(StoreEntry, GameEntry)>,
+        entries: Vec<(Vec<GameEntry>, StoreEntry)>,
     ) -> Result<(), Status> {
         let store_entries = entries
             .iter()
-            .map(|(store_entry, _)| store_entry.clone())
+            .map(|(_, store_entry)| store_entry.clone())
             .collect();
 
         // Adds all resolved entries in the library.
         // TODO: Should also remove entries from wishlist.
         let firestore = &firestore.lock().unwrap();
-        firestore::library::add_entries(firestore, &user_id, entries)?;
-        firestore::storefront::add_entries(firestore, &user_id, store_entries)
+        firestore::library::add_entries(firestore, user_id, entries)?;
+        firestore::storefront::add_entries(firestore, user_id, store_entries)
     }
 
     #[instrument(
@@ -106,16 +115,11 @@ impl LibraryManager {
         &self,
         igdb: Arc<IgdbApi>,
         store_entry: StoreEntry,
-    ) -> Result<(StoreEntry, GameEntry), Status> {
-        match Reconciler::recon(Arc::clone(&self.firestore), &igdb, &store_entry).await? {
-            Some(game_entry) => Ok((store_entry, game_entry)),
-            None => {
-                let firestore = &self.firestore.lock().unwrap();
-                firestore::failed::add_entry(firestore, &self.user_id, store_entry.clone())?;
-                firestore::storefront::add_entry(firestore, &self.user_id, store_entry.clone())?;
-                Err(Status::not_found(store_entry.title))
-            }
-        }
+    ) -> Result<(Vec<GameEntry>, StoreEntry), Status> {
+        Ok((
+            Reconciler::recon(Arc::clone(&self.firestore), &igdb, &store_entry).await?,
+            store_entry,
+        ))
     }
 
     #[instrument(level = "trace", skip(self))]

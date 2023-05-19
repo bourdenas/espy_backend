@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::{
     api::{FirestoreApi, IgdbApi},
-    documents::{GameEntry, StoreEntry},
+    documents::{GameCategory, GameEntry, StoreEntry},
     library::firestore,
     Status,
 };
@@ -11,27 +11,39 @@ use tracing::{info, instrument};
 pub struct Reconciler;
 
 impl Reconciler {
-    /// Attempts to reconcile a `StoreEntry` with an IGDB game.
+    /// Reconcile a `StoreEntry` with IGDB games.
     ///
     /// It initially tries to use the external game table for finding the
     /// corresponding entry. If that fails it performs a search by title and
     /// matches with the best candidate.
     ///
-    /// The returned GameEntry is a shallow entry (single IGDB lookup). If
-    /// `use_base_game` is `true`, the entry returned is the base game instead
-    /// of the exact match, e.g. remastered version or expansion / DLC.
+    /// It may return multiple matched games in the case of bundles or game
+    /// versions that include expansions, DLCs, etc.
     #[instrument(level = "trace", skip(firestore, igdb, store_entry))]
     pub async fn recon(
         firestore: Arc<Mutex<FirestoreApi>>,
         igdb: &IgdbApi,
         store_entry: &StoreEntry,
-    ) -> Result<Option<GameEntry>, Status> {
-        match match_by_external_id(Arc::clone(&firestore), igdb, store_entry).await? {
-            Some(game_entry) => Ok(Some(game_entry)),
-            None => match match_by_title(firestore, igdb, &store_entry.title).await? {
-                Some(game_entry) => Ok(Some(game_entry)),
-                None => Ok(None),
+    ) -> Result<Vec<GameEntry>, Status> {
+        let game_entry =
+            match match_by_external_id(Arc::clone(&firestore), igdb, store_entry).await? {
+                Some(game_entry) => Some(game_entry),
+                None => match_by_title(firestore, igdb, &store_entry.title).await?,
+            };
+
+        match game_entry {
+            Some(game_entry) => match game_entry.category {
+                GameCategory::Bundle | GameCategory::Version => {
+                    let igdb_games = igdb.expand_bundle(game_entry.id).await?;
+                    let mut games = vec![game_entry];
+                    for game in igdb_games {
+                        games.push(igdb.get_digest(&game).await?);
+                    }
+                    Ok(games)
+                }
+                _ => Ok(vec![game_entry]),
             },
+            None => Ok(vec![]),
         }
     }
 }

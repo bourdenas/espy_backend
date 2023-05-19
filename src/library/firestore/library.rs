@@ -46,6 +46,9 @@ pub fn add_entry(
     Ok(())
 }
 
+/// NOTE: This is an odd interface to expose that has to do with particularities
+/// of how batch sync of library is working. It is only meant to be used in one
+/// particular case.
 #[instrument(
     name = "library::add_entries", 
     level = "trace",
@@ -57,13 +60,15 @@ pub fn add_entry(
 pub fn add_entries(
     firestore: &FirestoreApi,
     user_id: &str,
-    entries: Vec<(StoreEntry, GameEntry)>,
+    entries: Vec<(Vec<GameEntry>, StoreEntry)>,
 ) -> Result<(), Status> {
     let mut library = read(firestore, user_id)?;
 
-    for (store_entry, game_entry) in entries {
-        let library_entry = LibraryEntry::new(game_entry, vec![store_entry]);
-        add(library_entry, &mut library);
+    for (games, store_entry) in entries {
+        for game_entry in games {
+            let library_entry = LibraryEntry::new(game_entry, vec![store_entry.clone()]);
+            add(library_entry, &mut library);
+        }
     }
     write(firestore, user_id, &library)?;
 
