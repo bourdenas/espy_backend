@@ -84,14 +84,11 @@ async fn match_by_external_id(
                         Err(Status::NotFound(_)) => return Ok(None),
                         Err(e) => return Err(e),
                     };
-                    let game_entry = match igdb.resolve(igdb_game).await {
-                        Ok(game) => game,
-                        Err(Status::NotFound(_)) => return Ok(None),
-                        Err(e) => return Err(e),
-                    };
-                    firestore::games::write(&firestore.lock().unwrap(), &game_entry)?;
-
-                    Ok(Some(game_entry))
+                    match igdb.get_digest(&igdb_game).await {
+                        Ok(game) => Ok(Some(game)),
+                        Err(Status::NotFound(_)) => Ok(None),
+                        Err(e) => Err(e),
+                    }
                 }
                 Err(e) => Err(e),
             }
@@ -115,16 +112,11 @@ async fn match_by_title(
             let game_entry = { firestore::games::read(&firestore.lock().unwrap(), igdb_game.id) };
             match game_entry {
                 Ok(game_entry) => Ok(Some(game_entry)),
-                Err(Status::NotFound(_)) => {
-                    let game_entry = match igdb.resolve(igdb_game).await {
-                        Ok(game) => game,
-                        Err(Status::NotFound(_)) => return Ok(None),
-                        Err(e) => return Err(e),
-                    };
-                    firestore::games::write(&firestore.lock().unwrap(), &game_entry)?;
-
-                    Ok(Some(game_entry))
-                }
+                Err(Status::NotFound(_)) => match igdb.get_digest(&igdb_game).await {
+                    Ok(game) => Ok(Some(game)),
+                    Err(Status::NotFound(_)) => Ok(None),
+                    Err(e) => Err(e),
+                },
                 Err(e) => Err(e),
             }
         }
