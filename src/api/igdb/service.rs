@@ -1,5 +1,5 @@
 use crate::{
-    documents::{GameEntry, StoreEntry},
+    documents::{GameDigest, GameEntry, StoreEntry},
     games::SteamDataApi,
     util::rate_limiter::RateLimiter,
     Status,
@@ -89,6 +89,50 @@ impl IgdbApi {
         }
     }
 
+    /// Returns a GameDigest based on its IGDB `id`.
+    ///
+    /// This returns a short GameDigest that only resolves the game cover image.
+    /// Only PC games are retrieved through this API.
+    #[instrument(level = "trace", skip(self))]
+    pub async fn get_short_digest(&self, id: u64) -> Result<GameDigest, Status> {
+        let connection = self.connection()?;
+
+        let result: Vec<IgdbGame> = post(
+            &connection,
+            GAMES_ENDPOINT,
+            &format!("fields *; where id={id};"),
+        )
+        .await?;
+
+        match result.into_iter().next() {
+            Some(igdb_game) => {
+                match igdb_game.platforms.contains(&6)
+                    || igdb_game.platforms.contains(&13)
+                    || igdb_game.platforms.contains(&14)
+                    || igdb_game.platforms.is_empty()
+                {
+                    true => {
+                        let cover = match igdb_game.cover {
+                            Some(cover_id) => get_cover(&connection, cover_id).await?,
+                            None => None,
+                        };
+
+                        let mut game_entry = GameEntry::from(igdb_game);
+                        game_entry.cover = cover;
+                        Ok(GameDigest::from(game_entry))
+                    }
+                    false => Err(Status::not_found(format!(
+                        "IgdbGame '{}' is not a PC game.",
+                        igdb_game.name,
+                    ))),
+                }
+            }
+            None => Err(Status::not_found(format!(
+                "IgdbGame with id={id} was not found."
+            ))),
+        }
+    }
+
     /// Returns a GameEntry based on external id info in IGDB.
     ///
     /// The returned GameEntry is a shallow lookup. Reference ids are not
@@ -120,49 +164,6 @@ impl IgdbApi {
         match result.into_iter().next() {
             Some(external_game) => Ok(Some(GameEntry::from(self.get(external_game.game).await?))),
             None => Ok(None),
-        }
-    }
-
-    /// Returns a GameEntry based on its IGDB `id`.
-    ///
-    /// The returned GameEntry is a shallow copy but it contains a game cover image.
-    #[instrument(level = "trace", skip(self))]
-    pub async fn get_with_cover(&self, id: u64) -> Result<GameEntry, Status> {
-        let connection = self.connection()?;
-
-        let result: Vec<IgdbGame> = post(
-            &connection,
-            GAMES_ENDPOINT,
-            &format!("fields *; where id={id};"),
-        )
-        .await?;
-
-        match result.into_iter().next() {
-            Some(igdb_game) => {
-                match igdb_game.platforms.contains(&6)
-                    || igdb_game.platforms.contains(&13)
-                    || igdb_game.platforms.contains(&14)
-                    || igdb_game.platforms.is_empty()
-                {
-                    true => {
-                        let cover = match igdb_game.cover {
-                            Some(cover_id) => get_cover(&connection, cover_id).await?,
-                            None => None,
-                        };
-
-                        let mut game_entry = GameEntry::from(igdb_game);
-                        game_entry.cover = cover;
-                        Ok(game_entry)
-                    }
-                    false => Err(Status::not_found(format!(
-                        "IgdbGame '{}' is not a PC game.",
-                        igdb_game.name,
-                    ))),
-                }
-            }
-            None => Err(Status::not_found(format!(
-                "IgdbGame with id={id} was not found."
-            ))),
         }
     }
 
@@ -238,6 +239,7 @@ impl IgdbApi {
         .await
     }
 
+    #[instrument(level = "trace", skip(self))]
     pub async fn expand_bundle(&self, bundle_id: u64) -> Result<Vec<IgdbGame>, Status> {
         let connection = self.connection()?;
         post::<Vec<IgdbGame>>(
@@ -255,7 +257,7 @@ impl IgdbApi {
             game_id = %igdb_game.id,
             title = %igdb_game.name
         )
-        )]
+    )]
     pub async fn resolve(&self, igdb_game: IgdbGame) -> Result<GameEntry, Status> {
         info!(
             "Resolving in IGDB '{}' ({})",

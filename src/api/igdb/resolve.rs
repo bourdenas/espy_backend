@@ -31,11 +31,11 @@ pub async fn get_game(connection: &IgdbConnection, id: u64) -> Result<IgdbGame, 
     }
 }
 
+/// Returns a GameEntry from IGDB that can build a short GameDigest doc.
+///
+/// A short GameDigest resolves only the game cover.
 #[instrument(level = "trace", skip(connection))]
-pub async fn get_game_with_cover(
-    connection: &IgdbConnection,
-    id: u64,
-) -> Result<GameEntry, Status> {
+pub async fn get_short_digest(connection: &IgdbConnection, id: u64) -> Result<GameDigest, Status> {
     let result: Vec<IgdbGame> = post(
         &connection,
         GAMES_ENDPOINT,
@@ -52,7 +52,7 @@ pub async fn get_game_with_cover(
 
             let mut game_entry = GameEntry::from(igdb_game);
             game_entry.cover = cover;
-            Ok(game_entry)
+            Ok(GameDigest::from(game_entry))
         }
         None => Err(Status::not_found(format!(
             "IgdbGame with id={id} was not found."
@@ -173,33 +173,33 @@ pub async fn resolve_game_info(
     };
 
     if let Some(id) = parent_id {
-        if let Ok(game) = get_game_with_cover(&connection, id).await {
-            game_entry.parent = Some(GameDigest::from(game));
+        if let Ok(game) = get_short_digest(&connection, id).await {
+            game_entry.parent = Some(game);
         };
     }
     for id in igdb_game.expansions.into_iter() {
-        if let Ok(game) = get_game_with_cover(&connection, id).await {
-            game_entry.expansions.push(GameDigest::from(game));
+        if let Ok(game) = get_short_digest(&connection, id).await {
+            game_entry.expansions.push(game);
         };
     }
     for id in igdb_game.standalone_expansions.into_iter() {
-        if let Ok(game) = get_game_with_cover(&connection, id).await {
-            game_entry.expansions.push(GameDigest::from(game));
+        if let Ok(game) = get_short_digest(&connection, id).await {
+            game_entry.expansions.push(game);
         };
     }
     for id in igdb_game.dlcs.into_iter() {
-        if let Ok(game) = get_game_with_cover(&connection, id).await {
-            game_entry.dlcs.push(GameDigest::from(game));
+        if let Ok(game) = get_short_digest(&connection, id).await {
+            game_entry.dlcs.push(game);
         };
     }
     for id in igdb_game.remakes.into_iter() {
-        if let Ok(game) = get_game_with_cover(&connection, id).await {
-            game_entry.remakes.push(GameDigest::from(game));
+        if let Ok(game) = get_short_digest(&connection, id).await {
+            game_entry.remakes.push(game);
         };
     }
     for id in igdb_game.remasters.into_iter() {
-        if let Ok(game) = get_game_with_cover(&connection, id).await {
-            game_entry.remasters.push(GameDigest::from(game));
+        if let Ok(game) = get_short_digest(&connection, id).await {
+            game_entry.remasters.push(game);
         };
     }
 
