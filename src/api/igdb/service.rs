@@ -133,6 +133,14 @@ impl IgdbApi {
         }
     }
 
+    /// Returns a GameDigest for an IgdbGame.
+    ///
+    /// This returns a full GameDigest that resolves all its fields.
+    #[instrument(level = "trace", skip(self))]
+    pub async fn get_digest(&self, igdb_game: &IgdbGame) -> Result<GameEntry, Status> {
+        resolve_game_digest(self.connection()?, igdb_game).await
+    }
+
     /// Returns a GameEntry based on external id info in IGDB.
     ///
     /// The returned GameEntry is a shallow lookup. Reference ids are not
