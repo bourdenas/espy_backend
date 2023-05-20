@@ -66,15 +66,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     );
 
     if opts.expand && !games.is_empty() {
-        let igdb_game = igdb.get(games.first().unwrap().id).await?;
+        let igdb_game = games.first().unwrap();
 
+        println!("{:?}", igdb_game);
         if igdb_game.category == 3 || igdb_game.version_parent.is_some() {
             let games = igdb.expand_bundle(igdb_game.id).await?;
+            println!("\nincludes:");
             for igdb_game in games {
                 println!("{:?}", igdb_game);
             }
-        } else {
-            println!("{:?}", igdb_game);
         }
     }
 
