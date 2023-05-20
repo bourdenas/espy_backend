@@ -72,7 +72,7 @@ pub async fn post_resolve(
 
 #[instrument(
     level = "trace",
-    skip(match_op, firestore),
+    skip(match_op, firestore, igdb),
     fields(
         title = %match_op.store_entry.title,
     )
@@ -81,6 +81,7 @@ pub async fn post_match(
     user_id: String,
     match_op: models::MatchOp,
     firestore: Arc<Mutex<FirestoreApi>>,
+    igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     debug!("POST /library/{user_id}/match");
 
@@ -88,9 +89,9 @@ pub async fn post_match(
 
     match (match_op.game_entry, match_op.unmatch_entry) {
         // Match StoreEntry to GameEntry and add in Library.
-        (Some(game_entry), None) => match manager.get_game_entry(game_entry.id).await {
-            Ok(game_entry) => {
-                match manager.create_library_entry(match_op.store_entry, vec![game_entry]) {
+        (Some(game_entry), None) => match manager.get_game_entry(igdb, game_entry.id).await {
+            Ok(game_entries) => {
+                match manager.create_library_entry(match_op.store_entry, game_entries) {
                     Ok(()) => Ok(StatusCode::OK),
                     Err(err) => {
                         error!("{err}");

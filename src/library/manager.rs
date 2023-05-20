@@ -122,9 +122,13 @@ impl LibraryManager {
         ))
     }
 
-    #[instrument(level = "trace", skip(self))]
-    pub async fn get_game_entry(&self, game_id: u64) -> Result<GameEntry, Status> {
-        firestore::games::read(&self.firestore.lock().unwrap(), game_id)
+    #[instrument(level = "trace", skip(self, igdb))]
+    pub async fn get_game_entry(
+        &self,
+        igdb: Arc<IgdbApi>,
+        game_id: u64,
+    ) -> Result<Vec<GameEntry>, Status> {
+        Reconciler::retrieve(Arc::clone(&self.firestore), &igdb, game_id).await
     }
 
     #[instrument(

@@ -31,6 +31,52 @@ impl Reconciler {
                 None => match_by_title(firestore, igdb, &store_entry.title).await?,
             };
 
+        // If GameEntry is a bundle, return all GameEntries included.
+        match game_entry {
+            Some(game_entry) => match game_entry.category {
+                GameCategory::Bundle | GameCategory::Version => {
+                    let igdb_games = igdb.expand_bundle(game_entry.id).await?;
+                    let mut games = vec![game_entry];
+                    for game in igdb_games {
+                        games.push(igdb.get_digest(&game).await?);
+                    }
+                    Ok(games)
+                }
+                _ => Ok(vec![game_entry]),
+            },
+            None => Ok(vec![]),
+        }
+    }
+
+    /// Returns the GameEntry corresponding to `game_id`.
+    ///
+    /// The GameEntry returned is not fully resolved but contains all fields
+    /// necessary to build a GameDigest.
+    ///
+    /// It may return multiple matched games in the case of bundles or game
+    /// versions that include expansions, DLCs, etc.
+    #[instrument(level = "trace", skip(firestore, igdb))]
+    pub async fn retrieve(
+        firestore: Arc<Mutex<FirestoreApi>>,
+        igdb: &IgdbApi,
+        game_id: u64,
+    ) -> Result<Vec<GameEntry>, Status> {
+        let game_entry = {
+            let firestore = &firestore.lock().unwrap();
+            firestore::games::read(firestore, game_id)
+        };
+        let game_entry = match game_entry {
+            Ok(game_entry) => Some(game_entry),
+            Err(_) => match igdb.get(game_id).await {
+                Ok(igdb_game) => match igdb.get_digest(&igdb_game).await {
+                    Ok(game_entry) => Some(game_entry),
+                    Err(_) => None,
+                },
+                Err(_) => None,
+            },
+        };
+
+        // If GameEntry is a bundle, return all GameEntries included.
         match game_entry {
             Some(game_entry) => match game_entry.category {
                 GameCategory::Bundle | GameCategory::Version => {
