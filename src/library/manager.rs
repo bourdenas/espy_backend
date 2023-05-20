@@ -151,17 +151,14 @@ impl LibraryManager {
         firestore::library::add_entry(firestore, &self.user_id, store_entry, game_entries)
     }
 
-    /// Unmatch a `StoreEntry` from user's library. The StoreEntry is not
-    /// deleted. Instead it is moved into the failed matches.
-    #[instrument(level = "trace", skip(self, library_entry))]
-    pub async fn unmatch_game(
-        &self,
-        store_entry: StoreEntry,
-        library_entry: &LibraryEntry,
-        delete: bool,
-    ) -> Result<(), Status> {
+    /// Unmatch a `StoreEntry` from user's library.
+    ///
+    /// If `delete` is false, the StoreEntry is not deleted, but instead moved
+    /// to failed matches.
+    #[instrument(level = "trace", skip(self))]
+    pub async fn unmatch_game(&self, store_entry: StoreEntry, delete: bool) -> Result<(), Status> {
         let firestore = &self.firestore.lock().unwrap();
-        firestore::library::remove_entry(firestore, &self.user_id, &store_entry, library_entry)?;
+        firestore::library::remove_entry(firestore, &self.user_id, &store_entry)?;
         match delete {
             false => firestore::failed::add_entry(firestore, &self.user_id, store_entry),
             true => firestore::storefront::remove(firestore, &self.user_id, &store_entry),
@@ -170,7 +167,7 @@ impl LibraryManager {
 
     #[instrument(
         level = "trace",
-        skip(self, store_entry, game_entry)
+        skip(self, igdb, store_entry, game_entry)
         fields(
             store_game = %store_entry.title,
             matched_game = %game_entry.name
@@ -178,20 +175,15 @@ impl LibraryManager {
     )]
     pub async fn rematch_game(
         &self,
+        igdb: Arc<IgdbApi>,
         store_entry: StoreEntry,
         game_entry: GameEntry,
-        existing_library_entry: &LibraryEntry,
     ) -> Result<(), Status> {
-        let firestore = &self.firestore.lock().unwrap();
+        let game_entry = self.get_game_entry(igdb, game_entry.id).await?;
 
-        let game_entry = firestore::games::read(firestore, game_entry.id)?;
-        firestore::library::remove_entry(
-            firestore,
-            &self.user_id,
-            &store_entry,
-            existing_library_entry,
-        )?;
-        firestore::library::add_entry(firestore, &self.user_id, store_entry, vec![game_entry])
+        let firestore = &self.firestore.lock().unwrap();
+        firestore::library::remove_entry(firestore, &self.user_id, &store_entry)?;
+        firestore::library::add_entry(firestore, &self.user_id, store_entry, game_entry)
     }
 
     #[instrument(level = "trace", skip(self))]

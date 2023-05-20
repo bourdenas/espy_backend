@@ -105,13 +105,9 @@ pub async fn post_match(
             }
         },
         // Remove StoreEntry from Library.
-        (None, Some(library_entry)) => {
+        (None, Some(_library_entry)) => {
             match manager
-                .unmatch_game(
-                    match_op.store_entry.clone(),
-                    &library_entry,
-                    match_op.delete_unmatched,
-                )
+                .unmatch_game(match_op.store_entry, match_op.delete_unmatched)
                 .await
             {
                 Ok(()) => Ok(StatusCode::OK),
@@ -122,9 +118,9 @@ pub async fn post_match(
             }
         }
         // Match StoreEntry with a different GameEntry.
-        (Some(game_entry), Some(library_entry)) => {
+        (Some(game_entry), Some(_library_entry)) => {
             match manager
-                .rematch_game(match_op.store_entry, game_entry, &library_entry)
+                .rematch_game(igdb, match_op.store_entry, game_entry)
                 .await
             {
                 Ok(()) => Ok(StatusCode::OK),
