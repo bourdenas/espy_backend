@@ -128,7 +128,7 @@ impl LibraryManager {
         igdb: Arc<IgdbApi>,
         game_id: u64,
     ) -> Result<Vec<GameEntry>, Status> {
-        Reconciler::retrieve(Arc::clone(&self.firestore), &igdb, game_id).await
+        Reconciler::recon_by_id(Arc::clone(&self.firestore), &igdb, game_id).await
     }
 
     #[instrument(

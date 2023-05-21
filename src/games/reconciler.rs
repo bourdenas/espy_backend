@@ -28,22 +28,11 @@ impl Reconciler {
         let game_entry =
             match match_by_external_id(Arc::clone(&firestore), igdb, store_entry).await? {
                 Some(game_entry) => Some(game_entry),
-                None => match_by_title(firestore, igdb, &store_entry.title).await?,
+                None => match_by_title(Arc::clone(&firestore), igdb, &store_entry.title).await?,
             };
 
-        // If GameEntry is a bundle, return all GameEntries included.
         match game_entry {
-            Some(game_entry) => match game_entry.category {
-                GameCategory::Bundle | GameCategory::Version => {
-                    let igdb_games = igdb.expand_bundle(game_entry.id).await?;
-                    let mut games = vec![game_entry];
-                    for game in igdb_games {
-                        games.push(igdb.get_digest(&game).await?);
-                    }
-                    Ok(games)
-                }
-                _ => Ok(vec![game_entry]),
-            },
+            Some(game_entry) => Reconciler::expand_bundle(firestore, igdb, game_entry).await,
             None => Ok(vec![]),
         }
     }
@@ -56,7 +45,7 @@ impl Reconciler {
     /// It may return multiple matched games in the case of bundles or game
     /// versions that include expansions, DLCs, etc.
     #[instrument(level = "trace", skip(firestore, igdb))]
-    pub async fn retrieve(
+    pub async fn recon_by_id(
         firestore: Arc<Mutex<FirestoreApi>>,
         igdb: &IgdbApi,
         game_id: u64,
@@ -76,20 +65,59 @@ impl Reconciler {
             },
         };
 
-        // If GameEntry is a bundle, return all GameEntries included.
         match game_entry {
-            Some(game_entry) => match game_entry.category {
-                GameCategory::Bundle | GameCategory::Version => {
-                    let igdb_games = igdb.expand_bundle(game_entry.id).await?;
-                    let mut games = vec![game_entry];
-                    for game in igdb_games {
-                        games.push(igdb.get_digest(&game).await?);
-                    }
-                    Ok(games)
-                }
-                _ => Ok(vec![game_entry]),
-            },
+            Some(game_entry) => Reconciler::expand_bundle(firestore, igdb, game_entry).await,
             None => Ok(vec![]),
+        }
+    }
+
+    async fn retrieve(
+        firestore: Arc<Mutex<FirestoreApi>>,
+        igdb: &IgdbApi,
+        game_id: u64,
+    ) -> Result<GameEntry, Status> {
+        let game_entry = {
+            let firestore = &firestore.lock().unwrap();
+            firestore::games::read(firestore, game_id)
+        };
+        info!("    Fetching {game_id}");
+        match game_entry {
+            Ok(game_entry) => Ok(game_entry),
+            Err(_) => match igdb.get(game_id).await {
+                Ok(igdb_game) => igdb.get_digest(&igdb_game).await,
+                Err(e) => Err(e),
+            },
+        }
+    }
+
+    /// If the GameEntry is a bundle it returns all GameEntries included in it.
+    pub async fn expand_bundle(
+        firestore: Arc<Mutex<FirestoreApi>>,
+        igdb: &IgdbApi,
+        game_entry: GameEntry,
+    ) -> Result<Vec<GameEntry>, Status> {
+        match game_entry.category {
+            GameCategory::Bundle | GameCategory::Version => {
+                let igdb_games = igdb.expand_bundle(game_entry.id).await?;
+                info!(
+                    "  Expanded '{}' to {} games",
+                    game_entry.name,
+                    igdb_games.len()
+                );
+                let mut games = vec![game_entry];
+                if igdb_games.is_empty() {
+                    if let Some(parent) = &games.first().unwrap().parent {
+                        games.push(
+                            Reconciler::retrieve(Arc::clone(&firestore), igdb, parent.id).await?,
+                        );
+                    }
+                }
+                for game in igdb_games {
+                    games.push(Reconciler::retrieve(Arc::clone(&firestore), igdb, game.id).await?);
+                }
+                Ok(games)
+            }
+            _ => Ok(vec![game_entry]),
         }
     }
 }
