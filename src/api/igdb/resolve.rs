@@ -219,19 +219,6 @@ pub async fn get_cover(connection: &IgdbConnection, id: u64) -> Result<Option<Im
     Ok(result.into_iter().next())
 }
 
-/// Returns game image cover based on id from the igdb/covers endpoint.
-#[instrument(level = "trace", skip(connection))]
-async fn get_company_logo(connection: &IgdbConnection, id: u64) -> Result<Option<Image>, Status> {
-    let result: Vec<Image> = post(
-        connection,
-        COMPANY_LOGOS_ENDPOINT,
-        &format!("fields *; where id={id};"),
-    )
-    .await?;
-
-    Ok(result.into_iter().next())
-}
-
 /// Returns game genres based on id from the igdb/genres endpoint.
 #[instrument(level = "trace", skip(connection))]
 async fn get_genres(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<String>, Status> {
@@ -444,10 +431,7 @@ async fn get_companies(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<C
                     },
                 },
             },
-            logo: match company.logo {
-                Some(logo) => get_company_logo(&connection, logo).await?,
-                None => None,
-            },
+            logo: None,
         });
     }
 
@@ -462,7 +446,6 @@ pub const COMPANIES_ENDPOINT: &str = "companies";
 pub const GENRES_ENDPOINT: &str = "genres";
 pub const KEYWORDS_ENDPOINT: &str = "keywords";
 const COVERS_ENDPOINT: &str = "covers";
-const COMPANY_LOGOS_ENDPOINT: &str = "company_logos";
 const ARTWORKS_ENDPOINT: &str = "artworks";
 const SCREENSHOTS_ENDPOINT: &str = "screenshots";
 const WEBSITES_ENDPOINT: &str = "websites";
