@@ -1,4 +1,4 @@
-use crate::Status;
+use crate::{documents::Keyword, Status};
 use tracing::instrument;
 
 use super::{
@@ -6,7 +6,7 @@ use super::{
     docs::{Collection, Company, ExternalGame},
     resolve::{
         COLLECTIONS_ENDPOINT, COMPANIES_ENDPOINT, EXTERNAL_GAMES_ENDPOINT, FRANCHISES_ENDPOINT,
-        GAMES_ENDPOINT,
+        GAMES_ENDPOINT, KEYWORDS_ENDPOINT,
     },
     IgdbApi, IgdbGame,
 };
@@ -109,6 +109,21 @@ impl IgdbBatchApi {
             &connection,
             COMPANIES_ENDPOINT,
             &format!("fields *; where slug = \"{slug}\"; limit 500;"),
+        )
+        .await
+    }
+
+    #[instrument(level = "trace", skip(self))]
+    pub async fn collect_keywords(
+        &self,
+        updated_since: u64,
+        offset: u64,
+    ) -> Result<Vec<Keyword>, Status> {
+        let connection = self.service.connection()?;
+        post::<Vec<Keyword>>(
+            &connection,
+            KEYWORDS_ENDPOINT,
+            &format!("fields *; where updated_at >= {updated_since}; limit 500; offset {offset};"),
         )
         .await
     }

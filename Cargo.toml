@@ -26,6 +26,10 @@ name = "collect_games"
 path = "src/utils/collect_games.rs"
 
 [[bin]] 
+name = "collect_keywords"
+path = "src/utils/collect_keywords.rs"
+
+[[bin]] 
 name = "sync_library"
 path = "src/utils/sync_library.rs"
 
