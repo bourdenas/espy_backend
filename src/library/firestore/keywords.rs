@@ -8,7 +8,7 @@ pub fn list(firestore: &FirestoreApi) -> Result<Vec<Keyword>, Status> {
     firestore.list(&format!("keywords"))
 }
 
-/// Returns an Keyword doc based on its `slug` from Firestore.
+/// Returns an Keyword doc based on its `id` from Firestore.
 #[instrument(name = "keywords::read", level = "trace", skip(firestore))]
 pub fn read(firestore: &FirestoreApi, id: u64) -> Result<Keyword, Status> {
     firestore.read::<Keyword>("keywords", &id.to_string())

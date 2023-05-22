@@ -26,6 +26,10 @@ name = "collect_games"
 path = "src/utils/collect_games.rs"
 
 [[bin]] 
+name = "collect_genres"
+path = "src/utils/collect_genres.rs"
+
+[[bin]] 
 name = "collect_keywords"
 path = "src/utils/collect_keywords.rs"
 

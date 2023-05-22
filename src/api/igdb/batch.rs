@@ -1,4 +1,7 @@
-use crate::{documents::Keyword, Status};
+use crate::{
+    documents::{Genre, Keyword},
+    Status,
+};
 use tracing::instrument;
 
 use super::{
@@ -6,7 +9,7 @@ use super::{
     docs::{Collection, Company, ExternalGame},
     resolve::{
         COLLECTIONS_ENDPOINT, COMPANIES_ENDPOINT, EXTERNAL_GAMES_ENDPOINT, FRANCHISES_ENDPOINT,
-        GAMES_ENDPOINT, KEYWORDS_ENDPOINT,
+        GAMES_ENDPOINT, GENRES_ENDPOINT, KEYWORDS_ENDPOINT,
     },
     IgdbApi, IgdbGame,
 };
@@ -109,6 +112,17 @@ impl IgdbBatchApi {
             &connection,
             COMPANIES_ENDPOINT,
             &format!("fields *; where slug = \"{slug}\"; limit 500;"),
+        )
+        .await
+    }
+
+    #[instrument(level = "trace", skip(self))]
+    pub async fn collect_genres(&self) -> Result<Vec<Genre>, Status> {
+        let connection = self.service.connection()?;
+        post::<Vec<Genre>>(
+            &connection,
+            GENRES_ENDPOINT,
+            &format!("fields *; limit 500;"),
         )
         .await
     }
