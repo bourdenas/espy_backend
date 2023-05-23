@@ -1,7 +1,7 @@
 use crate::{
     api::{FirestoreApi, IgdbApi},
     http::models,
-    library::{firestore, LibraryManager, User},
+    library::{LibraryManager, User},
     util, Status,
 };
 use std::{
@@ -51,13 +51,7 @@ pub async fn post_resolve(
 
     match igdb.get(resolve.game_id).await {
         Ok(igdb_game) => match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
-            Ok(game_entry) => {
-                if let Err(e) = firestore::games::write(&firestore.lock().unwrap(), &game_entry) {
-                    error!("Failed to save '{}' in Firestore: {e}", game_entry.name);
-                }
-
-                Ok(StatusCode::OK)
-            }
+            Ok(_) => Ok(StatusCode::OK),
             Err(e) => {
                 error!("POST resolve: {e}");
                 Ok(StatusCode::INTERNAL_SERVER_ERROR)

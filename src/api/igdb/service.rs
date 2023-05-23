@@ -2,6 +2,7 @@ use crate::{
     api::FirestoreApi,
     documents::{GameDigest, GameEntry, StoreEntry},
     games::SteamDataApi,
+    library::firestore,
     util::rate_limiter::RateLimiter,
     Status,
 };
@@ -287,12 +288,17 @@ impl IgdbApi {
         let connection = self.connection()?;
 
         let mut game_entry =
-            resolve_game_digest(Arc::clone(&connection), firestore, &igdb_game).await?;
+            resolve_game_digest(Arc::clone(&connection), Arc::clone(&firestore), &igdb_game)
+                .await?;
         resolve_game_info(connection, igdb_game, &mut game_entry).await?;
 
         let steam = SteamDataApi::new();
         if let Err(e) = steam.retrieve_steam_data(&mut game_entry).await {
             error!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
+        }
+
+        if let Err(e) = firestore::games::write(&firestore.lock().unwrap(), &game_entry) {
+            error!("Failed to save '{}' in Firestore: {e}", game_entry.name);
         }
 
         Ok(game_entry)

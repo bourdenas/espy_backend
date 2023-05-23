@@ -4,7 +4,7 @@ use std::{
 };
 
 use clap::Parser;
-use espy_backend::{api, games, library::firestore, util, Tracing};
+use espy_backend::{api, util, Tracing};
 use tracing::{error, info};
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
@@ -43,8 +43,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     igdb.connect().await?;
     let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
 
-    let steam = games::SteamDataApi::new();
-
     let firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
         .expect("FirestoreApi.from_credentials()");
 
@@ -75,27 +73,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
 
         for igdb_game in games {
-            let mut game_entry = match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
-                Ok(game_entry) => game_entry,
-                Err(e) => {
-                    error!("{e}");
-                    k += 1;
-                    continue;
-                }
-            };
-
-            if let Err(e) = steam.retrieve_steam_data(&mut game_entry).await {
-                error!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
-            }
-
             {
                 let mut firestore = firestore.lock().unwrap();
                 firestore.validate();
             }
-            if let Err(e) = firestore::games::write(&firestore.lock().unwrap(), &game_entry) {
-                error!("Failed to save '{}' in Firestore: {e}", game_entry.name);
+            match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
+                Ok(game_entry) => {
+                    info!("#{} Resolved '{}' ({})", k, game_entry.name, game_entry.id)
+                }
+                Err(e) => error!("{e}"),
             }
-            info!("#{} Resolved '{}' ({})", k, game_entry.name, game_entry.id);
+
             k += 1;
         }
     }
