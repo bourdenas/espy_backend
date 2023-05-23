@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use clap::Parser;
 use espy_backend::{api::FirestoreApi, library::firestore, *};
 use tracing::{error, info, instrument};
@@ -80,7 +82,7 @@ async fn refresh_entries(
 }
 
 async fn refresh(
-    mut firestore: FirestoreApi,
+    firestore: FirestoreApi,
     game_entries: Vec<documents::GameEntry>,
     igdb: api::IgdbApi,
     steam: games::SteamDataApi,
@@ -88,9 +90,13 @@ async fn refresh(
     info!("Updating {} game entries...", game_entries.len());
     let mut k = 0;
 
+    let firestore = Arc::new(Mutex::new(firestore));
     for game_entry in game_entries {
         info!("#{k} Updating {} ({})", &game_entry.name, game_entry.id);
-        firestore.validate();
+        {
+            let mut firestore = firestore.lock().unwrap();
+            firestore.validate();
+        }
 
         let igdb_game = match igdb.get(game_entry.id).await {
             Ok(game) => game,
@@ -101,7 +107,7 @@ async fn refresh(
             }
         };
 
-        let mut game_entry = match igdb.resolve(igdb_game).await {
+        let mut game_entry = match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
             Ok(game_entry) => game_entry,
             Err(e) => {
                 error!("{e}");
@@ -114,7 +120,7 @@ async fn refresh(
             error!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
         }
 
-        if let Err(e) = firestore::games::write(&firestore, &game_entry) {
+        if let Err(e) = firestore::games::write(&firestore.lock().unwrap(), &game_entry) {
             error!("Failed to save '{}' in Firestore: {e}", game_entry.name);
         }
         k += 1;

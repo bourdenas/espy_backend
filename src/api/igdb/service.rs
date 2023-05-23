@@ -1,11 +1,15 @@
 use crate::{
+    api::FirestoreApi,
     documents::{GameDigest, GameEntry, StoreEntry},
     games::SteamDataApi,
     util::rate_limiter::RateLimiter,
     Status,
 };
 use serde::{Deserialize, Serialize};
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use tracing::{error, info, instrument, trace_span, Instrument};
 
 use super::{
@@ -136,9 +140,13 @@ impl IgdbApi {
     /// Returns a GameDigest for an IgdbGame.
     ///
     /// This returns a full GameDigest that resolves all its fields.
-    #[instrument(level = "trace", skip(self))]
-    pub async fn get_digest(&self, igdb_game: &IgdbGame) -> Result<GameEntry, Status> {
-        resolve_game_digest(self.connection()?, igdb_game).await
+    #[instrument(level = "trace", skip(self, firestore))]
+    pub async fn get_digest(
+        &self,
+        firestore: Arc<Mutex<FirestoreApi>>,
+        igdb_game: &IgdbGame,
+    ) -> Result<GameEntry, Status> {
+        resolve_game_digest(self.connection()?, firestore, igdb_game).await
     }
 
     /// Returns a GameEntry based on external id info in IGDB.
@@ -260,13 +268,17 @@ impl IgdbApi {
 
     #[instrument(
         level = "trace",
-        skip(self, igdb_game)
+        skip(self, firestore, igdb_game)
         fields(
             game_id = %igdb_game.id,
             title = %igdb_game.name
         )
     )]
-    pub async fn resolve(&self, igdb_game: IgdbGame) -> Result<GameEntry, Status> {
+    pub async fn resolve(
+        &self,
+        firestore: Arc<Mutex<FirestoreApi>>,
+        igdb_game: IgdbGame,
+    ) -> Result<GameEntry, Status> {
         info!(
             "Resolving in IGDB '{}' ({})",
             &igdb_game.name, &igdb_game.id
@@ -274,7 +286,8 @@ impl IgdbApi {
 
         let connection = self.connection()?;
 
-        let mut game_entry = resolve_game_digest(Arc::clone(&connection), &igdb_game).await?;
+        let mut game_entry =
+            resolve_game_digest(Arc::clone(&connection), firestore, &igdb_game).await?;
         resolve_game_info(connection, igdb_game, &mut game_entry).await?;
 
         let steam = SteamDataApi::new();

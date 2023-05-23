@@ -1,15 +1,21 @@
 use crate::{
+    api::FirestoreApi,
     documents::{
         Collection, CollectionType, Company, CompanyRole, GameDigest, GameEntry, Image, Website,
         WebsiteAuthority,
     },
+    library::firestore,
     Status,
 };
 use async_recursion::async_recursion;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tracing::instrument;
 
-use super::{backend::post, docs, IgdbConnection, IgdbGame};
+use super::{
+    backend::post,
+    docs::{self, InvolvedCompany},
+    IgdbConnection, IgdbGame,
+};
 
 /// Returns an IgdbGame doc from IGDB for given game `id`.
 ///
@@ -63,7 +69,7 @@ pub async fn get_short_digest(connection: &IgdbConnection, id: u64) -> Result<Ga
 /// Returns a GameEntry from IGDB that can build the GameDigest doc.
 #[instrument(
     level = "trace",
-    skip(connection, igdb_game)
+    skip(connection, firestore, igdb_game)
     fields(
         game_id = %igdb_game.id,
         game_name = %igdb_game.name,
@@ -71,6 +77,7 @@ pub async fn get_short_digest(connection: &IgdbConnection, id: u64) -> Result<Ga
 )]
 pub async fn resolve_game_digest(
     connection: Arc<IgdbConnection>,
+    firestore: Arc<Mutex<FirestoreApi>>,
     igdb_game: &IgdbGame,
 ) -> Result<GameEntry, Status> {
     let mut game_entry = GameEntry::from(igdb_game);
@@ -80,10 +87,12 @@ pub async fn resolve_game_digest(
     }
 
     if !igdb_game.genres.is_empty() {
-        game_entry.genres = get_genres(&connection, &igdb_game.genres).await?;
+        game_entry.genres =
+            get_genres(&connection, Arc::clone(&firestore), &igdb_game.genres).await?;
     }
     if !igdb_game.keywords.is_empty() {
-        game_entry.keywords = get_keywords(&connection, &igdb_game.keywords).await?;
+        game_entry.keywords =
+            get_keywords(&connection, Arc::clone(&firestore), &igdb_game.keywords).await?;
     }
 
     if let Some(collection) = igdb_game.collection {
@@ -98,7 +107,12 @@ pub async fn resolve_game_digest(
     }
 
     if !igdb_game.involved_companies.is_empty() {
-        let companies = get_companies(&connection, &igdb_game.involved_companies).await?;
+        let companies = get_involved_companies(
+            &connection,
+            Arc::clone(&firestore),
+            &igdb_game.involved_companies,
+        )
+        .await?;
         game_entry.developers = companies
             .iter()
             .filter(|company| match company.role {
@@ -220,43 +234,81 @@ pub async fn get_cover(connection: &IgdbConnection, id: u64) -> Result<Option<Im
 }
 
 /// Returns game genres based on id from the igdb/genres endpoint.
-#[instrument(level = "trace", skip(connection))]
-async fn get_genres(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<String>, Status> {
-    Ok(post::<Vec<docs::Annotation>>(
-        connection,
-        GENRES_ENDPOINT,
-        &format!(
-            "fields *; where id = ({});",
-            ids.iter()
-                .map(|id| id.to_string())
-                .collect::<Vec<String>>()
-                .join(",")
-        ),
-    )
-    .await?
-    .into_iter()
-    .map(|genre| genre.name)
-    .collect())
+#[instrument(level = "trace", skip(connection, firestore))]
+async fn get_genres(
+    connection: &IgdbConnection,
+    firestore: Arc<Mutex<FirestoreApi>>,
+    ids: &[u64],
+) -> Result<Vec<String>, Status> {
+    let mut genres = vec![];
+    let mut missing = vec![];
+    for id in ids {
+        match firestore::genres::read(&firestore.lock().unwrap(), *id) {
+            Ok(genre) => genres.push(genre.name),
+            Err(_) => missing.push(id),
+        }
+    }
+
+    if !missing.is_empty() {
+        genres.extend(
+            post::<Vec<docs::Annotation>>(
+                connection,
+                GENRES_ENDPOINT,
+                &format!(
+                    "fields *; where id = ({});",
+                    missing
+                        .into_iter()
+                        .map(|id| id.to_string())
+                        .collect::<Vec<String>>()
+                        .join(",")
+                ),
+            )
+            .await?
+            .into_iter()
+            .map(|genre| genre.name),
+        );
+    }
+
+    Ok(genres)
 }
 
 /// Returns game keywords based on id from the igdb/keywords endpoint.
-#[instrument(level = "trace", skip(connection))]
-async fn get_keywords(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<String>, Status> {
-    Ok(post::<Vec<docs::Annotation>>(
-        connection,
-        KEYWORDS_ENDPOINT,
-        &format!(
-            "fields *; where id = ({});",
-            ids.iter()
-                .map(|id| id.to_string())
-                .collect::<Vec<String>>()
-                .join(",")
-        ),
-    )
-    .await?
-    .into_iter()
-    .map(|genre| genre.name)
-    .collect())
+#[instrument(level = "trace", skip(connection, firestore))]
+async fn get_keywords(
+    connection: &IgdbConnection,
+    firestore: Arc<Mutex<FirestoreApi>>,
+    ids: &[u64],
+) -> Result<Vec<String>, Status> {
+    let mut keywords = vec![];
+    let mut missing = vec![];
+    for id in ids {
+        match firestore::keywords::read(&firestore.lock().unwrap(), *id) {
+            Ok(kw) => keywords.push(kw.name),
+            Err(_) => missing.push(id),
+        }
+    }
+
+    if !missing.is_empty() {
+        keywords.extend(
+            post::<Vec<docs::Annotation>>(
+                connection,
+                KEYWORDS_ENDPOINT,
+                &format!(
+                    "fields *; where id = ({});",
+                    missing
+                        .iter()
+                        .map(|id| id.to_string())
+                        .collect::<Vec<String>>()
+                        .join(",")
+                ),
+            )
+            .await?
+            .into_iter()
+            .map(|keyword| keyword.name),
+        );
+    }
+
+    Ok(keywords)
 }
 
 /// Returns game screenshots based on id from the igdb/screenshots endpoint.
@@ -367,9 +419,29 @@ async fn get_franchises(
         .collect())
 }
 
+fn get_role(involved_company: &InvolvedCompany) -> CompanyRole {
+    match involved_company.developer {
+        true => CompanyRole::Developer,
+        false => match involved_company.publisher {
+            true => CompanyRole::Publisher,
+            false => match involved_company.porting {
+                true => CompanyRole::Porting,
+                false => match involved_company.supporting {
+                    true => CompanyRole::Support,
+                    false => CompanyRole::Unknown,
+                },
+            },
+        },
+    }
+}
+
 /// Returns game companies involved in the making of the game.
-#[instrument(level = "trace", skip(connection))]
-async fn get_companies(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<Company>, Status> {
+#[instrument(level = "trace", skip(connection, firestore))]
+async fn get_involved_companies(
+    connection: &IgdbConnection,
+    firestore: Arc<Mutex<FirestoreApi>>,
+    ids: &[u64],
+) -> Result<Vec<Company>, Status> {
     // Collect all involved companies for a game entry.
     let involved_companies: Vec<docs::InvolvedCompany> = post(
         &connection,
@@ -384,55 +456,54 @@ async fn get_companies(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<C
     )
     .await?;
 
-    // Collect company data for involved companies.
-    let igdb_companies = post::<Vec<docs::Company>>(
-        &connection,
-        COMPANIES_ENDPOINT,
-        &format!(
-            "fields *; where id = ({});",
-            involved_companies
-                .iter()
-                .map(|ic| match &ic.company {
-                    Some(c) => c.to_string(),
-                    None => "".to_string(),
-                })
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
-    )
-    .await?;
-
     let mut companies = vec![];
-    for company in igdb_companies {
-        if company.name.is_empty() {
-            continue;
+    let mut missing = vec![];
+
+    for involved_company in &involved_companies {
+        if let Some(id) = involved_company.company {
+            match firestore::companies::search(&firestore.lock().unwrap(), id) {
+                Ok(igdb_companies) => {
+                    companies.extend(igdb_companies.into_iter().map(|c| Company {
+                        id: c.id,
+                        name: c.name,
+                        slug: c.slug,
+                        role: get_role(involved_company),
+                    }))
+                }
+                Err(_) => missing.push(id),
+            }
         }
+    }
 
-        let ic = involved_companies
-            .iter()
-            .filter(|ic| ic.company.is_some())
-            .find(|ic| ic.company.unwrap() == company.id)
-            .expect("Failed to find company in involved companies.");
-
-        companies.push(Company {
-            id: company.id,
-            name: company.name,
-            slug: company.slug,
-            role: match ic.developer {
-                true => CompanyRole::Developer,
-                false => match ic.publisher {
-                    true => CompanyRole::Publisher,
-                    false => match ic.porting {
-                        true => CompanyRole::Porting,
-                        false => match ic.supporting {
-                            true => CompanyRole::Support,
-                            false => CompanyRole::Unknown,
-                        },
-                    },
+    if !missing.is_empty() {
+        companies.extend(
+            post::<Vec<docs::Company>>(
+                &connection,
+                COMPANIES_ENDPOINT,
+                &format!(
+                    "fields *; where id = ({});",
+                    missing
+                        .into_iter()
+                        .map(|id| id.to_string())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                ),
+            )
+            .await?
+            .into_iter()
+            .map(|c| Company {
+                id: c.id,
+                name: c.name,
+                slug: c.slug,
+                role: match involved_companies.iter().find(|ic| match ic.company {
+                    Some(cid) => cid == c.id,
+                    None => false,
+                }) {
+                    Some(ic) => get_role(ic),
+                    None => CompanyRole::Unknown,
                 },
-            },
-            logo: None,
-        });
+            }),
+        );
     }
 
     Ok(companies)

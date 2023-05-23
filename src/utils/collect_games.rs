@@ -1,4 +1,7 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{
+    sync::{Arc, Mutex},
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use clap::Parser;
 use espy_backend::{api, games, library::firestore, util, Tracing};
@@ -42,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let steam = games::SteamDataApi::new();
 
-    let mut firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
+    let firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
         .expect("FirestoreApi.from_credentials()");
 
     let updated_timestamp = SystemTime::now()
@@ -53,6 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .as_secs();
 
     let mut k = opts.offset;
+    let firestore = Arc::new(Mutex::new(firestore));
     for i in 0.. {
         let games = igdb_batch
             .collect_igdb_games(updated_timestamp, opts.offset + i * 500)
@@ -71,7 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
 
         for igdb_game in games {
-            let mut game_entry = match igdb.resolve(igdb_game).await {
+            let mut game_entry = match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
                 Ok(game_entry) => game_entry,
                 Err(e) => {
                     error!("{e}");
@@ -84,8 +88,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 error!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
             }
 
-            firestore.validate();
-            if let Err(e) = firestore::games::write(&firestore, &game_entry) {
+            {
+                let mut firestore = firestore.lock().unwrap();
+                firestore.validate();
+            }
+            if let Err(e) = firestore::games::write(&firestore.lock().unwrap(), &game_entry) {
                 error!("Failed to save '{}' in Firestore: {e}", game_entry.name);
             }
             info!("#{} Resolved '{}' ({})", k, game_entry.name, game_entry.id);

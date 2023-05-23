@@ -136,10 +136,6 @@ pub struct Company {
 
     #[serde(default)]
     pub role: CompanyRole,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub logo: Option<Image>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

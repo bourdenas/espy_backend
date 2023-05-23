@@ -50,7 +50,7 @@ pub async fn post_resolve(
     info!("POST /resolve");
 
     match igdb.get(resolve.game_id).await {
-        Ok(igdb_game) => match igdb.resolve(igdb_game).await {
+        Ok(igdb_game) => match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
             Ok(game_entry) => {
                 if let Err(e) = firestore::games::write(&firestore.lock().unwrap(), &game_entry) {
                     error!("Failed to save '{}' in Firestore: {e}", game_entry.name);
