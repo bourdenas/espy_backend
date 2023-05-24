@@ -25,27 +25,30 @@ pub fn write(firestore: &FirestoreApi, user_id: &str, library: &Library) -> Resu
 }
 
 #[instrument(
-    name = "library::add_entry", 
+    name = "library::add_entry",
     level = "trace",
-    skip(firestore, user_id, game_entry),
-    fields(
-        game_id = %game_entry.id,
-    ),
+    skip(firestore, user_id, game_entries)
 )]
 pub fn add_entry(
     firestore: &FirestoreApi,
     user_id: &str,
     store_entry: StoreEntry,
-    game_entry: GameEntry,
+    game_entries: Vec<GameEntry>,
 ) -> Result<(), Status> {
-    let library_entry = LibraryEntry::new(game_entry, vec![store_entry]);
     let mut library = read(firestore, user_id)?;
-    if add(library_entry, &mut library) {
-        write(firestore, user_id, &library)?;
+
+    for game_entry in game_entries {
+        add(
+            LibraryEntry::new(game_entry, vec![store_entry.clone()]),
+            &mut library,
+        );
     }
-    Ok(())
+    write(firestore, user_id, &library)
 }
 
+/// NOTE: This is an odd interface to expose that has to do with particularities
+/// of how batch sync of library is working. It is only meant to be used in one
+/// particular case.
 #[instrument(
     name = "library::add_entries", 
     level = "trace",
@@ -57,35 +60,33 @@ pub fn add_entry(
 pub fn add_entries(
     firestore: &FirestoreApi,
     user_id: &str,
-    entries: Vec<(StoreEntry, GameEntry)>,
+    entries: Vec<(Vec<GameEntry>, StoreEntry)>,
 ) -> Result<(), Status> {
     let mut library = read(firestore, user_id)?;
 
-    for (store_entry, game_entry) in entries {
-        let library_entry = LibraryEntry::new(game_entry, vec![store_entry]);
-        add(library_entry, &mut library);
+    for (games, store_entry) in entries {
+        for game_entry in games {
+            add(
+                LibraryEntry::new(game_entry, vec![store_entry.clone()]),
+                &mut library,
+            );
+        }
     }
-    write(firestore, user_id, &library)?;
-
-    Ok(())
+    write(firestore, user_id, &library)
 }
 
 #[instrument(
-    name = "library::remove_entry", 
+    name = "library::remove_entry",
     level = "trace",
-    skip(firestore, user_id, library_entry),
-    fields(
-        game_id = %library_entry.id,
-    ),
+    skip(firestore, user_id)
 )]
 pub fn remove_entry(
     firestore: &FirestoreApi,
     user_id: &str,
     store_entry: &StoreEntry,
-    library_entry: &LibraryEntry,
 ) -> Result<(), Status> {
     let mut library = read(firestore, user_id)?;
-    if remove(store_entry, library_entry.id, &mut library) {
+    if remove(store_entry, &mut library) {
         write(firestore, user_id, &library)?;
     }
     Ok(())
@@ -127,28 +128,24 @@ fn add(library_entry: LibraryEntry, library: &mut Library) -> bool {
     true
 }
 
-/// Removes a `StoreEntry` that is matched `game_id` from the `Library`.
+/// Removes `StoreEntry` from the `Library`.
 ///
 /// If the associated LibraryEntry in the library the whole LibraryEntry is also
 /// removed. Returns true if input `StoreEntry` was found.
-fn remove(store_entry: &StoreEntry, game_id: u64, library: &mut Library) -> bool {
+fn remove(store_entry: &StoreEntry, library: &mut Library) -> bool {
     let mut entry_found = false;
     library.entries.retain_mut(|e| {
-        if e.id == game_id {
-            e.store_entries.retain(|se| {
-                let retain = se.storefront_name != store_entry.storefront_name
-                    || se.id != store_entry.id
-                    || se.title != store_entry.title;
-                if !retain {
-                    entry_found = true;
-                }
-                retain
-            });
+        e.store_entries.retain(|se| {
+            let retain = se.storefront_name != store_entry.storefront_name
+                || se.id != store_entry.id
+                || se.title != store_entry.title;
+            if !retain {
+                entry_found = true;
+            }
+            retain
+        });
 
-            return !e.store_entries.is_empty();
-        }
-
-        true
+        return !e.store_entries.is_empty();
     });
 
     entry_found
@@ -222,29 +219,21 @@ mod tests {
         let mut library = Library { entries: vec![] };
 
         let library_entry = library_entry(7);
-        assert_eq!(
-            remove(
-                &library_entry.store_entries[0],
-                library_entry.id,
-                &mut library,
-            ),
-            false
-        );
+        assert_eq!(remove(&library_entry.store_entries[0], &mut library), false);
         assert_eq!(library.entries.len(), 0);
     }
 
     #[test]
     fn remove_entry_with_single_store() {
         let mut library = Library {
-            entries: vec![library_entry(7), library_entry(3)],
+            entries: vec![
+                library_entry_with_stores(7, vec![("store_id_0", "gog")]),
+                library_entry_with_stores(3, vec![("store_id_1", "gog")]),
+            ],
         };
 
         let library_entry = library_entry(7);
-        assert!(remove(
-            &library_entry.store_entries[0],
-            library_entry.id,
-            &mut library,
-        ));
+        assert!(remove(&library_entry.store_entries[0], &mut library,));
         assert_eq!(library.entries.len(), 1);
     }
 
@@ -253,16 +242,29 @@ mod tests {
         let mut library = Library {
             entries: vec![
                 library_entry_with_stores(7, vec![("store_id_0", "gog"), ("steam id", "steam")]),
-                library_entry(3),
+                library_entry_with_stores(3, vec![("store_id_1", "gog")]),
             ],
         };
 
         let library_entry = library_entry(7);
-        assert!(remove(
-            &library_entry.store_entries[0],
-            library_entry.id,
-            &mut library,
-        ));
+        assert!(remove(&library_entry.store_entries[0], &mut library,));
+        assert_eq!(library.entries.len(), 2);
+        assert_eq!(library.entries[0].store_entries.len(), 1);
+    }
+
+    #[test]
+    fn remove_entry_with_many_library_entries() {
+        let mut library = Library {
+            entries: vec![
+                library_entry_with_stores(7, vec![("store_id_0", "gog"), ("steam id", "steam")]),
+                library_entry_with_stores(12, vec![("store_id_0", "gog")]),
+                library_entry_with_stores(15, vec![("store_id_0", "gog")]),
+                library_entry_with_stores(24, vec![("store_id_1", "gog")]),
+            ],
+        };
+
+        let library_entry = library_entry(7);
+        assert!(remove(&library_entry.store_entries[0], &mut library,));
         assert_eq!(library.entries.len(), 2);
         assert_eq!(library.entries[0].store_entries.len(), 1);
     }
@@ -281,7 +283,6 @@ mod tests {
                     storefront_name: "steam".to_owned(),
                     ..Default::default()
                 },
-                library.entries[0].id,
                 &mut library,
             ),
             false

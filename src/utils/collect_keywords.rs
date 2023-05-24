@@ -1,13 +1,10 @@
-use std::{
-    sync::{Arc, Mutex},
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use clap::Parser;
-use espy_backend::{api, util, Tracing};
+use espy_backend::{api, library::firestore, util, Tracing};
 use tracing::{error, info};
 
-/// Espy util for refreshing IGDB and Steam data for GameEntries.
+/// Espy util for refreshing IGDB data for Keywords.
 #[derive(Parser)]
 struct Opts {
     /// JSON file that contains application keys for espy service.
@@ -34,7 +31,7 @@ struct Opts {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    Tracing::setup("utils/collect_games")?;
+    Tracing::setup("utils/collect_keywords")?;
 
     let opts: Opts = Opts::parse();
     let keys = util::keys::Keys::from_file(&opts.key_store).unwrap();
@@ -43,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     igdb.connect().await?;
     let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
 
-    let firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
+    let mut firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
         .expect("FirestoreApi.from_credentials()");
 
     let updated_timestamp = SystemTime::now()
@@ -54,35 +51,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .as_secs();
 
     let mut k = opts.offset;
-    let firestore = Arc::new(Mutex::new(firestore));
     for i in 0.. {
-        let games = igdb_batch
-            .collect_igdb_games(updated_timestamp, opts.offset + i * 500)
+        let keywords = igdb_batch
+            .collect_keywords(updated_timestamp, opts.offset + i * 500)
             .await?;
-        if games.len() == 0 {
+
+        if keywords.len() == 0 {
             break;
         }
+
         info!(
             "\nWorking on {}:{}",
             opts.offset + i * 500,
-            opts.offset + i * 500 + games.len() as u64
+            opts.offset + i * 500 + keywords.len() as u64
         );
 
         if opts.count {
             continue;
         }
 
-        for igdb_game in games {
-            {
-                let mut firestore = firestore.lock().unwrap();
-                firestore.validate();
+        for keyword in keywords {
+            firestore.validate();
+
+            if let Err(e) = firestore::keywords::write(&firestore, &keyword) {
+                error!("Failed to save '{}' in Firestore: {e}", &keyword.name);
             }
-            match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
-                Ok(game_entry) => {
-                    info!("#{} Resolved '{}' ({})", k, game_entry.name, game_entry.id)
-                }
-                Err(e) => error!("{e}"),
-            }
+            info!("#{k} Saved keyword '{}' ({})", keyword.name, keyword.id);
 
             k += 1;
         }

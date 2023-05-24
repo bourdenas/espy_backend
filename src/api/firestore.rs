@@ -125,17 +125,19 @@ impl FirestoreApi {
 
     /// Returns all Firestore documents in the specified path that satisfy the
     /// matching condition.
-    ///
-    /// NOTE: This is not flexible yet, the only condition for now is string
-    /// field matching.
-    pub fn query<T>(&self, path: &str, field_name: &str, value: &str) -> Result<Vec<T>, Status>
+    pub fn query<T>(
+        &self,
+        path: &str,
+        field_name: &str,
+        value: serde_json::Value,
+    ) -> Result<Vec<T>, Status>
     where
         for<'a> T: Deserialize<'a>,
     {
         let result = match documents::query(
             &self.session,
             path,
-            value.into(),
+            value,
             dto::FieldOperator::EQUAL,
             field_name,
         ) {
