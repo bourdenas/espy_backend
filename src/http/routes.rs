@@ -17,7 +17,7 @@ pub fn routes(
     home()
         .or(post_search(Arc::clone(&igdb)))
         .or(post_resolve(Arc::clone(&firestore), Arc::clone(&igdb)))
-        .or(post_match(Arc::clone(&firestore)))
+        .or(post_match(Arc::clone(&firestore), Arc::clone(&igdb)))
         .or(post_wishlist(Arc::clone(&firestore)))
         .or(post_unlink(Arc::clone(&firestore)))
         .or(post_sync(keys, Arc::clone(&firestore), Arc::clone(&igdb)))
@@ -61,11 +61,13 @@ fn post_resolve(
 /// POST /library/{user_id}/match
 fn post_match(
     firestore: Arc<Mutex<FirestoreApi>>,
+    igdb: Arc<IgdbApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("library" / String / "match")
         .and(warp::post())
         .and(json_body::<models::MatchOp>())
         .and(with_firestore(firestore))
+        .and(with_igdb(igdb))
         .and_then(handlers::post_match)
 }
 

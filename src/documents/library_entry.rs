@@ -19,10 +19,6 @@ pub struct LibraryEntry {
     pub digest: GameDigest,
 
     #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent_digest: Option<GameDigest>,
-
-    #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub store_entries: Vec<StoreEntry>,
 
@@ -35,7 +31,6 @@ impl LibraryEntry {
     pub fn new(game: GameEntry, store_entries: Vec<StoreEntry>) -> Self {
         LibraryEntry {
             id: game.id,
-            parent_digest: game.parent.clone(),
             digest: GameDigest::from(game),
             store_entries,
 

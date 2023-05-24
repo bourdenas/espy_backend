@@ -122,16 +122,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 match firestore::games::read(&firestore, *game) {
                     Ok(game_entry) => igdb_collection.games.push(GameDigest::from(game_entry)),
                     Err(Status::NotFound(_)) => {
-                        let game_entry = match igdb.get_with_cover(*game).await {
-                            Ok(game) => game,
+                        let digest = match igdb.get_short_digest(*game).await {
+                            Ok(digest) => digest,
                             Err(e) => {
                                 error!("  collection={}: {e}", &igdb_collection.name);
                                 continue;
                             }
                         };
 
-                        info!("  #{} fetched '{}' ({})", k, game_entry.name, game_entry.id);
-                        igdb_collection.games.push(GameDigest::from(game_entry))
+                        info!("  #{} fetched '{}' ({})", k, digest.name, digest.id);
+                        igdb_collection.games.push(digest)
                     }
                     Err(e) => error!("Failed to read from Firestore game with id={game}: {e}"),
                 }

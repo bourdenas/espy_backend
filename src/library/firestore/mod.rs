@@ -3,6 +3,8 @@ pub mod companies;
 pub mod external_games;
 pub mod failed;
 pub mod games;
+pub mod genres;
+pub mod keywords;
 pub mod library;
 pub mod storefront;
 pub mod user_tags;

@@ -13,6 +13,12 @@ pub fn read(firestore: &FirestoreApi, slug: &str) -> Result<IgdbCompany, Status>
     firestore.read::<IgdbCompany>("companies", slug)
 }
 
+/// Returns an IgdbCompany doc based on its `slug` from Firestore.
+#[instrument(name = "companies::read", level = "trace", skip(firestore))]
+pub fn search(firestore: &FirestoreApi, id: u64) -> Result<Vec<IgdbCompany>, Status> {
+    firestore.query::<IgdbCompany>("companies", "id", id.into())
+}
+
 /// Writes an IgdbCompany doc in Firestore.
 #[instrument(
     name = "companies::write",

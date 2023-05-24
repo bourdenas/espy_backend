@@ -1,7 +1,7 @@
 use crate::{
     api::{FirestoreApi, IgdbApi},
     http::models,
-    library::{firestore, LibraryManager, User},
+    library::{LibraryManager, User},
     util, Status,
 };
 use std::{
@@ -50,14 +50,8 @@ pub async fn post_resolve(
     info!("POST /resolve");
 
     match igdb.get(resolve.game_id).await {
-        Ok(igdb_game) => match igdb.resolve(igdb_game).await {
-            Ok(game_entry) => {
-                if let Err(e) = firestore::games::write(&firestore.lock().unwrap(), &game_entry) {
-                    error!("Failed to save '{}' in Firestore: {e}", game_entry.name);
-                }
-
-                Ok(StatusCode::OK)
-            }
+        Ok(igdb_game) => match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
+            Ok(_) => Ok(StatusCode::OK),
             Err(e) => {
                 error!("POST resolve: {e}");
                 Ok(StatusCode::INTERNAL_SERVER_ERROR)
@@ -72,7 +66,7 @@ pub async fn post_resolve(
 
 #[instrument(
     level = "trace",
-    skip(match_op, firestore),
+    skip(match_op, firestore, igdb),
     fields(
         title = %match_op.store_entry.title,
     )
@@ -81,6 +75,7 @@ pub async fn post_match(
     user_id: String,
     match_op: models::MatchOp,
     firestore: Arc<Mutex<FirestoreApi>>,
+    igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     debug!("POST /library/{user_id}/match");
 
@@ -88,9 +83,9 @@ pub async fn post_match(
 
     match (match_op.game_entry, match_op.unmatch_entry) {
         // Match StoreEntry to GameEntry and add in Library.
-        (Some(game_entry), None) => match manager.get_game_entry(game_entry.id).await {
-            Ok(game_entry) => {
-                match manager.create_library_entry(match_op.store_entry, game_entry) {
+        (Some(game_entry), None) => match manager.get_game_entry(igdb, game_entry.id).await {
+            Ok(game_entries) => {
+                match manager.create_library_entry(match_op.store_entry, game_entries) {
                     Ok(()) => Ok(StatusCode::OK),
                     Err(err) => {
                         error!("{err}");
@@ -104,13 +99,9 @@ pub async fn post_match(
             }
         },
         // Remove StoreEntry from Library.
-        (None, Some(library_entry)) => {
+        (None, Some(_library_entry)) => {
             match manager
-                .unmatch_game(
-                    match_op.store_entry.clone(),
-                    &library_entry,
-                    match_op.delete_unmatched,
-                )
+                .unmatch_game(match_op.store_entry, match_op.delete_unmatched)
                 .await
             {
                 Ok(()) => Ok(StatusCode::OK),
@@ -121,9 +112,9 @@ pub async fn post_match(
             }
         }
         // Match StoreEntry with a different GameEntry.
-        (Some(game_entry), Some(library_entry)) => {
+        (Some(game_entry), Some(_library_entry)) => {
             match manager
-                .rematch_game(match_op.store_entry, game_entry, &library_entry)
+                .rematch_game(igdb, match_op.store_entry, game_entry)
                 .await
             {
                 Ok(()) => Ok(StatusCode::OK),

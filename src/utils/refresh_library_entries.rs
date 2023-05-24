@@ -1,7 +1,10 @@
+use std::sync::{Arc, Mutex};
+
 use clap::Parser;
 use espy_backend::{
     api::{FirestoreApi, IgdbApi},
     documents::{Library, LibraryEntry},
+    games::Reconciler,
     library, util, Status, Tracing,
 };
 use tracing::{error, info, instrument};
@@ -43,50 +46,51 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 #[instrument(level = "trace", skip(firestore, igdb, user_id))]
 async fn refresh_library_entries(
-    mut firestore: FirestoreApi,
+    firestore: FirestoreApi,
     igdb: IgdbApi,
     user_id: &str,
 ) -> Result<(), Status> {
     let legacy_library = library::firestore::library::read(&firestore, user_id)?;
     info!("updating {} titles...", legacy_library.entries.len());
 
+    let firestore = Arc::new(Mutex::new(firestore));
     let mut library = Library { entries: vec![] };
     for entry in legacy_library.entries {
-        firestore.validate();
-        match library::firestore::games::read(&firestore, entry.id) {
-            Ok(game_entry) => {
-                info!("updated from firestore '{title}'", title = game_entry.name);
-                library
-                    .entries
-                    .push(LibraryEntry::new(game_entry, entry.store_entries))
-            }
-            Err(e) => {
-                error!("Failed to read: {e}");
-                let igdb_game = match igdb.get(entry.id).await {
-                    Ok(game) => game,
-                    Err(e) => {
-                        error!("Failed to igdb.get: {e}");
-                        continue;
-                    }
-                };
-                let game_entry = match igdb.resolve(igdb_game).await {
-                    Ok(game) => game,
-                    Err(e) => {
-                        error!("Failed to igdb.resolve: {e}");
-                        continue;
-                    }
-                };
-                library::firestore::games::write(&firestore, &game_entry)?;
+        let game_entry = {
+            let mut firestore = firestore.lock().unwrap();
+            firestore.validate();
+            library::firestore::games::read(&firestore, entry.id)
+        };
 
-                info!("resolved from igdb '{title}'", title = game_entry.name);
-                library
-                    .entries
-                    .push(LibraryEntry::new(game_entry, entry.store_entries))
+        let game_entry = match game_entry {
+            Ok(game_entry) => {
+                info!("Read from firestore '{title}'", title = game_entry.name);
+                game_entry
             }
-        }
+            Err(_) => match igdb.get(entry.id).await {
+                Ok(igdb_game) => {
+                    info!("Fetching from igdb '{title}'", title = igdb_game.name);
+                    match igdb.get_digest(Arc::clone(&firestore), &igdb_game).await {
+                        Ok(game_entry) => game_entry,
+                        Err(e) => {
+                            error!("Failed to igdb.get_digest: {e}");
+                            continue;
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to igdb.get {}: {e}", entry.id);
+                    continue;
+                }
+            },
+        };
+
+        library
+            .entries
+            .push(LibraryEntry::new(game_entry, entry.store_entries.clone()));
     }
 
-    library::firestore::library::write(&firestore, user_id, &library)?;
+    library::firestore::library::write(&firestore.lock().unwrap(), user_id, &library)?;
     let serialized = serde_json::to_string(&library)?;
     info!("updated library size: {}KB", serialized.len() / 1024);
 
