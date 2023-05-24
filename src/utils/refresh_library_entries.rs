@@ -56,52 +56,38 @@ async fn refresh_library_entries(
     let firestore = Arc::new(Mutex::new(firestore));
     let mut library = Library { entries: vec![] };
     for entry in legacy_library.entries {
-        {
+        let game_entry = {
             let mut firestore = firestore.lock().unwrap();
             firestore.validate();
-        }
-        let game_entry = {
-            let firestore = firestore.lock().unwrap();
             library::firestore::games::read(&firestore, entry.id)
         };
 
-        let game_entries = match game_entry {
+        let game_entry = match game_entry {
             Ok(game_entry) => {
                 info!("Read from firestore '{title}'", title = game_entry.name);
-                Reconciler::expand_bundle(Arc::clone(&firestore), &igdb, game_entry).await
+                game_entry
             }
-            Err(_) => {
-                let game_entry = match igdb.get(entry.id).await {
-                    Ok(igdb_game) => {
-                        info!("Fetching from igdb '{title}'", title = igdb_game.name);
-                        match igdb.get_digest(Arc::clone(&firestore), &igdb_game).await {
-                            Ok(game_entry) => game_entry,
-                            Err(e) => {
-                                error!("Failed to igdb.get_digest: {e}");
-                                continue;
-                            }
+            Err(_) => match igdb.get(entry.id).await {
+                Ok(igdb_game) => {
+                    info!("Fetching from igdb '{title}'", title = igdb_game.name);
+                    match igdb.get_digest(Arc::clone(&firestore), &igdb_game).await {
+                        Ok(game_entry) => game_entry,
+                        Err(e) => {
+                            error!("Failed to igdb.get_digest: {e}");
+                            continue;
                         }
                     }
-                    Err(e) => {
-                        error!("Failed to igdb.get: {e}");
-                        continue;
-                    }
-                };
-
-                Reconciler::expand_bundle(Arc::clone(&firestore), &igdb, game_entry).await
-            }
+                }
+                Err(e) => {
+                    error!("Failed to igdb.get {}: {e}", entry.id);
+                    continue;
+                }
+            },
         };
 
-        match game_entries {
-            Ok(game_entries) => library.entries.extend(
-                game_entries
-                    .into_iter()
-                    .map(|game_entry| LibraryEntry::new(game_entry, entry.store_entries.clone())),
-            ),
-            Err(e) => {
-                error!("{e}")
-            }
-        }
+        library
+            .entries
+            .push(LibraryEntry::new(game_entry, entry.store_entries.clone()));
     }
 
     library::firestore::library::write(&firestore.lock().unwrap(), user_id, &library)?;
