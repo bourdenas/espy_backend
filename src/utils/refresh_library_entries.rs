@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use clap::Parser;
 use espy_backend::{
@@ -53,7 +56,8 @@ async fn refresh_library_entries(
     info!("updating {} titles...", legacy_library.entries.len());
 
     let firestore = Arc::new(Mutex::new(firestore));
-    let mut library = Library { entries: vec![] };
+
+    let mut game_entries: HashMap<u64, LibraryEntry> = HashMap::new();
     for entry in legacy_library.entries {
         let game_entry = {
             let mut firestore = firestore.lock().unwrap();
@@ -84,10 +88,31 @@ async fn refresh_library_entries(
             },
         };
 
-        library
-            .entries
-            .push(LibraryEntry::new(game_entry, entry.store_entries.clone()));
+        let entry = LibraryEntry::new(game_entry, entry.store_entries.clone());
+        game_entries
+            .entry(entry.id)
+            .and_modify(|e| {
+                e.store_entries
+                    .extend(entry.store_entries.iter().map(|e| e.clone()))
+            })
+            .or_insert(entry);
     }
+
+    let library = Library {
+        entries: game_entries
+            .into_iter()
+            .map(|(_, mut entry)| {
+                entry.store_entries.sort_by(|a, b| match a.id.cmp(&b.id) {
+                    std::cmp::Ordering::Equal => a.storefront_name.cmp(&b.storefront_name),
+                    e => e,
+                });
+                entry
+                    .store_entries
+                    .dedup_by(|a, b| a.id == b.id && a.storefront_name == b.storefront_name);
+                entry
+            })
+            .collect(),
+    };
 
     library::firestore::library::write(&firestore.lock().unwrap(), user_id, &library)?;
     let serialized = serde_json::to_string(&library)?;

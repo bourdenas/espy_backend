@@ -119,6 +119,12 @@ impl Default for GameCategory {
     }
 }
 
+impl std::fmt::Display for GameCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Image {
     pub image_id: String,
