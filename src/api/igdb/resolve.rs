@@ -100,10 +100,21 @@ pub async fn resolve_game_digest(
             game_entry.collections = vec![collection];
         }
     }
-    if !igdb_game.franchises.is_empty() {
+
+    let mut franchises = [
+        match igdb_game.franchise {
+            Some(id) => vec![id],
+            None => vec![],
+        },
+        igdb_game.franchises.clone(),
+    ]
+    .concat();
+    if !franchises.is_empty() {
+        franchises.sort();
+        franchises.dedup();
         game_entry
-            .collections
-            .extend(get_franchises(&connection, &igdb_game.franchises).await?);
+            .franchises
+            .extend(get_franchises(&connection, &franchises).await?);
     }
 
     if !igdb_game.involved_companies.is_empty() {

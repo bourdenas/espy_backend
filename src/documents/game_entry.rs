@@ -58,6 +58,10 @@ pub struct GameEntry {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub franchises: Vec<Collection>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub developers: Vec<Company>,
 
     #[serde(default)]

@@ -72,6 +72,9 @@ pub struct IgdbGame {
     pub collection: Option<u64>,
 
     #[serde(default)]
+    pub franchise: Option<u64>,
+
+    #[serde(default)]
     pub franchises: Vec<u64>,
 
     #[serde(default)]
