@@ -4,7 +4,10 @@ use crate::{
     games::{ReconReport, Reconciler},
     Status,
 };
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex},
+    time::SystemTime,
+};
 use tracing::{error, instrument, trace_span, Instrument};
 
 use super::firestore;
@@ -47,6 +50,7 @@ impl LibraryManager {
         // TODO: Errors will considered failed entry as resolved. Need to filter
         // entries with error (beyond failed to match, which is handled
         // correctly) and retry them.
+        let mut last_updated = SystemTime::now();
         for store_entry in store_entries {
             let igdb = Arc::clone(&igdb);
 
@@ -66,7 +70,9 @@ impl LibraryManager {
 
             // Batch user library updates because writes on larges libraries
             // become costly.
-            if resolved_entries.len() == 10 {
+            let time_passed = SystemTime::now().duration_since(last_updated).unwrap();
+            if time_passed.as_secs() > 3 {
+                last_updated = SystemTime::now();
                 let entries = resolved_entries.drain(..).collect();
                 let firestore = Arc::clone(&self.firestore);
                 let user_id = self.user_id.clone();
