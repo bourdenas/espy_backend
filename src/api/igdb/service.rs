@@ -291,6 +291,10 @@ impl IgdbApi {
             &igdb_game.name, &igdb_game.id
         );
 
+        {
+            let mut firestore = firestore.lock().unwrap();
+            firestore.validate();
+        }
         let connection = self.connection()?;
 
         let mut game_entry =

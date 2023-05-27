@@ -84,10 +84,6 @@ async fn refresh(
     let firestore = Arc::new(Mutex::new(firestore));
     for game_entry in game_entries {
         info!("#{k} Updating {} ({})", &game_entry.name, game_entry.id);
-        {
-            let mut firestore = firestore.lock().unwrap();
-            firestore.validate();
-        }
 
         match igdb.get(game_entry.id).await {
             Ok(igdb_game) => {
