@@ -1,6 +1,6 @@
 use crate::{
     api::FirestoreApi,
-    documents::{GameDigest, GameEntry, StoreEntry},
+    documents::{GameDigest, GameEntry, Image, StoreEntry},
     games::SteamDataApi,
     library::firestore,
     util::rate_limiter::RateLimiter,
@@ -136,6 +136,12 @@ impl IgdbApi {
                 "IgdbGame with id={id} was not found."
             ))),
         }
+    }
+
+    #[instrument(level = "trace", skip(self))]
+    pub async fn get_cover(&self, id: u64) -> Result<Option<Image>, Status> {
+        let connection = self.connection()?;
+        get_cover(&connection, id).await
     }
 
     /// Returns a GameDigest for an IgdbGame.

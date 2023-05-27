@@ -3,9 +3,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use clap::Parser;
 use espy_backend::{
     api,
-    documents::{GameDigest, IgdbCollection},
+    documents::{GameDigest, GameEntry, IgdbCollection},
     library::firestore,
-    util, Status, Tracing,
+    util, Tracing,
 };
 use tracing::{error, info};
 
@@ -99,47 +99,58 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
 
         for collection in collections {
-            firestore.validate();
+            let mut igdb_collection = IgdbCollection {
+                id: collection.id,
+                name: collection.name,
+                slug: collection.slug,
+                url: collection.url,
+                games: vec![],
+            };
 
-            let mut igdb_collection =
-                match firestore::collections::read(&firestore, &collection.slug) {
-                    Ok(igdb_collection) => igdb_collection,
-                    Err(_) => IgdbCollection {
-                        id: collection.id,
-                        name: collection.name,
-                        slug: collection.slug,
-                        url: collection.url,
-                        games: vec![],
-                    },
+            for j in 0.. {
+                let games = match opts.franchises {
+                    false => {
+                        info!("Getting games for collection '{}'", &igdb_collection.slug);
+                        igdb_batch
+                            .collect_igdb_games_by_collection(igdb_collection.id, j * 500)
+                            .await?
+                    }
+                    true => {
+                        info!("Getting games for franchise '{}'", &igdb_collection.slug);
+                        igdb_batch
+                            .collect_igdb_games_by_franchise(igdb_collection.id, j * 500)
+                            .await?
+                    }
                 };
 
-            for game in &collection.games {
-                if let Some(_) = igdb_collection.games.iter().find(|e| e.id == *game) {
-                    continue;
+                info!("  Fetching {} games...", games.len());
+                for igdb_game in &games {
+                    let cover = match igdb_game.cover {
+                        Some(cover_id) => match igdb.get_cover(cover_id).await {
+                            Ok(cover) => cover,
+                            Err(_) => None,
+                        },
+                        None => None,
+                    };
+                    let mut game_entry = GameEntry::from(igdb_game);
+                    game_entry.cover = cover;
+                    let digest = GameDigest::from(game_entry);
+
+                    info!("  #{} added '{}' ({})", k, digest.name, digest.id);
+                    igdb_collection.games.push(digest);
                 }
 
-                firestore.validate();
-                match firestore::games::read(&firestore, *game) {
-                    Ok(game_entry) => igdb_collection.games.push(GameDigest::from(game_entry)),
-                    Err(Status::NotFound(_)) => {
-                        let digest = match igdb.get_short_digest(*game).await {
-                            Ok(digest) => digest,
-                            Err(e) => {
-                                error!("  collection={}: {e}", &igdb_collection.name);
-                                continue;
-                            }
-                        };
-
-                        info!("  #{} fetched '{}' ({})", k, digest.name, digest.id);
-                        igdb_collection.games.push(digest)
-                    }
-                    Err(e) => error!("Failed to read from Firestore game with id={game}: {e}"),
+                if games.len() < 500 {
+                    break;
                 }
             }
 
             if !igdb_collection.games.is_empty() {
                 firestore.validate();
-                if let Err(e) = firestore::collections::write(&firestore, &igdb_collection) {
+                if let Err(e) = match opts.franchises {
+                    false => firestore::collections::write(&firestore, &igdb_collection),
+                    true => firestore::franchises::write(&firestore, &igdb_collection),
+                } {
                     error!(
                         "Failed to save '{}' in Firestore: {e}",
                         &igdb_collection.name

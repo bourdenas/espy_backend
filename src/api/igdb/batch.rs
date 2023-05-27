@@ -39,6 +39,36 @@ impl IgdbBatchApi {
     }
 
     #[instrument(level = "trace", skip(self))]
+    pub async fn collect_igdb_games_by_collection(
+        &self,
+        collection_id: u64,
+        offset: u64,
+    ) -> Result<Vec<IgdbGame>, Status> {
+        let connection = self.service.connection()?;
+        post::<Vec<IgdbGame>>(
+            &connection,
+            GAMES_ENDPOINT,
+            &format!("fields *; where platforms = (6,13,14) & collection = {collection_id} & (category = 0 | category = 1 | category = 2 | category = 4 | category = 8 | category = 9); limit 500; offset {offset};"),
+        )
+        .await
+    }
+
+    #[instrument(level = "trace", skip(self))]
+    pub async fn collect_igdb_games_by_franchise(
+        &self,
+        franchise_id: u64,
+        offset: u64,
+    ) -> Result<Vec<IgdbGame>, Status> {
+        let connection = self.service.connection()?;
+        post::<Vec<IgdbGame>>(
+            &connection,
+            GAMES_ENDPOINT,
+            &format!("fields *; where platforms = (6,13,14) & (franchise = {franchise_id} | franchise = ({franchise_id})) & (category = 0 | category = 1 | category = 2 | category = 4 | category = 8 | category = 9); limit 500; offset {offset};"),
+        )
+        .await
+    }
+
+    #[instrument(level = "trace", skip(self))]
     pub async fn collect_collections(
         &self,
         updated_since: u64,
