@@ -124,7 +124,7 @@ impl IgdbApi {
 
                         let mut game_entry = GameEntry::from(igdb_game);
                         game_entry.cover = cover;
-                        Ok(GameDigest::from(game_entry))
+                        Ok(GameDigest::short_digest(game_entry))
                     }
                     false => Err(Status::not_found(format!(
                         "IgdbGame '{}' is not a PC game.",

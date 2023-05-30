@@ -1,4 +1,7 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{
+    collections::HashMap,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use clap::Parser;
 use espy_backend::{
@@ -33,11 +36,6 @@ struct Opts {
 
     #[clap(long, default_value = "0")]
     offset: u64,
-
-    /// If set, build company info from scratch ignoring existing data in
-    /// Firestore.
-    #[clap(long)]
-    rebuild: bool,
 
     #[clap(long)]
     count: bool,
@@ -89,43 +87,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             continue;
         }
 
-        for company in companies {
+        for igdb_company in companies {
             firestore.validate();
-            let mut igdb_company = Company {
-                id: company.id,
-                name: company.name,
-                slug: company.slug,
+            let mut company = Company {
+                id: igdb_company.id,
+                name: igdb_company.name,
+                slug: igdb_company.slug,
                 developed: vec![],
                 published: vec![],
             };
 
-            if !opts.rebuild {
-                if let Ok(company) = firestore::companies::read(&firestore, &igdb_company.slug) {
-                    igdb_company = company;
-                }
-            }
+            let mut games: HashMap<u64, GameDigest> = HashMap::new();
 
             for (game_ids, game_digests) in vec![
-                (&company.developed, &mut igdb_company.developed),
-                (&company.published, &mut igdb_company.published),
+                (&igdb_company.developed, &mut company.developed),
+                (&igdb_company.published, &mut company.published),
             ] {
                 for game in game_ids {
-                    if let Some(_) = game_digests.iter().find(|e| e.id == *game) {
-                        continue;
+                    if let Some(digest) = games.get(game) {
+                        game_digests.push(digest.clone());
                     }
 
                     match firestore::games::read(&firestore, *game) {
-                        Ok(game_entry) => game_digests.push(GameDigest::from(game_entry)),
+                        Ok(game_entry) => {
+                            let digest = GameDigest::short_digest(game_entry);
+                            games.insert(digest.id, digest.clone());
+                            game_digests.push(digest)
+                        }
                         Err(Status::NotFound(_)) => {
                             let digest = match igdb.get_short_digest(*game).await {
                                 Ok(digest) => digest,
                                 Err(e) => {
-                                    error!("  company={}: {e}", &igdb_company.name);
+                                    error!("  company={}: {e}", &company.name);
                                     continue;
                                 }
                             };
 
                             info!("  #{} fetched '{}' ({})", k, digest.name, digest.id);
+                            games.insert(digest.id, digest.clone());
                             game_digests.push(digest)
                         }
                         Err(e) => error!("Failed to read from Firestore game with id={game}: {e}"),
@@ -133,15 +132,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 }
             }
 
-            if !igdb_company.developed.is_empty() || !igdb_company.published.is_empty() {
+            if !company.developed.is_empty() || !company.published.is_empty() {
                 firestore.validate();
-                if let Err(e) = firestore::companies::write(&firestore, &igdb_company) {
-                    error!("Failed to save '{}' in Firestore: {e}", &igdb_company.name);
+                if let Err(e) = firestore::companies::write(&firestore, &company) {
+                    error!("Failed to save '{}' in Firestore: {e}", &company.name);
                 }
-                info!(
-                    "#{} Saved company '{}' ({})",
-                    k, igdb_company.name, igdb_company.id
-                );
+                info!("#{} Saved company '{}' ({})", k, company.name, company.id);
             }
 
             k += 1;

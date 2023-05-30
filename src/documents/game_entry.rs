@@ -101,7 +101,7 @@ pub struct GameEntry {
     pub websites: Vec<Website>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub enum GameCategory {
     Main,
     Dlc,
