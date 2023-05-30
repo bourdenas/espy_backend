@@ -13,8 +13,8 @@ mod storefront;
 mod user_data;
 mod user_tags;
 
-pub use collection::IgdbCollection;
-pub use company::IgdbCompany;
+pub use collection::Collection;
+pub use company::Company;
 pub use external_game::ExternalGame;
 pub use game_digest::GameDigest;
 pub use game_entry::*;

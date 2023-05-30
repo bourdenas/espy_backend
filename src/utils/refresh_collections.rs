@@ -1,7 +1,7 @@
 use clap::Parser;
 use espy_backend::{
     api::FirestoreApi,
-    documents::{GameDigest, IgdbCollection},
+    documents::{Collection, GameDigest},
     *,
 };
 use tracing::{error, info, instrument};
@@ -57,7 +57,7 @@ async fn refresh_collections(firestore: FirestoreApi) -> Result<(), Status> {
     refresh(firestore, collections)
 }
 
-fn refresh(mut firestore: FirestoreApi, collections: Vec<IgdbCollection>) -> Result<(), Status> {
+fn refresh(mut firestore: FirestoreApi, collections: Vec<Collection>) -> Result<(), Status> {
     info!("Updating {} collections...", collections.len());
 
     for collection in collections {
@@ -71,7 +71,7 @@ fn refresh(mut firestore: FirestoreApi, collections: Vec<IgdbCollection>) -> Res
             .filter_map(|e| e.ok())
             .map(|game_entry| GameDigest::from(game_entry))
             .collect();
-        let collection = IgdbCollection {
+        let collection = Collection {
             id: collection.id,
             name: collection.name,
             slug: collection.slug,

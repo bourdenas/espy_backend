@@ -94,7 +94,7 @@ pub struct IgdbGame {
 }
 
 #[derive(Deserialize, Default, Debug, Clone)]
-pub struct ExternalGame {
+pub struct IgdbExternalGame {
     pub id: u64,
     pub game: u64,
     pub uid: String,
@@ -104,7 +104,7 @@ pub struct ExternalGame {
 }
 
 #[derive(Deserialize, Default, Debug, Clone)]
-pub struct InvolvedCompany {
+pub struct IgdbInvolvedCompany {
     pub id: u64,
 
     #[serde(default)]
@@ -124,7 +124,7 @@ pub struct InvolvedCompany {
 }
 
 #[derive(Deserialize, Default, Debug, Clone)]
-pub struct Company {
+pub struct IgdbCompany {
     pub id: u64,
 
     #[serde(default)]
@@ -146,7 +146,7 @@ pub struct Company {
 }
 
 #[derive(Deserialize, Default, Debug)]
-pub struct Collection {
+pub struct IgdbCollection {
     pub id: u64,
 
     #[serde(default)]
@@ -164,14 +164,14 @@ pub struct Collection {
 }
 
 #[derive(Deserialize, Default, Debug, Clone)]
-pub struct Website {
+pub struct IgdbWebsite {
     pub id: u64,
     pub category: i32,
     pub url: String,
 }
 
 #[derive(Deserialize, Default, Debug, Clone)]
-pub struct Annotation {
+pub struct IgdbAnnotation {
     pub id: u64,
 
     #[serde(default)]

@@ -174,7 +174,7 @@ impl IgdbApi {
         };
 
         let connection = self.connection()?;
-        let result: Vec<docs::ExternalGame> = post(
+        let result: Vec<docs::IgdbExternalGame> = post(
             &connection,
             EXTERNAL_GAMES_ENDPOINT,
             &format!(

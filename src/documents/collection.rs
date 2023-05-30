@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::GameDigest;
 
 #[derive(Serialize, Deserialize, Default, Debug)]
-pub struct IgdbCollection {
+pub struct Collection {
     pub id: u64,
 
     #[serde(default)]

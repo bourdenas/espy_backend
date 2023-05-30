@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use clap::Parser;
 use espy_backend::{
     api,
-    documents::{GameDigest, IgdbCompany},
+    documents::{Company, GameDigest},
     library::firestore,
     util, Status, Tracing,
 };
@@ -91,7 +91,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         for company in companies {
             firestore.validate();
-            let mut igdb_company = IgdbCompany {
+            let mut igdb_company = Company {
                 id: company.id,
                 name: company.name,
                 slug: company.slug,

@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use clap::Parser;
 use espy_backend::{
     api,
-    documents::{GameDigest, GameEntry, IgdbCollection},
+    documents::{Collection, GameDigest, GameEntry},
     library::firestore,
     util, Tracing,
 };
@@ -99,7 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
 
         for collection in collections {
-            let mut igdb_collection = IgdbCollection {
+            let mut igdb_collection = Collection {
                 id: collection.id,
                 name: collection.name,
                 slug: collection.slug,

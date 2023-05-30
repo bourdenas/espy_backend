@@ -1,8 +1,8 @@
 use crate::{
     api::FirestoreApi,
     documents::{
-        Collection, CollectionType, Company, CompanyRole, GameDigest, GameEntry, Image, Website,
-        WebsiteAuthority,
+        CollectionDigest, CollectionType, CompanyDigest, CompanyRole, GameDigest, GameEntry, Image,
+        Website, WebsiteAuthority,
     },
     library::firestore,
     Status,
@@ -13,7 +13,7 @@ use tracing::instrument;
 
 use super::{
     backend::post,
-    docs::{self, InvolvedCompany},
+    docs::{self, IgdbInvolvedCompany},
     IgdbConnection, IgdbGame,
 };
 
@@ -264,7 +264,7 @@ async fn get_genres(
 
     if !missing.is_empty() {
         genres.extend(
-            post::<Vec<docs::Annotation>>(
+            post::<Vec<docs::IgdbAnnotation>>(
                 connection,
                 GENRES_ENDPOINT,
                 &format!(
@@ -303,7 +303,7 @@ async fn get_keywords(
 
     if !missing.is_empty() {
         keywords.extend(
-            post::<Vec<docs::Annotation>>(
+            post::<Vec<docs::IgdbAnnotation>>(
                 connection,
                 KEYWORDS_ENDPOINT,
                 &format!(
@@ -363,7 +363,7 @@ async fn get_screenshots(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec
 async fn get_websites(
     connection: &IgdbConnection,
     ids: &[u64],
-) -> Result<Vec<docs::Website>, Status> {
+) -> Result<Vec<docs::IgdbWebsite>, Status> {
     Ok(post(
         &connection,
         WEBSITES_ENDPOINT,
@@ -384,17 +384,17 @@ async fn get_collection(
     connection: &IgdbConnection,
     firestore: Arc<Mutex<FirestoreApi>>,
     id: u64,
-) -> Result<Option<Collection>, Status> {
+) -> Result<Option<CollectionDigest>, Status> {
     let collection = { firestore::collections::read(&firestore.lock().unwrap(), id) };
     match collection {
-        Ok(collection) => Ok(Some(Collection {
+        Ok(collection) => Ok(Some(CollectionDigest {
             id: collection.id,
             name: collection.name,
             slug: collection.slug,
             igdb_type: CollectionType::Collection,
         })),
         Err(_) => {
-            let result: Vec<docs::Annotation> = post(
+            let result: Vec<docs::IgdbAnnotation> = post(
                 &connection,
                 COLLECTIONS_ENDPOINT,
                 &format!("fields *; where id={id};"),
@@ -402,7 +402,7 @@ async fn get_collection(
             .await?;
 
             match result.into_iter().next() {
-                Some(collection) => Ok(Some(Collection {
+                Some(collection) => Ok(Some(CollectionDigest {
                     id: collection.id,
                     name: collection.name,
                     slug: collection.slug,
@@ -420,12 +420,12 @@ async fn get_franchises(
     connection: &IgdbConnection,
     firestore: Arc<Mutex<FirestoreApi>>,
     ids: &[u64],
-) -> Result<Vec<Collection>, Status> {
+) -> Result<Vec<CollectionDigest>, Status> {
     let mut franchises = vec![];
     let mut missing = vec![];
     for id in ids {
         match firestore::franchises::read(&firestore.lock().unwrap(), *id) {
-            Ok(franchise) => franchises.push(Collection {
+            Ok(franchise) => franchises.push(CollectionDigest {
                 id: franchise.id,
                 name: franchise.name,
                 slug: franchise.slug,
@@ -437,7 +437,7 @@ async fn get_franchises(
 
     if !missing.is_empty() {
         franchises.extend(
-            post::<Vec<docs::Annotation>>(
+            post::<Vec<docs::IgdbAnnotation>>(
                 connection,
                 FRANCHISES_ENDPOINT,
                 &format!(
@@ -451,7 +451,7 @@ async fn get_franchises(
             )
             .await?
             .into_iter()
-            .map(|c| Collection {
+            .map(|c| CollectionDigest {
                 id: c.id,
                 name: c.name,
                 slug: c.slug,
@@ -463,7 +463,7 @@ async fn get_franchises(
     Ok(franchises)
 }
 
-fn get_role(involved_company: &InvolvedCompany) -> CompanyRole {
+fn get_role(involved_company: &IgdbInvolvedCompany) -> CompanyRole {
     match involved_company.developer {
         true => CompanyRole::Developer,
         false => match involved_company.publisher {
@@ -485,9 +485,9 @@ async fn get_involved_companies(
     connection: &IgdbConnection,
     firestore: Arc<Mutex<FirestoreApi>>,
     ids: &[u64],
-) -> Result<Vec<Company>, Status> {
+) -> Result<Vec<CompanyDigest>, Status> {
     // Collect all involved companies for a game entry.
-    let involved_companies: Vec<docs::InvolvedCompany> = post(
+    let involved_companies: Vec<docs::IgdbInvolvedCompany> = post(
         &connection,
         INVOLVED_COMPANIES_ENDPOINT,
         &format!(
@@ -507,7 +507,7 @@ async fn get_involved_companies(
         if let Some(id) = involved_company.company {
             match firestore::companies::search(&firestore.lock().unwrap(), id) {
                 Ok(igdb_companies) => {
-                    companies.extend(igdb_companies.into_iter().map(|c| Company {
+                    companies.extend(igdb_companies.into_iter().map(|c| CompanyDigest {
                         id: c.id,
                         name: c.name,
                         slug: c.slug,
@@ -521,7 +521,7 @@ async fn get_involved_companies(
 
     if !missing.is_empty() {
         companies.extend(
-            post::<Vec<docs::Company>>(
+            post::<Vec<docs::IgdbCompany>>(
                 &connection,
                 COMPANIES_ENDPOINT,
                 &format!(
@@ -535,7 +535,7 @@ async fn get_involved_companies(
             )
             .await?
             .into_iter()
-            .map(|c| Company {
+            .map(|c| CompanyDigest {
                 id: c.id,
                 name: c.name,
                 slug: c.slug,
