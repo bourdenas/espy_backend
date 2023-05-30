@@ -506,7 +506,7 @@ async fn get_involved_companies(
     for involved_company in &involved_companies {
         if let Some(id) = involved_company.company {
             match firestore::companies::search(&firestore.lock().unwrap(), id) {
-                Ok(igdb_companies) => {
+                Ok(igdb_companies) if !igdb_companies.is_empty() => {
                     companies.extend(igdb_companies.into_iter().map(|c| CompanyDigest {
                         id: c.id,
                         name: c.name,
@@ -514,7 +514,7 @@ async fn get_involved_companies(
                         role: get_role(involved_company),
                     }))
                 }
-                Err(_) => missing.push(id),
+                _ => missing.push(id),
             }
         }
     }
