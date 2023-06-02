@@ -45,7 +45,7 @@ impl Tracing {
         match tracing_subscriber::registry()
             .with(tracing_opentelemetry::layer())
             .with(
-                tracing_stackdriver::layer().enable_cloud_trace(CloudTraceConfiguration {
+                tracing_stackdriver::layer().with_cloud_trace(CloudTraceConfiguration {
                     project_id: project_id.to_owned(),
                 }),
             )
