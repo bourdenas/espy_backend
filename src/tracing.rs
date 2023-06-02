@@ -40,8 +40,6 @@ impl Tracing {
     }
 
     pub fn setup_prod(project_id: &str) -> Result<(), Status> {
-        opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
-
         match tracing_subscriber::registry()
             .with(tracing_opentelemetry::layer())
             .with(

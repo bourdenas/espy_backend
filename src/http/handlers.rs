@@ -12,8 +12,9 @@ use std::{
 use tracing::{debug, error, info, instrument, warn};
 use warp::http::StatusCode;
 
+#[instrument(level = "trace")]
 pub async fn welcome() -> Result<impl warp::Reply, Infallible> {
-    debug!("GET /");
+    info!("GET /");
     Ok("welcome")
 }
 
@@ -22,7 +23,7 @@ pub async fn post_search(
     search: models::Search,
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    debug!("POST /search");
+    info!("POST /search");
     let started = SystemTime::now();
 
     let resp: Result<Box<dyn warp::Reply>, Infallible> = match igdb
@@ -77,7 +78,7 @@ pub async fn post_match(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    debug!("POST /library/{user_id}/match");
+    info!("POST /library/{user_id}/match");
 
     let manager = LibraryManager::new(&user_id, firestore);
 
@@ -135,7 +136,7 @@ pub async fn post_wishlist(
     wishlist: models::WishlistOp,
     firestore: Arc<Mutex<FirestoreApi>>,
 ) -> Result<impl warp::Reply, Infallible> {
-    debug!("POST /library/{user_id}/wishlist");
+    info!("POST /library/{user_id}/wishlist");
 
     let manager = LibraryManager::new(&user_id, firestore);
 
@@ -170,7 +171,7 @@ pub async fn post_unlink(
     unlink: models::Unlink,
     firestore: Arc<Mutex<FirestoreApi>>,
 ) -> Result<impl warp::Reply, Infallible> {
-    debug!("POST /library/{user_id}/unlink");
+    info!("POST /library/{user_id}/unlink");
     let started = SystemTime::now();
 
     // Remove storefront credentials from UserData.
@@ -207,7 +208,7 @@ pub async fn post_sync(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    debug!("POST /library/{user_id}/sync");
+    info!("POST /library/{user_id}/sync");
     let started = SystemTime::now();
 
     let store_entries = match User::new(Arc::clone(&firestore), &user_id) {
@@ -238,7 +239,7 @@ pub async fn post_upload(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    debug!("POST /library/{user_id}/upload");
+    info!("POST /library/{user_id}/upload");
     let started = SystemTime::now();
 
     let manager = LibraryManager::new(&user_id, firestore);
@@ -254,6 +255,7 @@ pub async fn post_upload(
     Ok(resp)
 }
 
+#[instrument(level = "trace")]
 pub async fn get_images(
     resolution: String,
     image: String,
