@@ -20,7 +20,7 @@ pub struct Resolve {
     pub game_id: u64,
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct MatchOp {
     /// The storefront entry that is {un}matched.
     pub store_entry: documents::StoreEntry,
@@ -36,11 +36,6 @@ pub struct MatchOp {
     /// library if it contains no other storefront entry.
     #[serde(default)]
     pub unmatch_entry: Option<documents::LibraryEntry>,
-
-    /// If true, matches the exact `game_entry` provided. Otherwise, it matches
-    /// with the base game of provided `game_entry`.
-    #[serde(default)]
-    pub exact_match: bool,
 
     /// If true, deletes the store_entry from the library. Otherwise, it moves
     /// the store_entry to the failed-to-match collection, unless a rematch is

@@ -14,7 +14,13 @@ use warp::http::StatusCode;
 
 #[instrument(level = "trace")]
 pub async fn welcome() -> Result<impl warp::Reply, Infallible> {
-    info!("GET /");
+    info!(
+        http_request.request_method = "GET",
+        http_request.request_url = "/",
+        labels.log_type = "query_logs",
+        labels.handler = "welcome",
+        "GET /"
+    );
     Ok("welcome")
 }
 
@@ -23,23 +29,46 @@ pub async fn post_search(
     search: models::Search,
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    info!("POST /search");
     let started = SystemTime::now();
-
-    let resp: Result<Box<dyn warp::Reply>, Infallible> = match igdb
+    let response = match igdb
         .search_by_title_with_cover(&search.title, search.base_game_only)
         .await
     {
-        Ok(candidates) => Ok(Box::new(warp::reply::json(&candidates))),
-        Err(err) => {
-            error!("{err}");
+        Ok(candidates) => Ok(candidates),
+        Err(e) => Err(Status::internal(format!(
+            "search_by_title_with_cover(): {e}"
+        ))),
+    };
+    let resp_time = SystemTime::now().duration_since(started).unwrap();
+
+    match response {
+        Ok(candidates) => {
+            info!(
+                http_request.request_method = "POST",
+                http_request.request_url = "/search",
+                labels.log_type = "query_logs",
+                labels.handler = "search",
+                search.title = search.title,
+                search.latency = resp_time.as_millis(),
+                search.results = candidates.len(),
+                "POST /search"
+            );
+            Ok(Box::new(warp::reply::json(&candidates)))
+        }
+        Err(e) => {
+            error!(
+                http_request.request_method = "POST",
+                http_request.request_url = "/search",
+                labels.log_type = "query_logs",
+                labels.handler = "search",
+                search.title = search.title,
+                search.latency = resp_time.as_millis(),
+                search.error = e.to_string(),
+                "POST /search"
+            );
             Ok(Box::new(StatusCode::NOT_FOUND))
         }
-    };
-
-    let resp_time = SystemTime::now().duration_since(started).unwrap();
-    debug!("time: {:.2} msec", resp_time.as_millis());
-    resp
+    }
 }
 
 #[instrument(level = "trace", skip(firestore, igdb))]
@@ -48,18 +77,38 @@ pub async fn post_resolve(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    info!("POST /resolve");
+    let started = SystemTime::now();
+    let response = match igdb.get(resolve.game_id).await {
+        Ok(igdb_game) => igdb.resolve(firestore, igdb_game).await,
+        Err(e) => Err(Status::internal(format!("igdb.get(): {e}"))),
+    };
+    let resp_time = SystemTime::now().duration_since(started).unwrap();
 
-    match igdb.get(resolve.game_id).await {
-        Ok(igdb_game) => match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
-            Ok(_) => Ok(StatusCode::OK),
-            Err(e) => {
-                error!("POST resolve: {e}");
-                Ok(StatusCode::INTERNAL_SERVER_ERROR)
-            }
-        },
+    match response {
+        Ok(game_entry) => {
+            info!(
+                http_request.request_method = "POST",
+                http_request.request_url = "/resolve",
+                labels.log_type = "query_logs",
+                labels.handler = "resolve",
+                resolve.game_id = resolve.game_id,
+                resolve.title = game_entry.name,
+                resolve.latency = resp_time.as_millis(),
+                "POST /resolve"
+            );
+            Ok(StatusCode::OK)
+        }
         Err(e) => {
-            error!("POST resolve: {e}");
+            error!(
+                http_request.request_method = "POST",
+                http_request.request_url = "/resolve",
+                labels.log_type = "query_logs",
+                labels.handler = "resolve",
+                resolve.game_id = resolve.game_id,
+                resolve.latency = resp_time.as_millis(),
+                resolve.error = e.to_string(),
+                "POST /resolve"
+            );
             Ok(StatusCode::NOT_FOUND)
         }
     }
@@ -78,26 +127,19 @@ pub async fn post_match(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    info!("POST /library/{user_id}/match");
-
+    let started = SystemTime::now();
+    let match_op_clone = match_op.clone();
     let manager = LibraryManager::new(&user_id, firestore);
-
-    match (match_op.game_entry, match_op.unmatch_entry) {
+    let response = match (match_op.game_entry, match_op.unmatch_entry) {
         // Match StoreEntry to GameEntry and add in Library.
         (Some(game_entry), None) => match manager.get_game_entry(igdb, game_entry.id).await {
             Ok(game_entries) => {
                 match manager.create_library_entry(match_op.store_entry, game_entries) {
-                    Ok(()) => Ok(StatusCode::OK),
-                    Err(err) => {
-                        error!("{err}");
-                        Ok(StatusCode::INTERNAL_SERVER_ERROR)
-                    }
+                    Ok(()) => Ok(()),
+                    Err(e) => Err(Status::internal(format!("create_library_entry(): {e}"))),
                 }
             }
-            Err(err) => {
-                error!("{err}");
-                Ok(StatusCode::NOT_FOUND)
-            }
+            Err(e) => Err(Status::not_found(format!("get_game_entry(): {e}"))),
         },
         // Remove StoreEntry from Library.
         (None, Some(_library_entry)) => {
@@ -105,11 +147,8 @@ pub async fn post_match(
                 .unmatch_game(match_op.store_entry, match_op.delete_unmatched)
                 .await
             {
-                Ok(()) => Ok(StatusCode::OK),
-                Err(err) => {
-                    error!("{err}");
-                    Ok(StatusCode::INTERNAL_SERVER_ERROR)
-                }
+                Ok(()) => Ok(()),
+                Err(e) => Err(Status::internal(format!("unmatch_game(): {e}"))),
             }
         }
         // Match StoreEntry with a different GameEntry.
@@ -118,15 +157,105 @@ pub async fn post_match(
                 .rematch_game(igdb, match_op.store_entry, game_entry)
                 .await
             {
-                Ok(()) => Ok(StatusCode::OK),
-                Err(err) => {
-                    error!("{err}");
-                    Ok(StatusCode::INTERNAL_SERVER_ERROR)
-                }
+                Ok(()) => Ok(()),
+                Err(e) => Err(Status::internal(format!("rematch_game(): {e}"))),
             }
         }
         // Unexpected request.
-        (None, None) => Ok(StatusCode::BAD_REQUEST),
+        (None, None) => Err(Status::invalid_argument(
+            "Missing both game_entry and unmatch_entry args.",
+        )),
+    };
+    let resp_time = SystemTime::now().duration_since(started).unwrap();
+
+    match response {
+        Ok(()) => {
+            info!(
+                http_request.request_method = "POST",
+                http_request.request_url = "/library/_/match",
+                labels.log_type = "query_logs",
+                labels.handler = "match",
+                r#match.user_id = user_id,
+                r#match.operation = match (match_op_clone.game_entry, match_op_clone.unmatch_entry)
+                {
+                    (Some(_), None) => "match",
+                    (None, Some(_)) => "unmatch",
+                    (Some(_), Some(_)) => "rematch",
+                    (None, None) => "bad_request",
+                },
+                r#match.store_entry_id = match_op_clone.store_entry.id,
+                r#match.store_entry_title = match_op_clone.store_entry.title,
+                r#match.store_entry_storefront = match_op_clone.store_entry.storefront_name,
+                r#match.latency = resp_time.as_millis(),
+            );
+            Ok(StatusCode::OK)
+        }
+        Err(Status::NotFound(e)) => {
+            error!(
+                http_request.request_method = "POST",
+                http_request.request_url = "/library/{user_id}/match",
+                labels.log_type = "query_logs",
+                labels.handler = "match",
+                r#match.user_id = user_id,
+                r#match.operation = match (match_op_clone.game_entry, match_op_clone.unmatch_entry)
+                {
+                    (Some(_), None) => "match",
+                    (None, Some(_)) => "unmatch",
+                    (Some(_), Some(_)) => "rematch",
+                    (None, None) => "bad_request",
+                },
+                r#match.store_entry_id = match_op_clone.store_entry.id,
+                r#match.store_entry_title = match_op_clone.store_entry.title,
+                r#match.store_entry_storefront = match_op_clone.store_entry.storefront_name,
+                r#match.latency = resp_time.as_millis(),
+                r#match.error = e.to_string(),
+            );
+            Ok(StatusCode::NOT_FOUND)
+        }
+        Err(Status::InvalidArgument(e)) => {
+            error!(
+                http_request.request_method = "POST",
+                http_request.request_url = "/library/{user_id}/match",
+                labels.log_type = "query_logs",
+                labels.handler = "match",
+                r#match.user_id = user_id,
+                r#match.operation = match (match_op_clone.game_entry, match_op_clone.unmatch_entry)
+                {
+                    (Some(_), None) => "match",
+                    (None, Some(_)) => "unmatch",
+                    (Some(_), Some(_)) => "rematch",
+                    (None, None) => "bad_request",
+                },
+                r#match.store_entry_id = match_op_clone.store_entry.id,
+                r#match.store_entry_title = match_op_clone.store_entry.title,
+                r#match.store_entry_storefront = match_op_clone.store_entry.storefront_name,
+                r#match.latency = resp_time.as_millis(),
+                r#match.error = e.to_string(),
+            );
+            Ok(StatusCode::BAD_REQUEST)
+        }
+        Err(e) => {
+            error!(
+                http_request.request_method = "POST",
+                http_request.request_url = "/library/{user_id}/match",
+                labels.log_type = "query_logs",
+                labels.handler = "match",
+                r#match.user_id = user_id,
+                r#match.operation = match (match_op_clone.game_entry, match_op_clone.unmatch_entry)
+                {
+                    (Some(_), None) => "match",
+                    (None, Some(_)) => "unmatch",
+                    (Some(_), Some(_)) => "rematch",
+                    (None, None) => "bad_request",
+                },
+                r#match.store_entry_id = match_op_clone.store_entry.id,
+                r#match.store_entry_title = match_op_clone.store_entry.title,
+                r#match.store_entry_storefront = match_op_clone.store_entry.storefront_name,
+                r#match.latency = resp_time.as_millis(),
+                r#match.error = e.to_string(),
+            );
+            Ok(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
