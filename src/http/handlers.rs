@@ -7,7 +7,7 @@ use crate::{
 use std::{
     convert::Infallible,
     sync::{Arc, Mutex},
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 use tracing::{debug, error, info, instrument, warn};
 use warp::http::StatusCode;
@@ -19,7 +19,6 @@ pub async fn welcome() -> Result<impl warp::Reply, Infallible> {
         http_request.request_url = "/",
         labels.log_type = "query_logs",
         labels.handler = "welcome",
-        "GET /"
     );
     Ok("welcome")
 }
@@ -51,7 +50,6 @@ pub async fn post_search(
                 search.title = search.title,
                 search.latency = resp_time.as_millis(),
                 search.results = candidates.len(),
-                "POST /search"
             );
             Ok(Box::new(warp::reply::json(&candidates)))
         }
@@ -64,7 +62,6 @@ pub async fn post_search(
                 search.title = search.title,
                 search.latency = resp_time.as_millis(),
                 search.error = e.to_string(),
-                "POST /search"
             );
             Ok(Box::new(StatusCode::NOT_FOUND))
         }
@@ -94,7 +91,6 @@ pub async fn post_resolve(
                 resolve.game_id = resolve.game_id,
                 resolve.title = game_entry.name,
                 resolve.latency = resp_time.as_millis(),
-                "POST /resolve"
             );
             Ok(StatusCode::OK)
         }
@@ -107,7 +103,6 @@ pub async fn post_resolve(
                 resolve.game_id = resolve.game_id,
                 resolve.latency = resp_time.as_millis(),
                 resolve.error = e.to_string(),
-                "POST /resolve"
             );
             Ok(StatusCode::NOT_FOUND)
         }
@@ -265,33 +260,60 @@ pub async fn post_wishlist(
     wishlist: models::WishlistOp,
     firestore: Arc<Mutex<FirestoreApi>>,
 ) -> Result<impl warp::Reply, Infallible> {
-    info!("POST /library/{user_id}/wishlist");
-
+    let started = SystemTime::now();
     let manager = LibraryManager::new(&user_id, firestore);
-
-    match wishlist.add_game {
-        Some(game) => match manager.add_to_wishlist(game).await {
-            Ok(()) => (),
-            Err(err) => {
-                error!("{err}");
-                return Ok(StatusCode::INTERNAL_SERVER_ERROR);
-            }
+    let wishlist_clone = wishlist.clone();
+    let response = match (wishlist.add_game, wishlist.remove_game) {
+        (Some(library_entry), _) => match manager.add_to_wishlist(library_entry).await {
+            Ok(()) => Ok(wishlist_clone.add_game.as_ref().unwrap().id),
+            Err(e) => Err(Status::internal(format!("add_to_wishlist(): {e}"))),
         },
-        None => (),
-    }
-
-    match wishlist.remove_game {
-        Some(game_id) => match manager.remove_from_wishlist(game_id).await {
-            Ok(()) => (),
-            Err(err) => {
-                error!("{err}");
-                return Ok(StatusCode::INTERNAL_SERVER_ERROR);
-            }
+        (_, Some(game_id)) => match manager.remove_from_wishlist(game_id).await {
+            Ok(()) => Ok(game_id),
+            Err(e) => Err(Status::internal(format!("remove_from_wishlist(): {e}"))),
         },
-        None => (),
-    }
+        _ => Err(Status::invalid_argument(
+            "Missing both add_game and remove_game arguments.",
+        )),
+    };
+    let resp_time = SystemTime::now().duration_since(started).unwrap();
 
-    Ok(StatusCode::OK)
+    match response {
+        Ok(game_id) => {
+            info!(
+                http_request.request_method = "POST",
+                http_request.request_url = "/library/_/wishlist",
+                labels.log_type = "query_logs",
+                labels.handler = "wishlist",
+                wishlist.user_id = user_id,
+                wishlist.operation = match (wishlist_clone.add_game, wishlist_clone.remove_game) {
+                    (Some(_), _) => "add_to_wishlist",
+                    (_, Some(_)) => "remove_from_wishlist",
+                    _ => "bad_request",
+                },
+                wishlist.game_id = game_id,
+                wishlist.latency = resp_time.as_millis(),
+            );
+            Ok(StatusCode::OK)
+        }
+        Err(e) => {
+            error!(
+                http_request.request_method = "POST",
+                http_request.request_url = "/library/_/wishlist",
+                labels.log_type = "query_logs",
+                labels.handler = "wishlist",
+                wishlist.user_id = user_id,
+                wishlist.operation = match (wishlist_clone.add_game, wishlist_clone.remove_game) {
+                    (Some(_), _) => "add_to_wishlist",
+                    (_, Some(_)) => "remove_from_wishlist",
+                    _ => "bad_request",
+                },
+                wishlist.latency = resp_time.as_millis(),
+                wishlist.error = e.to_string(),
+            );
+            Ok(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 #[instrument(level = "trace", skip(firestore))]
@@ -300,34 +322,50 @@ pub async fn post_unlink(
     unlink: models::Unlink,
     firestore: Arc<Mutex<FirestoreApi>>,
 ) -> Result<impl warp::Reply, Infallible> {
-    info!("POST /library/{user_id}/unlink");
     let started = SystemTime::now();
-
     // Remove storefront credentials from UserData.
-    match User::new(Arc::clone(&firestore), &user_id) {
-        Ok(mut user) => {
-            if let Err(err) = user.remove_storefront(&unlink.storefront_id) {
-                error!("{err}");
-                return Ok(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-        }
-        Err(err) => {
-            error!("{err}");
-            return Ok(StatusCode::INTERNAL_SERVER_ERROR);
-        }
+    let mut response = match User::new(Arc::clone(&firestore), &user_id) {
+        Ok(mut user) => match user.remove_storefront(&unlink.storefront_id) {
+            Ok(()) => Ok(()),
+            Err(e) => Err(Status::internal(format!("remove_storefront(): {e}"))),
+        },
+        Err(e) => Err(e),
     };
 
-    // Remove storefront library entries.
-    let manager = LibraryManager::new(&user_id, firestore);
-    if let Err(err) = manager.remove_storefront(&unlink.storefront_id).await {
-        error!("{err}");
-        return Ok(StatusCode::INTERNAL_SERVER_ERROR);
+    if response.is_ok() {
+        // Remove storefront library entries.
+        let manager = LibraryManager::new(&user_id, firestore);
+        response = manager.remove_storefront(&unlink.storefront_id).await;
     }
-
     let resp_time = SystemTime::now().duration_since(started).unwrap();
-    debug!("time: {:.2} msec", resp_time.as_millis());
 
-    Ok(StatusCode::OK)
+    match response {
+        Ok(()) => {
+            info!(
+                http_request.request_method = "POST",
+                http_request.request_url = "/library/_/unlink",
+                labels.log_type = "query_logs",
+                labels.handler = "unlink",
+                unlink.user_id = user_id,
+                unlink.storefront = unlink.storefront_id,
+                unlink.latency = resp_time.as_millis(),
+            );
+            Ok(StatusCode::OK)
+        }
+        Err(e) => {
+            error!(
+                http_request.request_method = "POST",
+                http_request.request_url = "/library/_/unlink",
+                labels.log_type = "query_logs",
+                labels.handler = "unlink",
+                unlink.user_id = user_id,
+                unlink.storefront = unlink.storefront_id,
+                unlink.latency = resp_time.as_millis(),
+                unlink.error = e.to_string(),
+            );
+            Ok(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 #[instrument(level = "trace", skip(api_keys, firestore, igdb))]
@@ -337,25 +375,54 @@ pub async fn post_sync(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    info!("POST /library/{user_id}/sync");
     let started = SystemTime::now();
 
     let store_entries = match User::new(Arc::clone(&firestore), &user_id) {
         Ok(mut user) => match user.sync_accounts(&api_keys).await {
             Ok(entries) => entries,
-            Err(err) => return Ok(log_err(err)),
+            Err(e) => {
+                return Ok(log_sync_err(
+                    &user_id,
+                    "sync",
+                    SystemTime::now().duration_since(started).unwrap(),
+                    e,
+                ))
+            }
         },
-        Err(err) => return Ok(log_err(err)),
+        Err(e) => {
+            return Ok(log_sync_err(
+                &user_id,
+                "sync",
+                SystemTime::now().duration_since(started).unwrap(),
+                e,
+            ))
+        }
     };
 
     let manager = LibraryManager::new(&user_id, firestore);
     let report = match manager.recon_store_entries(store_entries, igdb).await {
         Ok(report) => report,
-        Err(err) => return Ok(log_err(err)),
+        Err(e) => {
+            return Ok(log_sync_err(
+                &user_id,
+                "sync",
+                SystemTime::now().duration_since(started).unwrap(),
+                e,
+            ))
+        }
     };
 
     let resp_time = SystemTime::now().duration_since(started).unwrap();
-    debug!("time: {:.2} msec", resp_time.as_millis());
+
+    info!(
+        http_request.request_method = "POST",
+        http_request.request_url = format!("/library/_/sync"),
+        labels.log_type = "query_logs",
+        labels.handler = "sync",
+        sync.user_id = user_id,
+        sync.report = format!("{:?}", report),
+        sync.latency = resp_time.as_millis(),
+    );
 
     let resp: Box<dyn warp::Reply> = Box::new(warp::reply::json(&report));
     Ok(resp)
@@ -368,17 +435,32 @@ pub async fn post_upload(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    info!("POST /library/{user_id}/upload");
     let started = SystemTime::now();
 
     let manager = LibraryManager::new(&user_id, firestore);
     let report = match manager.recon_store_entries(upload.entries, igdb).await {
         Ok(report) => report,
-        Err(err) => return Ok(log_err(err)),
+        Err(e) => {
+            return Ok(log_sync_err(
+                &user_id,
+                "upload",
+                SystemTime::now().duration_since(started).unwrap(),
+                e,
+            ))
+        }
     };
 
     let resp_time = SystemTime::now().duration_since(started).unwrap();
-    debug!("time: {:.2} msec", resp_time.as_millis());
+
+    info!(
+        http_request.request_method = "POST",
+        http_request.request_url = format!("/library/_/upload"),
+        labels.log_type = "query_logs",
+        labels.handler = "upload",
+        sync.user_id = user_id,
+        sync.report = format!("{:?}", report),
+        sync.latency = resp_time.as_millis(),
+    );
 
     let resp: Box<dyn warp::Reply> = Box::new(warp::reply::json(&report));
     Ok(resp)
@@ -413,8 +495,26 @@ pub async fn get_images(
 
 const IGDB_IMAGES_URL: &str = "https://images.igdb.com/igdb/image/upload";
 
-fn log_err(status: Status) -> Box<dyn warp::Reply> {
-    error!("{status}");
-    let status: Box<dyn warp::Reply> = Box::new(StatusCode::INTERNAL_SERVER_ERROR);
+fn log_sync_err(
+    user_id: &str,
+    handler_name: &str,
+    resp_time: Duration,
+    e: Status,
+) -> Box<dyn warp::Reply> {
+    error!(
+        http_request.request_method = "POST",
+        http_request.request_url = format!("/library/_/{handler_name}"),
+        labels.log_type = "query_logs",
+        labels.handler = handler_name,
+        sync.user_id = user_id,
+        sync.latency = resp_time.as_millis(),
+        sync.error = e.to_string(),
+    );
+
+    let status: Box<dyn warp::Reply> = Box::new(match e {
+        Status::NotFound(_) => StatusCode::NOT_FOUND,
+        Status::InvalidArgument(_) => StatusCode::BAD_REQUEST,
+        _ => StatusCode::INTERNAL_SERVER_ERROR,
+    });
     status
 }
