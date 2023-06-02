@@ -30,6 +30,10 @@ pub struct GameDigest {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub franchises: Vec<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub developers: Vec<String>,
 
     #[serde(default)]
@@ -43,6 +47,23 @@ pub struct GameDigest {
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub keywords: Vec<String>,
+}
+
+impl GameDigest {
+    pub fn short_digest(game_entry: GameEntry) -> Self {
+        GameDigest {
+            id: game_entry.id,
+            name: game_entry.name,
+            cover: match game_entry.cover {
+                Some(cover) => Some(cover.image_id),
+                None => None,
+            },
+            release_date: game_entry.release_date,
+            category: game_entry.category,
+            rating: game_entry.igdb_rating,
+            ..Default::default()
+        }
+    }
 }
 
 impl From<GameEntry> for GameDigest {
@@ -63,6 +84,14 @@ impl From<GameEntry> for GameDigest {
                 .collections
                 .into_iter()
                 .map(|collection| collection.name)
+                .collect::<HashSet<_>>()
+                .into_iter()
+                .collect(),
+
+            franchises: game_entry
+                .franchises
+                .into_iter()
+                .map(|franchise| franchise.name)
                 .collect::<HashSet<_>>()
                 .into_iter()
                 .collect(),

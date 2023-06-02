@@ -58,6 +58,7 @@ async fn refresh_library_entries(
     let firestore = Arc::new(Mutex::new(firestore));
 
     let mut game_entries: HashMap<u64, LibraryEntry> = HashMap::new();
+    let mut k = 0;
     for entry in legacy_library.entries {
         let game_entry = {
             let mut firestore = firestore.lock().unwrap();
@@ -67,12 +68,15 @@ async fn refresh_library_entries(
 
         let game_entry = match game_entry {
             Ok(game_entry) => {
-                info!("Read from firestore '{title}'", title = game_entry.name);
+                info!(
+                    "#{k} Read from firestore '{title}'",
+                    title = game_entry.name
+                );
                 game_entry
             }
             Err(_) => match igdb.get(entry.id).await {
                 Ok(igdb_game) => {
-                    info!("Fetching from igdb '{title}'", title = igdb_game.name);
+                    info!("#{k} Fetching from igdb '{title}'", title = igdb_game.name);
                     match igdb.get_digest(Arc::clone(&firestore), &igdb_game).await {
                         Ok(game_entry) => game_entry,
                         Err(e) => {
@@ -96,6 +100,7 @@ async fn refresh_library_entries(
                     .extend(entry.store_entries.iter().map(|e| e.clone()))
             })
             .or_insert(entry);
+        k += 1;
     }
 
     let library = Library {

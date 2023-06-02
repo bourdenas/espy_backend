@@ -2,6 +2,7 @@ pub mod collections;
 pub mod companies;
 pub mod external_games;
 pub mod failed;
+pub mod franchises;
 pub mod games;
 pub mod genres;
 pub mod keywords;

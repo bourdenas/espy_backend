@@ -1,7 +1,7 @@
 use clap::Parser;
 use espy_backend::{
     api::FirestoreApi,
-    documents::{GameDigest, IgdbCollection},
+    documents::{Collection, GameDigest},
     *,
 };
 use tracing::{error, info, instrument};
@@ -9,9 +9,9 @@ use tracing::{error, info, instrument};
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
 #[derive(Parser)]
 struct Opts {
-    /// Refresh collection with specified slug (id).
+    /// Refresh collection with specified id.
     #[clap(long)]
-    slug: Option<String>,
+    id: Option<u64>,
 
     /// If set, delete game entry instead of refreshing it.
     #[clap(long)]
@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
         .expect("FirestoreApi.from_credentials()");
 
-    if let Some(id) = &opts.slug {
+    if let Some(id) = opts.id {
         match opts.delete {
             false => refresh_collection(firestore, id).await?,
             true => library::firestore::collections::delete(&firestore, id)?,
@@ -46,8 +46,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
-async fn refresh_collection(firestore: FirestoreApi, slug: &str) -> Result<(), Status> {
-    let collection = library::firestore::collections::read(&firestore, slug)?;
+async fn refresh_collection(firestore: FirestoreApi, id: u64) -> Result<(), Status> {
+    let collection = library::firestore::collections::read(&firestore, id)?;
     refresh(firestore, vec![collection])
 }
 
@@ -57,7 +57,7 @@ async fn refresh_collections(firestore: FirestoreApi) -> Result<(), Status> {
     refresh(firestore, collections)
 }
 
-fn refresh(mut firestore: FirestoreApi, collections: Vec<IgdbCollection>) -> Result<(), Status> {
+fn refresh(mut firestore: FirestoreApi, collections: Vec<Collection>) -> Result<(), Status> {
     info!("Updating {} collections...", collections.len());
 
     for collection in collections {
@@ -71,7 +71,7 @@ fn refresh(mut firestore: FirestoreApi, collections: Vec<IgdbCollection>) -> Res
             .filter_map(|e| e.ok())
             .map(|game_entry| GameDigest::from(game_entry))
             .collect();
-        let collection = IgdbCollection {
+        let collection = Collection {
             id: collection.id,
             name: collection.name,
             slug: collection.slug,

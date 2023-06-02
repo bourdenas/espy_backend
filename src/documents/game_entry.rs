@@ -54,15 +54,19 @@ pub struct GameEntry {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub collections: Vec<Collection>,
+    pub collections: Vec<CollectionDigest>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub developers: Vec<Company>,
+    pub franchises: Vec<CollectionDigest>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub publishers: Vec<Company>,
+    pub developers: Vec<CompanyDigest>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub publishers: Vec<CompanyDigest>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -97,7 +101,7 @@ pub struct GameEntry {
     pub websites: Vec<Website>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub enum GameCategory {
     Main,
     Dlc,
@@ -133,7 +137,7 @@ pub struct Image {
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct Company {
+pub struct CompanyDigest {
     pub id: u64,
     pub name: String,
 
@@ -160,7 +164,7 @@ impl Default for CompanyRole {
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct Collection {
+pub struct CollectionDigest {
     pub id: u64,
     pub name: String,
 

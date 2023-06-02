@@ -1,6 +1,6 @@
 use crate::{
     api::FirestoreApi,
-    documents::{GameDigest, GameEntry, StoreEntry},
+    documents::{GameDigest, GameEntry, Image, StoreEntry},
     games::SteamDataApi,
     library::firestore,
     util::rate_limiter::RateLimiter,
@@ -124,7 +124,7 @@ impl IgdbApi {
 
                         let mut game_entry = GameEntry::from(igdb_game);
                         game_entry.cover = cover;
-                        Ok(GameDigest::from(game_entry))
+                        Ok(GameDigest::short_digest(game_entry))
                     }
                     false => Err(Status::not_found(format!(
                         "IgdbGame '{}' is not a PC game.",
@@ -136,6 +136,12 @@ impl IgdbApi {
                 "IgdbGame with id={id} was not found."
             ))),
         }
+    }
+
+    #[instrument(level = "trace", skip(self))]
+    pub async fn get_cover(&self, id: u64) -> Result<Option<Image>, Status> {
+        let connection = self.connection()?;
+        get_cover(&connection, id).await
     }
 
     /// Returns a GameDigest for an IgdbGame.
@@ -168,7 +174,7 @@ impl IgdbApi {
         };
 
         let connection = self.connection()?;
-        let result: Vec<docs::ExternalGame> = post(
+        let result: Vec<docs::IgdbExternalGame> = post(
             &connection,
             EXTERNAL_GAMES_ENDPOINT,
             &format!(
@@ -285,6 +291,10 @@ impl IgdbApi {
             &igdb_game.name, &igdb_game.id
         );
 
+        {
+            let mut firestore = firestore.lock().unwrap();
+            firestore.validate();
+        }
         let connection = self.connection()?;
 
         let mut game_entry =

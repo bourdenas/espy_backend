@@ -73,10 +73,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
 
         for igdb_game in games {
-            {
-                let mut firestore = firestore.lock().unwrap();
-                firestore.validate();
-            }
             match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
                 Ok(game_entry) => {
                     info!("#{} Resolved '{}' ({})", k, game_entry.name, game_entry.id)
