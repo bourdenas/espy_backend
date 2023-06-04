@@ -1,6 +1,6 @@
 use crate::{
     api::FirestoreApi,
-    documents::{GameDigest, GameEntry, Image, StoreEntry},
+    documents::{GameCategory, GameDigest, GameEntry, Image, StoreEntry},
     games::SteamDataApi,
     library::firestore,
     util::rate_limiter::RateLimiter,
@@ -15,7 +15,8 @@ use tracing::{error, info, instrument, trace_span, Instrument};
 
 use super::{
     backend::post,
-    docs, ranking,
+    docs::{self, IgdbGameShort},
+    ranking,
     resolve::{
         get_cover, resolve_game_digest, resolve_game_info, EXTERNAL_GAMES_ENDPOINT, GAMES_ENDPOINT,
     },
@@ -102,10 +103,10 @@ impl IgdbApi {
     pub async fn get_short_digest(&self, id: u64) -> Result<GameDigest, Status> {
         let connection = self.connection()?;
 
-        let result: Vec<IgdbGame> = post(
+        let result: Vec<IgdbGameShort> = post(
             &connection,
             GAMES_ENDPOINT,
-            &format!("fields *; where id={id};"),
+            &format!("fields id, name, first_release_date, aggregated_rating, category, version_parent, platforms, cover.image_id; where id={id};"),
         )
         .await?;
 
@@ -116,16 +117,21 @@ impl IgdbApi {
                     || igdb_game.platforms.contains(&14)
                     || igdb_game.platforms.is_empty()
                 {
-                    true => {
-                        let cover = match igdb_game.cover {
-                            Some(cover_id) => get_cover(&connection, cover_id).await?,
+                    true => Ok(GameDigest {
+                        id: igdb_game.id,
+                        name: igdb_game.name,
+                        release_date: igdb_game.first_release_date,
+                        rating: igdb_game.aggregated_rating,
+                        category: match igdb_game.version_parent {
+                            Some(_) => GameCategory::Version,
+                            None => GameCategory::from(igdb_game.category),
+                        },
+                        cover: match igdb_game.cover {
+                            Some(cover) => Some(cover.image_id),
                             None => None,
-                        };
-
-                        let mut game_entry = GameEntry::from(igdb_game);
-                        game_entry.cover = cover;
-                        Ok(GameDigest::short_digest(game_entry))
-                    }
+                        },
+                        ..Default::default()
+                    }),
                     false => Err(Status::not_found(format!(
                         "IgdbGame '{}' is not a PC game.",
                         igdb_game.name,
@@ -288,8 +294,11 @@ impl IgdbApi {
         igdb_game: IgdbGame,
     ) -> Result<GameEntry, Status> {
         info!(
+            labels.log_type = "counters",
+            labels.counter = "igdb_resolve",
             "Resolving in IGDB '{}' ({})",
-            &igdb_game.name, &igdb_game.id
+            &igdb_game.name,
+            &igdb_game.id
         );
 
         {

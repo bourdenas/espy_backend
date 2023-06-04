@@ -505,15 +505,13 @@ async fn get_involved_companies(
 
     for involved_company in &involved_companies {
         if let Some(id) = involved_company.company {
-            match firestore::companies::search(&firestore.lock().unwrap(), id) {
-                Ok(igdb_companies) if !igdb_companies.is_empty() => {
-                    companies.extend(igdb_companies.into_iter().map(|c| CompanyDigest {
-                        id: c.id,
-                        name: c.name,
-                        slug: c.slug,
-                        role: get_role(involved_company),
-                    }))
-                }
+            match firestore::companies::read(&firestore.lock().unwrap(), id) {
+                Ok(igdb_company) => companies.push(CompanyDigest {
+                    id: igdb_company.id,
+                    name: igdb_company.name,
+                    slug: igdb_company.slug,
+                    role: get_role(involved_company),
+                }),
                 _ => missing.push(id),
             }
         }
