@@ -251,6 +251,7 @@ impl IgdbApi {
             .collect::<Vec<_>>())
     }
 
+    #[instrument(level = "trace", skip(self))]
     async fn search(&self, title: &str) -> Result<Vec<IgdbGame>, Status> {
         let title = title.replace("\"", "");
         let connection = self.connection()?;

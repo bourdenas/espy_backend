@@ -73,7 +73,7 @@ warp = "0.3"
 
 tracing = "0.1"
 tracing-subscriber =  "0.3"
-tracing-opentelemetry = "0.18" 
-tracing-stackdriver = { version = "0.6", features = ["opentelemetry"] }
-opentelemetry = "0.18"
-opentelemetry-jaeger = "0.17"
+tracing-opentelemetry = "0.19" 
+tracing-stackdriver = { version = "0.7", features = ["opentelemetry"] }
+opentelemetry = "0.19"
+opentelemetry-jaeger = "0.18"
