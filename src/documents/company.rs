@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::GameDigest;
 
-#[derive(Serialize, Deserialize, Default, Debug)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Company {
     pub id: u64,
 

@@ -106,11 +106,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 for game in game_ids {
                     if let Some(digest) = games.get(game) {
                         game_digests.push(digest.clone());
+                        continue;
                     }
 
                     match firestore::games::read(&firestore, *game) {
                         Ok(game_entry) => {
-                            let digest = GameDigest::short_digest(game_entry);
+                            let digest = GameDigest::short_digest(&game_entry);
                             games.insert(digest.id, digest.clone());
                             game_digests.push(digest)
                         }

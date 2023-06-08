@@ -117,6 +117,23 @@ pub enum GameCategory {
     Ignore,
 }
 
+impl From<u64> for GameCategory {
+    fn from(igdb_category: u64) -> Self {
+        match igdb_category {
+            0 => GameCategory::Main,
+            1 => GameCategory::Dlc,
+            2 => GameCategory::Expansion,
+            3 => GameCategory::Bundle,
+            4 => GameCategory::StandaloneExpansion,
+            6 => GameCategory::Episode,
+            7 => GameCategory::Season,
+            8 => GameCategory::Remake,
+            9 => GameCategory::Remaster,
+            _ => GameCategory::Ignore,
+        }
+    }
+}
+
 impl Default for GameCategory {
     fn default() -> Self {
         GameCategory::Main
@@ -132,7 +149,11 @@ impl std::fmt::Display for GameCategory {
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Image {
     pub image_id: String,
+
+    #[serde(default)]
     pub height: i32,
+
+    #[serde(default)]
     pub width: i32,
 }
 
@@ -174,7 +195,7 @@ pub struct CollectionDigest {
     pub igdb_type: CollectionType,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub enum CollectionType {
     Null = 0,
     Collection = 1,
@@ -224,18 +245,7 @@ impl From<IgdbGame> for GameEntry {
             igdb_hypes: igdb_game.hypes,
             category: match igdb_game.version_parent {
                 Some(_) => GameCategory::Version,
-                None => match igdb_game.category {
-                    0 => GameCategory::Main,
-                    1 => GameCategory::Dlc,
-                    2 => GameCategory::Expansion,
-                    3 => GameCategory::Bundle,
-                    4 => GameCategory::StandaloneExpansion,
-                    6 => GameCategory::Episode,
-                    7 => GameCategory::Season,
-                    8 => GameCategory::Remake,
-                    9 => GameCategory::Remaster,
-                    _ => GameCategory::Ignore,
-                },
+                None => GameCategory::from(igdb_game.category),
             },
 
             websites: vec![Website {
@@ -261,18 +271,7 @@ impl From<&IgdbGame> for GameEntry {
             igdb_hypes: igdb_game.hypes,
             category: match igdb_game.version_parent {
                 Some(_) => GameCategory::Version,
-                None => match igdb_game.category {
-                    0 => GameCategory::Main,
-                    1 => GameCategory::Dlc,
-                    2 => GameCategory::Expansion,
-                    3 => GameCategory::Bundle,
-                    4 => GameCategory::StandaloneExpansion,
-                    6 => GameCategory::Episode,
-                    7 => GameCategory::Season,
-                    8 => GameCategory::Remake,
-                    9 => GameCategory::Remaster,
-                    _ => GameCategory::Ignore,
-                },
+                None => GameCategory::from(igdb_game.category),
             },
 
             websites: vec![Website {

@@ -1,6 +1,9 @@
 use crate::{
     api::FirestoreApi,
-    documents::{GameDigest, GameEntry, Image, StoreEntry},
+    documents::{
+        Collection, CollectionType, Company, CompanyRole, GameCategory, GameDigest, GameEntry,
+        Image, StoreEntry,
+    },
     games::SteamDataApi,
     library::firestore,
     util::rate_limiter::RateLimiter,
@@ -8,6 +11,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -15,7 +19,8 @@ use tracing::{error, info, instrument, trace_span, Instrument};
 
 use super::{
     backend::post,
-    docs, ranking,
+    docs::{self, IgdbGameShort},
+    ranking,
     resolve::{
         get_cover, resolve_game_digest, resolve_game_info, EXTERNAL_GAMES_ENDPOINT, GAMES_ENDPOINT,
     },
@@ -102,10 +107,10 @@ impl IgdbApi {
     pub async fn get_short_digest(&self, id: u64) -> Result<GameDigest, Status> {
         let connection = self.connection()?;
 
-        let result: Vec<IgdbGame> = post(
+        let result: Vec<IgdbGameShort> = post(
             &connection,
             GAMES_ENDPOINT,
-            &format!("fields *; where id={id};"),
+            &format!("fields id, name, first_release_date, aggregated_rating, category, version_parent, platforms, cover.image_id; where id={id};"),
         )
         .await?;
 
@@ -116,16 +121,21 @@ impl IgdbApi {
                     || igdb_game.platforms.contains(&14)
                     || igdb_game.platforms.is_empty()
                 {
-                    true => {
-                        let cover = match igdb_game.cover {
-                            Some(cover_id) => get_cover(&connection, cover_id).await?,
+                    true => Ok(GameDigest {
+                        id: igdb_game.id,
+                        name: igdb_game.name,
+                        release_date: igdb_game.first_release_date,
+                        rating: igdb_game.aggregated_rating,
+                        category: match igdb_game.version_parent {
+                            Some(_) => GameCategory::Version,
+                            None => GameCategory::from(igdb_game.category),
+                        },
+                        cover: match igdb_game.cover {
+                            Some(cover) => Some(cover.image_id),
                             None => None,
-                        };
-
-                        let mut game_entry = GameEntry::from(igdb_game);
-                        game_entry.cover = cover;
-                        Ok(GameDigest::short_digest(game_entry))
-                    }
+                        },
+                        ..Default::default()
+                    }),
                     false => Err(Status::not_found(format!(
                         "IgdbGame '{}' is not a PC game.",
                         igdb_game.name,
@@ -288,8 +298,11 @@ impl IgdbApi {
         igdb_game: IgdbGame,
     ) -> Result<GameEntry, Status> {
         info!(
+            labels.log_type = "counters",
+            labels.counter = "igdb_resolve",
             "Resolving in IGDB '{}' ({})",
-            &igdb_game.name, &igdb_game.id
+            &igdb_game.name,
+            &igdb_game.id
         );
 
         {
@@ -311,8 +324,157 @@ impl IgdbApi {
         if let Err(e) = firestore::games::write(&firestore.lock().unwrap(), &game_entry) {
             error!("Failed to save '{}' in Firestore: {e}", game_entry.name);
         }
+        update_companies(Arc::clone(&firestore), &game_entry);
+        update_collections(Arc::clone(&firestore), &game_entry);
 
         Ok(game_entry)
+    }
+}
+
+/// Make sure that any companies involved in the game are updated to include it.
+fn update_companies(firestore: Arc<Mutex<FirestoreApi>>, game_entry: &GameEntry) {
+    let mut firestore = firestore.lock().unwrap();
+    firestore.validate();
+
+    let involved_companies: Vec<_> = vec![&game_entry.developers, &game_entry.publishers]
+        .into_iter()
+        .flatten()
+        .map(|company| company)
+        .collect();
+
+    let mut companies: HashMap<_, _> = involved_companies
+        .iter()
+        .map(
+            |involved_company| match firestore::companies::read(&firestore, involved_company.id) {
+                Ok(company) => Some(company),
+                Err(Status::NotFound(_)) => Some(Company {
+                    id: involved_company.id,
+                    name: involved_company.name.clone(),
+                    slug: involved_company.slug.clone(),
+                    ..Default::default()
+                }),
+                Err(e) => {
+                    error!("{e}");
+                    None
+                }
+            },
+        )
+        .filter_map(|e| e)
+        .map(|e| (e.id, e))
+        .collect();
+
+    let mut write_back = HashSet::new();
+    for involved_company in involved_companies {
+        if let Some(company) = companies.get_mut(&involved_company.id) {
+            match involved_company.role {
+                CompanyRole::Developer => {
+                    if company
+                        .developed
+                        .iter()
+                        .all(|game| game.id != game_entry.id)
+                    {
+                        // Game was missing from Company.
+                        company
+                            .developed
+                            .push(GameDigest::short_digest(&game_entry));
+                        write_back.insert(company.id);
+                    }
+                }
+                CompanyRole::Publisher => {
+                    if company
+                        .published
+                        .iter()
+                        .all(|game| game.id != game_entry.id)
+                    {
+                        // Game was missing from Company.
+                        company
+                            .published
+                            .push(GameDigest::short_digest(&game_entry));
+                        write_back.insert(company.id);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    for id in write_back {
+        if let Err(e) = firestore::companies::write(&firestore, &companies.get(&id).unwrap()) {
+            error!("{e}")
+        }
+    }
+}
+
+/// Make sure that any collections / franchieses in the game are updated to
+/// include it.
+fn update_collections(firestore: Arc<Mutex<FirestoreApi>>, game_entry: &GameEntry) {
+    let mut firestore = firestore.lock().unwrap();
+    firestore.validate();
+
+    for (collections, collection_type) in [
+        (&game_entry.collections, CollectionType::Collection),
+        (&game_entry.franchises, CollectionType::Franchise),
+    ] {
+        for collection in collections {
+            match read_collection(&firestore, collection_type, collection.id) {
+                Ok(mut collection) => {
+                    match collection
+                        .games
+                        .iter()
+                        .find(|game| game.id == game_entry.id)
+                    {
+                        Some(_) => continue,
+                        None => {
+                            // Game was missing from Collection.
+                            collection.games.push(GameDigest::short_digest(&game_entry));
+                            if let Err(e) =
+                                write_collection(&firestore, collection_type, &collection)
+                            {
+                                error!("{e}")
+                            }
+                        }
+                    }
+                }
+                Err(Status::NotFound(_)) => {
+                    // Collection was missing entirely.
+                    let collection = Collection {
+                        id: collection.id,
+                        name: collection.name.clone(),
+                        slug: collection.slug.clone(),
+                        games: vec![GameDigest::short_digest(&game_entry)],
+                        ..Default::default()
+                    };
+                    if let Err(e) = write_collection(&firestore, collection_type, &collection) {
+                        error!("{e}")
+                    }
+                }
+                Err(e) => error!("{e}"),
+            }
+        }
+    }
+}
+
+fn read_collection(
+    firestore: &FirestoreApi,
+    collection_type: CollectionType,
+    id: u64,
+) -> Result<Collection, Status> {
+    match collection_type {
+        CollectionType::Collection => firestore::collections::read(&firestore, id),
+        CollectionType::Franchise => firestore::franchises::read(&firestore, id),
+        CollectionType::Null => Err(Status::invalid_argument("invalid collection type")),
+    }
+}
+
+fn write_collection(
+    firestore: &FirestoreApi,
+    collection_type: CollectionType,
+    collection: &Collection,
+) -> Result<(), Status> {
+    match collection_type {
+        CollectionType::Collection => firestore::collections::write(&firestore, &collection),
+        CollectionType::Franchise => firestore::franchises::write(&firestore, &collection),
+        CollectionType::Null => Err(Status::invalid_argument("invalid collection type")),
     }
 }
 

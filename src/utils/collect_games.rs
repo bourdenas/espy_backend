@@ -4,7 +4,12 @@ use std::{
 };
 
 use clap::Parser;
-use espy_backend::{api, util, Tracing};
+use espy_backend::{
+    api::{self, FirestoreApi},
+    documents::GameEntry,
+    library::firestore,
+    util, Status, Tracing,
+};
 use tracing::{error, info};
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
@@ -73,11 +78,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
 
         for igdb_game in games {
-            match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
-                Ok(game_entry) => {
-                    info!("#{} Resolved '{}' ({})", k, game_entry.name, game_entry.id)
-                }
-                Err(e) => error!("{e}"),
+            info!("{k} Processing '{}'", igdb_game.name);
+            match read_from_firestore(Arc::clone(&firestore), igdb_game.id) {
+                Ok(_) => {}
+                Err(_) => match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
+                    Ok(game_entry) => {
+                        info!("#{} Resolved '{}' ({})", k, game_entry.name, game_entry.id);
+                    }
+                    Err(e) => {
+                        error!("{e}");
+                    }
+                },
             }
 
             k += 1;
@@ -85,4 +96,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     Ok(())
+}
+
+fn read_from_firestore(
+    firestore: Arc<Mutex<FirestoreApi>>,
+    game_id: u64,
+) -> Result<GameEntry, Status> {
+    let mut firestore = firestore.lock().unwrap();
+    firestore.validate();
+    firestore::games::read(&firestore, game_id)
 }

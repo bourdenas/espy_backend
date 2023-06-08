@@ -50,12 +50,12 @@ pub struct GameDigest {
 }
 
 impl GameDigest {
-    pub fn short_digest(game_entry: GameEntry) -> Self {
+    pub fn short_digest(game_entry: &GameEntry) -> Self {
         GameDigest {
             id: game_entry.id,
-            name: game_entry.name,
-            cover: match game_entry.cover {
-                Some(cover) => Some(cover.image_id),
+            name: game_entry.name.clone(),
+            cover: match &game_entry.cover {
+                Some(cover) => Some(cover.image_id.clone()),
                 None => None,
             },
             release_date: game_entry.release_date,

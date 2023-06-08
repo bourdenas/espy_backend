@@ -1,5 +1,31 @@
 use serde::Deserialize;
 
+use crate::documents::Image;
+
+#[derive(Deserialize, Default, Debug, Clone)]
+pub struct IgdbGameShort {
+    pub id: u64,
+    pub name: String,
+
+    #[serde(default)]
+    pub first_release_date: Option<i64>,
+
+    #[serde(default)]
+    pub aggregated_rating: Option<f64>,
+
+    #[serde(default)]
+    pub category: u64,
+
+    #[serde(default)]
+    pub version_parent: Option<u64>,
+
+    #[serde(default)]
+    pub platforms: Vec<u64>,
+
+    #[serde(default)]
+    pub cover: Option<Image>,
+}
+
 #[derive(Deserialize, Default, Debug, Clone)]
 pub struct IgdbGame {
     pub id: u64,
