@@ -195,7 +195,7 @@ pub struct CollectionDigest {
     pub igdb_type: CollectionType,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub enum CollectionType {
     Null = 0,
     Collection = 1,
