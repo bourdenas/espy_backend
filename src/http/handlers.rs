@@ -170,18 +170,18 @@ pub async fn post_match(
                 http_request.request_url = "/library/_/match",
                 labels.log_type = "query_logs",
                 labels.handler = "match",
-                r#match.user_id = user_id,
-                r#match.operation = match (match_op_clone.game_entry, match_op_clone.unmatch_entry)
+                matchOp.user_id = user_id,
+                matchOp.operation = match (match_op_clone.game_entry, match_op_clone.unmatch_entry)
                 {
                     (Some(_), None) => "match",
                     (None, Some(_)) => "unmatch",
                     (Some(_), Some(_)) => "rematch",
                     (None, None) => "bad_request",
                 },
-                r#match.store_entry_id = match_op_clone.store_entry.id,
-                r#match.store_entry_title = match_op_clone.store_entry.title,
-                r#match.store_entry_storefront = match_op_clone.store_entry.storefront_name,
-                r#match.latency = resp_time.as_millis(),
+                matchOp.store_entry_id = match_op_clone.store_entry.id,
+                matchOp.store_entry_title = match_op_clone.store_entry.title,
+                matchOp.store_entry_storefront = match_op_clone.store_entry.storefront_name,
+                matchOp.latency = resp_time.as_millis(),
             );
             Ok(StatusCode::OK)
         }
@@ -191,19 +191,19 @@ pub async fn post_match(
                 http_request.request_url = "/library/{user_id}/match",
                 labels.log_type = "query_logs",
                 labels.handler = "match",
-                r#match.user_id = user_id,
-                r#match.operation = match (match_op_clone.game_entry, match_op_clone.unmatch_entry)
+                matchOp.user_id = user_id,
+                matchOp.operation = match (match_op_clone.game_entry, match_op_clone.unmatch_entry)
                 {
                     (Some(_), None) => "match",
                     (None, Some(_)) => "unmatch",
                     (Some(_), Some(_)) => "rematch",
                     (None, None) => "bad_request",
                 },
-                r#match.store_entry_id = match_op_clone.store_entry.id,
-                r#match.store_entry_title = match_op_clone.store_entry.title,
-                r#match.store_entry_storefront = match_op_clone.store_entry.storefront_name,
-                r#match.latency = resp_time.as_millis(),
-                r#match.error = e.to_string(),
+                matchOp.store_entry_id = match_op_clone.store_entry.id,
+                matchOp.store_entry_title = match_op_clone.store_entry.title,
+                matchOp.store_entry_storefront = match_op_clone.store_entry.storefront_name,
+                matchOp.latency = resp_time.as_millis(),
+                matchOp.error = e.to_string(),
             );
             Ok(StatusCode::NOT_FOUND)
         }
@@ -213,19 +213,19 @@ pub async fn post_match(
                 http_request.request_url = "/library/{user_id}/match",
                 labels.log_type = "query_logs",
                 labels.handler = "match",
-                r#match.user_id = user_id,
-                r#match.operation = match (match_op_clone.game_entry, match_op_clone.unmatch_entry)
+                matchOp.user_id = user_id,
+                matchOp.operation = match (match_op_clone.game_entry, match_op_clone.unmatch_entry)
                 {
                     (Some(_), None) => "match",
                     (None, Some(_)) => "unmatch",
                     (Some(_), Some(_)) => "rematch",
                     (None, None) => "bad_request",
                 },
-                r#match.store_entry_id = match_op_clone.store_entry.id,
-                r#match.store_entry_title = match_op_clone.store_entry.title,
-                r#match.store_entry_storefront = match_op_clone.store_entry.storefront_name,
-                r#match.latency = resp_time.as_millis(),
-                r#match.error = e.to_string(),
+                matchOp.store_entry_id = match_op_clone.store_entry.id,
+                matchOp.store_entry_title = match_op_clone.store_entry.title,
+                matchOp.store_entry_storefront = match_op_clone.store_entry.storefront_name,
+                matchOp.latency = resp_time.as_millis(),
+                matchOp.error = e.to_string(),
             );
             Ok(StatusCode::BAD_REQUEST)
         }
@@ -235,19 +235,19 @@ pub async fn post_match(
                 http_request.request_url = "/library/{user_id}/match",
                 labels.log_type = "query_logs",
                 labels.handler = "match",
-                r#match.user_id = user_id,
-                r#match.operation = match (match_op_clone.game_entry, match_op_clone.unmatch_entry)
+                matchOp.user_id = user_id,
+                matchOp.operation = match (match_op_clone.game_entry, match_op_clone.unmatch_entry)
                 {
                     (Some(_), None) => "match",
                     (None, Some(_)) => "unmatch",
                     (Some(_), Some(_)) => "rematch",
                     (None, None) => "bad_request",
                 },
-                r#match.store_entry_id = match_op_clone.store_entry.id,
-                r#match.store_entry_title = match_op_clone.store_entry.title,
-                r#match.store_entry_storefront = match_op_clone.store_entry.storefront_name,
-                r#match.latency = resp_time.as_millis(),
-                r#match.error = e.to_string(),
+                matchOp.store_entry_id = match_op_clone.store_entry.id,
+                matchOp.store_entry_title = match_op_clone.store_entry.title,
+                matchOp.store_entry_storefront = match_op_clone.store_entry.storefront_name,
+                matchOp.latency = resp_time.as_millis(),
+                matchOp.error = e.to_string(),
             );
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
