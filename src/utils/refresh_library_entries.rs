@@ -27,6 +27,10 @@ struct Opts {
         default_value = "espy-library-firebase-adminsdk-sncpo-3da8ca7f57.json"
     )]
     firestore_credentials: String,
+
+    /// Export in a text file the library (for inspection) instead of refreshing it.
+    #[clap(long)]
+    export: bool,
 }
 
 #[tokio::main]
@@ -41,7 +45,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut igdb = IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
     igdb.connect().await?;
 
-    refresh_library_entries(firestore, igdb, &opts.user).await?;
+    if opts.export {
+        let text = export_library(firestore, &opts.user).unwrap();
+        println!("{text}");
+    } else {
+        refresh_library_entries(firestore, igdb, &opts.user).await?;
+    }
 
     Ok(())
 }
@@ -124,4 +133,35 @@ async fn refresh_library_entries(
     info!("updated library size: {}KB", serialized.len() / 1024);
 
     Ok(())
+}
+
+#[instrument(level = "trace", skip(firestore, user_id))]
+fn export_library(firestore: FirestoreApi, user_id: &str) -> Result<String, Status> {
+    let library = library::firestore::library::read(&firestore, user_id)?;
+    info!("exporting {} titles...", library.entries.len());
+
+    let mut entries: Vec<_> = library
+        .entries
+        .iter()
+        .map(|entry| {
+            entry
+                .store_entries
+                .iter()
+                .map(|store| {
+                    format!(
+                        "{category:<10} {title} ({id}) -> {store:<5} {store_title}",
+                        category = entry.digest.category.to_string().to_uppercase(),
+                        title = entry.digest.name,
+                        id = entry.id,
+                        store = store.storefront_name.to_uppercase(),
+                        store_title = store.title,
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .flatten()
+        .collect();
+    entries.sort();
+
+    Ok(entries.join("\n"))
 }
