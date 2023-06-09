@@ -128,7 +128,7 @@ impl From<u64> for GameCategory {
             6 => GameCategory::Episode,
             7 => GameCategory::Season,
             8 => GameCategory::Remake,
-            9 => GameCategory::Remaster,
+            9 | 10 | 14 => GameCategory::Remaster,
             _ => GameCategory::Ignore,
         }
     }
