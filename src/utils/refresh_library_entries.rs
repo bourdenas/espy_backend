@@ -6,7 +6,7 @@ use std::{
 use clap::Parser;
 use espy_backend::{
     api::{FirestoreApi, IgdbApi},
-    documents::{Library, LibraryEntry},
+    documents::{GameDigest, Library, LibraryEntry},
     library, util, Status, Tracing,
 };
 use tracing::{error, info, instrument};
@@ -46,7 +46,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     igdb.connect().await?;
 
     if opts.export {
-        let text = export_library(firestore, &opts.user).unwrap();
+        let library = library::firestore::library::read(&firestore, &opts.user)?;
+        let text = export_library(library);
         println!("{text}");
     } else {
         refresh_library_entries(firestore, igdb, &opts.user).await?;
@@ -81,7 +82,7 @@ async fn refresh_library_entries(
                     "#{k} Read from firestore '{title}'",
                     title = game_entry.name
                 );
-                game_entry
+                GameDigest::from(game_entry)
             }
             Err(_) => match igdb.get(entry.id).await {
                 Ok(igdb_game) => {
@@ -135,11 +136,9 @@ async fn refresh_library_entries(
     Ok(())
 }
 
-#[instrument(level = "trace", skip(firestore, user_id))]
-fn export_library(firestore: FirestoreApi, user_id: &str) -> Result<String, Status> {
-    let library = library::firestore::library::read(&firestore, user_id)?;
+#[instrument(level = "trace", skip(library))]
+fn export_library(library: Library) -> String {
     info!("exporting {} titles...", library.entries.len());
-
     let mut entries: Vec<_> = library
         .entries
         .iter()
@@ -163,5 +162,5 @@ fn export_library(firestore: FirestoreApi, user_id: &str) -> Result<String, Stat
         .collect();
     entries.sort();
 
-    Ok(entries.join("\n"))
+    entries.join("\n")
 }
