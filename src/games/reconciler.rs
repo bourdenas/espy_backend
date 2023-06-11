@@ -79,7 +79,6 @@ impl Reconciler {
         match digest.category {
             GameCategory::Bundle | GameCategory::Version => {
                 let igdb_games = igdb.expand_bundle(digest.id).await?;
-                let name = digest.name.clone();
 
                 let mut digests = vec![digest];
                 if igdb_games.is_empty() {
@@ -94,20 +93,9 @@ impl Reconciler {
                     digests.extend(Self::get_digest(Arc::clone(&firestore), igdb, game.id).await?);
                 }
 
-                info!(
-                    "  Expanded bundle/version '{}' to\n{}",
-                    name,
-                    digests
-                        .iter()
-                        .map(|e| format!("🦀 {}", e.name.clone()))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                );
-
                 Ok(digests)
             }
             GameCategory::Episode => {
-                let name = digest.name.clone();
                 let digests = match digest.parent_id {
                     Some(parent_id) => vec![
                         vec![digest],
@@ -118,16 +106,6 @@ impl Reconciler {
                     .collect(),
                     None => vec![digest],
                 };
-                info!(
-                    "  Expanded episode '{}' to\n{}",
-                    name,
-                    digests
-                        .iter()
-                        .map(|e| format!("🦀 {}", e.name.clone()))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                );
-
                 Ok(digests)
             }
             _ => Ok(vec![digest]),
