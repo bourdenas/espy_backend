@@ -4,7 +4,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use super::{GameDigest, GameEntry, StoreEntry};
+use super::{GameDigest, StoreEntry};
 
 /// Document type under 'users/{user_id}/games/library' that includes user's
 /// library with games matched with an IGDB entry.
@@ -28,10 +28,10 @@ pub struct LibraryEntry {
 }
 
 impl LibraryEntry {
-    pub fn new(game: GameEntry, store_entries: Vec<StoreEntry>) -> Self {
+    pub fn new(digest: GameDigest, store_entries: Vec<StoreEntry>) -> Self {
         LibraryEntry {
-            id: game.id,
-            digest: GameDigest::from(game),
+            id: digest.id,
+            digest,
             store_entries,
 
             added_date: Some(
