@@ -33,7 +33,7 @@ impl IgdbBatchApi {
         post::<Vec<IgdbGame>>(
             &connection,
             GAMES_ENDPOINT,
-            &format!("fields *; where platforms = (6,13,14) & updated_at >= {updated_since} & (follows > 3 | hypes > 3) & (category = 0 | category = 1 | category = 2 | category = 4 | category = 8 | category = 9); limit 500; offset {offset};"),
+            &format!("fields *; where (platforms = (6,13,14) | platforms = null) & updated_at >= {updated_since} & (follows > 0 | hypes > 0) & (category = 0 | category = 1 | category = 2 | category = 4 | category = 8 | category = 9); limit 500; offset {offset};"),
         )
         .await
     }
