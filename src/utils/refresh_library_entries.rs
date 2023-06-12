@@ -6,7 +6,7 @@ use std::{
 use clap::Parser;
 use espy_backend::{
     api::{FirestoreApi, IgdbApi},
-    documents::{Library, LibraryEntry},
+    documents::{GameDigest, Library, LibraryEntry},
     library, util, Status, Tracing,
 };
 use tracing::{error, info, instrument};
@@ -27,6 +27,10 @@ struct Opts {
         default_value = "espy-library-firebase-adminsdk-sncpo-3da8ca7f57.json"
     )]
     firestore_credentials: String,
+
+    /// Export in a text file the library (for inspection) instead of refreshing it.
+    #[clap(long)]
+    export: bool,
 }
 
 #[tokio::main]
@@ -41,7 +45,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut igdb = IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
     igdb.connect().await?;
 
-    refresh_library_entries(firestore, igdb, &opts.user).await?;
+    if opts.export {
+        let library = library::firestore::library::read(&firestore, &opts.user)?;
+        let text = export_library(library);
+        println!("{text}");
+    } else {
+        refresh_library_entries(firestore, igdb, &opts.user).await?;
+    }
 
     Ok(())
 }
@@ -72,7 +82,7 @@ async fn refresh_library_entries(
                     "#{k} Read from firestore '{title}'",
                     title = game_entry.name
                 );
-                game_entry
+                GameDigest::from(game_entry)
             }
             Err(_) => match igdb.get(entry.id).await {
                 Ok(igdb_game) => {
@@ -124,4 +134,33 @@ async fn refresh_library_entries(
     info!("updated library size: {}KB", serialized.len() / 1024);
 
     Ok(())
+}
+
+#[instrument(level = "trace", skip(library))]
+fn export_library(library: Library) -> String {
+    info!("exporting {} titles...", library.entries.len());
+    let mut entries: Vec<_> = library
+        .entries
+        .iter()
+        .map(|entry| {
+            entry
+                .store_entries
+                .iter()
+                .map(|store| {
+                    format!(
+                        "{category:<10} {title} ({id}) -> {store:<5} {store_title}",
+                        category = entry.digest.category.to_string().to_uppercase(),
+                        title = entry.digest.name,
+                        id = entry.id,
+                        store = store.storefront_name.to_uppercase(),
+                        store_title = store.title,
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .flatten()
+        .collect();
+    entries.sort();
+
+    entries.join("\n")
 }

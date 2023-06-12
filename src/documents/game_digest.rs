@@ -25,6 +25,10 @@ pub struct GameDigest {
     pub rating: Option<f64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<u64>,
+
+    #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub collections: Vec<String>,
 
@@ -61,6 +65,10 @@ impl GameDigest {
             release_date: game_entry.release_date,
             category: game_entry.category,
             rating: game_entry.igdb_rating,
+            parent_id: match &game_entry.parent {
+                Some(parent) => Some(parent.id),
+                None => None,
+            },
             ..Default::default()
         }
     }
@@ -76,9 +84,15 @@ impl From<GameEntry> for GameDigest {
                 Some(cover) => Some(cover.image_id),
                 None => None,
             },
+
             release_date: game_entry.release_date,
             category: game_entry.category,
             rating: game_entry.igdb_rating,
+
+            parent_id: match game_entry.parent {
+                Some(parent) => Some(parent.id),
+                None => None,
+            },
 
             collections: game_entry
                 .collections

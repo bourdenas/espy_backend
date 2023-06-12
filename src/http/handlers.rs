@@ -127,14 +127,12 @@ pub async fn post_match(
     let manager = LibraryManager::new(&user_id, firestore);
     let response = match (match_op.game_entry, match_op.unmatch_entry) {
         // Match StoreEntry to GameEntry and add in Library.
-        (Some(game_entry), None) => match manager.get_game_entry(igdb, game_entry.id).await {
-            Ok(game_entries) => {
-                match manager.create_library_entry(match_op.store_entry, game_entries) {
-                    Ok(()) => Ok(()),
-                    Err(e) => Err(Status::internal(format!("create_library_entry(): {e}"))),
-                }
-            }
-            Err(e) => Err(Status::not_found(format!("get_game_entry(): {e}"))),
+        (Some(game_entry), None) => match manager.get_digest(igdb, game_entry.id).await {
+            Ok(digests) => match manager.create_library_entry(match_op.store_entry, digests) {
+                Ok(()) => Ok(()),
+                Err(e) => Err(Status::internal(format!("create_library_entry(): {e}"))),
+            },
+            Err(e) => Err(Status::not_found(format!("get_digest(): {e}"))),
         },
         // Remove StoreEntry from Library.
         (None, Some(_library_entry)) => {
@@ -149,7 +147,7 @@ pub async fn post_match(
         // Match StoreEntry with a different GameEntry.
         (Some(game_entry), Some(_library_entry)) => {
             match manager
-                .rematch_game(igdb, match_op.store_entry, game_entry)
+                .rematch_game(igdb, match_op.store_entry, game_entry.id)
                 .await
             {
                 Ok(()) => Ok(()),

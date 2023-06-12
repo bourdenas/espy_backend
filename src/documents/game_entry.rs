@@ -69,12 +69,12 @@ pub struct GameEntry {
     pub publishers: Vec<CompanyDigest>,
 
     #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub expansions: Vec<GameDigest>,
-
-    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent: Option<GameDigest>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub expansions: Vec<GameDigest>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -106,14 +106,13 @@ pub enum GameCategory {
     Main,
     Dlc,
     Expansion,
+    Bundle,
     StandaloneExpansion,
     Episode,
     Season,
     Remake,
     Remaster,
-    ExpandedGame,
     Version,
-    Bundle,
     Ignore,
 }
 
@@ -128,7 +127,7 @@ impl From<u64> for GameCategory {
             6 => GameCategory::Episode,
             7 => GameCategory::Season,
             8 => GameCategory::Remake,
-            9 => GameCategory::Remaster,
+            9 | 10 | 14 => GameCategory::Remaster,
             _ => GameCategory::Ignore,
         }
     }
@@ -243,9 +242,24 @@ impl From<IgdbGame> for GameEntry {
             igdb_rating: igdb_game.aggregated_rating,
             igdb_follows: igdb_game.follows,
             igdb_hypes: igdb_game.hypes,
+
             category: match igdb_game.version_parent {
                 Some(_) => GameCategory::Version,
                 None => GameCategory::from(igdb_game.category),
+            },
+
+            parent: match igdb_game.parent_game {
+                Some(id) => Some(GameDigest {
+                    id,
+                    ..Default::default()
+                }),
+                None => match igdb_game.version_parent {
+                    Some(id) => Some(GameDigest {
+                        id,
+                        ..Default::default()
+                    }),
+                    None => None,
+                },
             },
 
             websites: vec![Website {
@@ -269,9 +283,24 @@ impl From<&IgdbGame> for GameEntry {
             igdb_rating: igdb_game.aggregated_rating,
             igdb_follows: igdb_game.follows,
             igdb_hypes: igdb_game.hypes,
+
             category: match igdb_game.version_parent {
                 Some(_) => GameCategory::Version,
                 None => GameCategory::from(igdb_game.category),
+            },
+
+            parent: match igdb_game.parent_game {
+                Some(id) => Some(GameDigest {
+                    id,
+                    ..Default::default()
+                }),
+                None => match igdb_game.version_parent {
+                    Some(id) => Some(GameDigest {
+                        id,
+                        ..Default::default()
+                    }),
+                    None => None,
+                },
             },
 
             websites: vec![Website {

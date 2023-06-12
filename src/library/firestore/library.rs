@@ -1,6 +1,6 @@
 use crate::{
     api::FirestoreApi,
-    documents::{GameEntry, Library, LibraryEntry, StoreEntry},
+    documents::{GameDigest, Library, LibraryEntry, StoreEntry},
     Status,
 };
 use tracing::instrument;
@@ -27,18 +27,18 @@ pub fn write(firestore: &FirestoreApi, user_id: &str, library: &Library) -> Resu
 #[instrument(
     name = "library::add_entry",
     level = "trace",
-    skip(firestore, user_id, game_entries)
+    skip(firestore, user_id, digests)
 )]
 pub fn add_entry(
     firestore: &FirestoreApi,
     user_id: &str,
     store_entry: StoreEntry,
-    game_entries: Vec<GameEntry>,
+    digests: Vec<GameDigest>,
 ) -> Result<(), Status> {
     let mut library = read(firestore, user_id)?;
 
-    for game_entry in game_entries {
-        add(game_entry, store_entry.clone(), &mut library);
+    for digest in digests {
+        add(digest, store_entry.clone(), &mut library);
     }
     write(firestore, user_id, &library)
 }
@@ -57,13 +57,13 @@ pub fn add_entry(
 pub fn add_entries(
     firestore: &FirestoreApi,
     user_id: &str,
-    entries: Vec<(Vec<GameEntry>, StoreEntry)>,
+    entries: Vec<(Vec<GameDigest>, StoreEntry)>,
 ) -> Result<(), Status> {
     let mut library = read(firestore, user_id)?;
 
-    for (games, store_entry) in entries {
-        for game_entry in games {
-            add(game_entry, store_entry.clone(), &mut library);
+    for (digests, store_entry) in entries {
+        for digest in digests {
+            add(digest, store_entry.clone(), &mut library);
         }
     }
     write(firestore, user_id, &library)
@@ -105,8 +105,8 @@ pub fn remove_storefront(
 ///
 /// If an entry exists for the same game, it merges its store entries.
 /// Returns true if the entry is added.
-fn add(game_entry: GameEntry, store_entry: StoreEntry, library: &mut Library) -> bool {
-    match library.entries.iter_mut().find(|e| e.id == game_entry.id) {
+fn add(digest: GameDigest, store_entry: StoreEntry, library: &mut Library) -> bool {
+    match library.entries.iter_mut().find(|e| e.id == digest.id) {
         Some(existing_entry) => {
             if let None = existing_entry.store_entries.iter().find(|e| {
                 e.id == store_entry.id && e.storefront_name == store_entry.storefront_name
@@ -116,7 +116,7 @@ fn add(game_entry: GameEntry, store_entry: StoreEntry, library: &mut Library) ->
         }
         None => library
             .entries
-            .push(LibraryEntry::new(game_entry, vec![store_entry.clone()])),
+            .push(LibraryEntry::new(digest, vec![store_entry.clone()])),
     }
 
     true
@@ -160,8 +160,8 @@ fn remove_store_entries(storefront_id: &str, library: &mut Library) {
 mod tests {
     use super::*;
 
-    fn game_entry(id: u64) -> GameEntry {
-        GameEntry {
+    fn digest(id: u64) -> GameDigest {
+        GameDigest {
             id,
             ..Default::default()
         }
@@ -200,7 +200,7 @@ mod tests {
     fn add_in_empty_library() {
         let mut library = Library { entries: vec![] };
 
-        assert!(add(game_entry(7), StoreEntry::default(), &mut library));
+        assert!(add(digest(7), StoreEntry::default(), &mut library));
         assert_eq!(library.entries.len(), 1);
     }
 
@@ -210,7 +210,7 @@ mod tests {
             entries: vec![library_entry(7)],
         };
 
-        assert!(add(game_entry(7), StoreEntry::default(), &mut library));
+        assert!(add(digest(7), StoreEntry::default(), &mut library));
         assert_eq!(library.entries.len(), 1);
         assert_eq!(library.entries[0].store_entries.len(), 2);
     }

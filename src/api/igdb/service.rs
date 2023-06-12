@@ -162,8 +162,11 @@ impl IgdbApi {
         &self,
         firestore: Arc<Mutex<FirestoreApi>>,
         igdb_game: &IgdbGame,
-    ) -> Result<GameEntry, Status> {
-        resolve_game_digest(self.connection()?, firestore, igdb_game).await
+    ) -> Result<GameDigest, Status> {
+        match resolve_game_digest(self.connection()?, firestore, igdb_game).await {
+            Ok(game_entry) => Ok(GameDigest::from(game_entry)),
+            Err(e) => Err(e),
+        }
     }
 
     /// Returns a GameEntry based on external id info in IGDB.
