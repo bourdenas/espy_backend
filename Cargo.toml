@@ -8,6 +8,10 @@ edition = "2021"
 name = "http_server"
 path = "src/http_server.rs"
 
+[[bin]] 
+name = "webhook_handlers"
+path = "src/webhook_handlers.rs"
+
 # Command line utils
 [[bin]] 
 name = "collect_collections"
