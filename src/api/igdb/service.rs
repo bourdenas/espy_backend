@@ -161,7 +161,7 @@ impl IgdbApi {
     pub async fn get_digest(
         &self,
         firestore: Arc<Mutex<FirestoreApi>>,
-        igdb_game: &IgdbGame,
+        igdb_game: IgdbGame,
     ) -> Result<GameDigest, Status> {
         match resolve_game_digest(self.connection()?, firestore, igdb_game).await {
             Ok(game_entry) => Ok(GameDigest::from(game_entry)),
@@ -315,9 +315,8 @@ impl IgdbApi {
         let connection = self.connection()?;
 
         let mut game_entry =
-            resolve_game_digest(Arc::clone(&connection), Arc::clone(&firestore), &igdb_game)
-                .await?;
-        resolve_game_info(connection, igdb_game, &mut game_entry).await?;
+            resolve_game_digest(Arc::clone(&connection), Arc::clone(&firestore), igdb_game).await?;
+        resolve_game_info(connection, &mut game_entry).await?;
 
         let steam = SteamDataApi::new();
         if let Err(e) = steam.retrieve_steam_data(&mut game_entry).await {

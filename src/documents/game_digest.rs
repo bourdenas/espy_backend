@@ -10,15 +10,15 @@ pub struct GameDigest {
     pub name: String,
 
     #[serde(default)]
+    pub category: GameCategory,
+
+    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cover: Option<String>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub release_date: Option<i64>,
-
-    #[serde(default)]
-    pub category: GameCategory,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -58,13 +58,16 @@ impl GameDigest {
         GameDigest {
             id: game_entry.id,
             name: game_entry.name.clone(),
+            category: game_entry.category,
+
             cover: match &game_entry.cover {
                 Some(cover) => Some(cover.image_id.clone()),
                 None => None,
             },
-            release_date: game_entry.release_date,
-            category: game_entry.category,
-            rating: game_entry.igdb_rating,
+
+            release_date: game_entry.igdb_game.first_release_date,
+            rating: game_entry.igdb_game.aggregated_rating,
+
             parent_id: match &game_entry.parent {
                 Some(parent) => Some(parent.id),
                 None => None,
@@ -79,15 +82,15 @@ impl From<GameEntry> for GameDigest {
         GameDigest {
             id: game_entry.id,
             name: game_entry.name,
+            category: game_entry.category,
 
             cover: match game_entry.cover {
                 Some(cover) => Some(cover.image_id),
                 None => None,
             },
 
-            release_date: game_entry.release_date,
-            category: game_entry.category,
-            rating: game_entry.igdb_rating,
+            release_date: game_entry.igdb_game.first_release_date,
+            rating: game_entry.igdb_game.aggregated_rating,
 
             parent_id: match game_entry.parent {
                 Some(parent) => Some(parent.id),

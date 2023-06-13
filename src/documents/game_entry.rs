@@ -12,37 +12,11 @@ pub struct GameEntry {
     pub name: String,
 
     #[serde(default)]
-    #[serde(skip_serializing_if = "String::is_empty")]
-    pub summary: String,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "String::is_empty")]
-    pub storyline: String,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub release_date: Option<i64>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub igdb_rating: Option<f64>,
-
-    #[serde(default)]
-    pub igdb_follows: i64,
-
-    #[serde(default)]
-    pub igdb_hypes: i64,
-
-    #[serde(default)]
     pub category: GameCategory,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cover: Option<Image>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub steam_data: Option<SteamData>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -99,6 +73,50 @@ pub struct GameEntry {
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub websites: Vec<Website>,
+
+    #[serde(default)]
+    pub igdb_game: IgdbGame,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub steam_data: Option<SteamData>,
+}
+
+impl From<IgdbGame> for GameEntry {
+    fn from(igdb_game: IgdbGame) -> Self {
+        GameEntry {
+            id: igdb_game.id,
+            name: igdb_game.name.clone(),
+
+            category: match igdb_game.version_parent {
+                Some(_) => GameCategory::Version,
+                None => GameCategory::from(igdb_game.category),
+            },
+
+            parent: match igdb_game.parent_game {
+                Some(id) => Some(GameDigest {
+                    id,
+                    ..Default::default()
+                }),
+                None => match igdb_game.version_parent {
+                    Some(id) => Some(GameDigest {
+                        id,
+                        ..Default::default()
+                    }),
+                    None => None,
+                },
+            },
+
+            websites: vec![Website {
+                url: igdb_game.url.clone(),
+                authority: WebsiteAuthority::Igdb,
+            }],
+
+            igdb_game,
+
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
@@ -228,87 +246,5 @@ pub enum WebsiteAuthority {
 impl Default for WebsiteAuthority {
     fn default() -> Self {
         WebsiteAuthority::Null
-    }
-}
-
-impl From<IgdbGame> for GameEntry {
-    fn from(igdb_game: IgdbGame) -> Self {
-        GameEntry {
-            id: igdb_game.id,
-            name: igdb_game.name,
-            summary: igdb_game.summary,
-            storyline: igdb_game.storyline,
-            release_date: igdb_game.first_release_date,
-            igdb_rating: igdb_game.aggregated_rating,
-            igdb_follows: igdb_game.follows,
-            igdb_hypes: igdb_game.hypes,
-
-            category: match igdb_game.version_parent {
-                Some(_) => GameCategory::Version,
-                None => GameCategory::from(igdb_game.category),
-            },
-
-            parent: match igdb_game.parent_game {
-                Some(id) => Some(GameDigest {
-                    id,
-                    ..Default::default()
-                }),
-                None => match igdb_game.version_parent {
-                    Some(id) => Some(GameDigest {
-                        id,
-                        ..Default::default()
-                    }),
-                    None => None,
-                },
-            },
-
-            websites: vec![Website {
-                url: igdb_game.url,
-                authority: WebsiteAuthority::Igdb,
-            }],
-
-            ..Default::default()
-        }
-    }
-}
-
-impl From<&IgdbGame> for GameEntry {
-    fn from(igdb_game: &IgdbGame) -> Self {
-        GameEntry {
-            id: igdb_game.id,
-            name: igdb_game.name.clone(),
-            summary: igdb_game.summary.clone(),
-            storyline: igdb_game.storyline.clone(),
-            release_date: igdb_game.first_release_date,
-            igdb_rating: igdb_game.aggregated_rating,
-            igdb_follows: igdb_game.follows,
-            igdb_hypes: igdb_game.hypes,
-
-            category: match igdb_game.version_parent {
-                Some(_) => GameCategory::Version,
-                None => GameCategory::from(igdb_game.category),
-            },
-
-            parent: match igdb_game.parent_game {
-                Some(id) => Some(GameDigest {
-                    id,
-                    ..Default::default()
-                }),
-                None => match igdb_game.version_parent {
-                    Some(id) => Some(GameDigest {
-                        id,
-                        ..Default::default()
-                    }),
-                    None => None,
-                },
-            },
-
-            websites: vec![Website {
-                url: igdb_game.url.clone(),
-                authority: WebsiteAuthority::Igdb,
-            }],
-
-            ..Default::default()
-        }
     }
 }

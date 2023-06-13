@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::documents::Image;
 
@@ -26,7 +26,7 @@ pub struct IgdbGameShort {
     pub cover: Option<Image>,
 }
 
-#[derive(Deserialize, Default, Debug, Clone)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct IgdbGame {
     pub id: u64,
     pub name: String,
@@ -35,18 +35,23 @@ pub struct IgdbGame {
     pub url: String,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "String::is_empty")]
     pub summary: String,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "String::is_empty")]
     pub storyline: String,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub first_release_date: Option<i64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub aggregated_rating: Option<f64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub total_rating: Option<f64>,
 
     #[serde(default)]
@@ -59,63 +64,86 @@ pub struct IgdbGame {
     pub category: u64,
 
     #[serde(default)]
+    pub status: u64,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub genres: Vec<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub keywords: Vec<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub expansions: Vec<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub standalone_expansions: Vec<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub dlcs: Vec<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub remakes: Vec<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub remasters: Vec<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub bundles: Vec<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub platforms: Vec<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_game: Option<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub version_parent: Option<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub version_title: Option<String>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub collection: Option<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub franchise: Option<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub franchises: Vec<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub involved_companies: Vec<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cover: Option<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub screenshots: Vec<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub artworks: Vec<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub websites: Vec<u64>,
 }
 
