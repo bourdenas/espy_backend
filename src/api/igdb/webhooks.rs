@@ -22,7 +22,7 @@ impl IgdbWebhooksApi {
         create_webhook(
             &connection,
             GAMES_ENDPOINT,
-            &format!("{webhook_url}/game_added"),
+            &format!("{webhook_url}/add_game"),
             "create",
             secret,
         )
@@ -30,7 +30,7 @@ impl IgdbWebhooksApi {
         create_webhook(
             &connection,
             GAMES_ENDPOINT,
-            &format!("{webhook_url}/game_updated"),
+            &format!("{webhook_url}/update_game"),
             "update",
             secret,
         )

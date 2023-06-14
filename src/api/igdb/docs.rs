@@ -147,6 +147,16 @@ pub struct IgdbGame {
     pub websites: Vec<u64>,
 }
 
+impl IgdbGame {
+    pub fn is_pc_game(&self) -> bool {
+        self.platforms.contains(&6) || self.platforms.contains(&13) || self.platforms.contains(&14)
+    }
+
+    pub fn has_hype(&self) -> bool {
+        self.follows > 0 || self.hypes > 0
+    }
+}
+
 #[derive(Deserialize, Default, Debug, Clone)]
 pub struct IgdbExternalGame {
     pub id: u64,
