@@ -303,7 +303,7 @@ impl IgdbApi {
         info!(
             labels.log_type = "counters",
             labels.counter = "igdb_resolve",
-            "Resolving in IGDB '{}' ({})",
+            "IGDB resolve: '{}' ({})",
             &igdb_game.name,
             &igdb_game.id
         );
