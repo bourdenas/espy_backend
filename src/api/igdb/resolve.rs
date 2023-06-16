@@ -160,7 +160,6 @@ pub async fn resolve_game_digest(
 )]
 pub async fn resolve_game_info(
     connection: Arc<IgdbConnection>,
-    // igdb_game: &IgdbGame,
     game_entry: &mut GameEntry,
 ) -> Result<(), Status> {
     let igdb_game = &game_entry.igdb_game;
@@ -177,20 +176,26 @@ pub async fn resolve_game_info(
     }
     if igdb_game.websites.len() > 0 {
         if let Ok(websites) = get_websites(&connection, &igdb_game.websites).await {
-            game_entry
-                .websites
-                .extend(websites.into_iter().map(|website| Website {
-                    url: website.url,
-                    authority: match website.category {
-                        1 => WebsiteAuthority::Official,
-                        3 => WebsiteAuthority::Wikipedia,
-                        9 => WebsiteAuthority::Youtube,
-                        13 => WebsiteAuthority::Steam,
-                        16 => WebsiteAuthority::Egs,
-                        17 => WebsiteAuthority::Gog,
-                        _ => WebsiteAuthority::Null,
-                    },
-                }));
+            game_entry.websites.extend(
+                websites
+                    .into_iter()
+                    .map(|website| Website {
+                        url: website.url,
+                        authority: match website.category {
+                            1 => WebsiteAuthority::Official,
+                            3 => WebsiteAuthority::Wikipedia,
+                            9 => WebsiteAuthority::Youtube,
+                            13 => WebsiteAuthority::Steam,
+                            16 => WebsiteAuthority::Egs,
+                            17 => WebsiteAuthority::Gog,
+                            _ => WebsiteAuthority::Null,
+                        },
+                    })
+                    .filter(|website| match website.authority {
+                        WebsiteAuthority::Null => false,
+                        _ => true,
+                    }),
+            );
         }
     }
 

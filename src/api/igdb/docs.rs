@@ -158,10 +158,11 @@ impl IgdbGame {
         self.follows > 0 || self.hypes > 0
     }
 
-    pub fn diff(&self, other: IgdbGame) -> IgdbGameDiff {
+    pub fn diff(&self, other: &IgdbGame) -> IgdbGameDiff {
         IgdbGameDiff {
+            id: self.id,
             name: match self.name == other.name {
-                false => Some(other.name),
+                false => Some(other.name.clone()),
                 true => None,
             },
             category: match self.category == other.category {
@@ -174,15 +175,15 @@ impl IgdbGame {
             },
 
             url: match self.url == other.url {
-                false => Some(other.url),
+                false => Some(other.url.clone()),
                 true => None,
             },
             summary: match self.summary == other.summary {
-                false => Some(other.summary),
+                false => Some(other.summary.clone()),
                 true => None,
             },
             storyline: match self.storyline == other.storyline {
-                false => Some(other.storyline),
+                false => Some(other.storyline.clone()),
                 true => None,
             },
             first_release_date: match self.first_release_date == other.first_release_date {
@@ -203,7 +204,7 @@ impl IgdbGame {
                 true => None,
             },
             version_title: match self.version_title == other.version_title {
-                false => other.version_title,
+                false => other.version_title.clone(),
                 true => None,
             },
 
@@ -331,6 +332,8 @@ pub struct IgdbAnnotation {
 
 #[derive(Serialize, Default, Debug, Clone)]
 pub struct IgdbGameDiff {
+    pub id: u64,
+
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -430,7 +433,7 @@ impl fmt::Display for IgdbGameDiff {
 }
 
 impl IgdbGameDiff {
-    pub fn is_empty(&self) -> bool {
+    pub fn empty(&self) -> bool {
         !self.is_not_empty()
     }
 
@@ -462,6 +465,26 @@ impl IgdbGameDiff {
             || !self.remakes.is_empty()
             || !self.remasters.is_empty()
             || !self.bundles.is_empty()
+    }
+
+    pub fn needs_resolve(&self) -> bool {
+        self.parent_game.is_some()
+            || self.version_parent.is_some()
+            || self.cover.is_some()
+            || self.collection.is_some()
+            || self.franchise.is_some()
+            || !self.franchises.is_empty()
+            || !self.involved_companies.is_empty()
+            || !self.screenshots.is_empty()
+            || !self.artworks.is_empty()
+            || !self.websites.is_empty()
+            || !self.genres.is_empty()
+            || !self.keywords.is_empty()
+            || !self.expansions.is_empty()
+            || !self.standalone_expansions.is_empty()
+            || !self.dlcs.is_empty()
+            || !self.remakes.is_empty()
+            || !self.remasters.is_empty()
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::{
     api::{FirestoreApi, IgdbApi, IgdbGame},
+    documents::{GameCategory, GameStatus},
     library::firestore,
     Status,
 };
@@ -7,7 +8,7 @@ use std::{
     convert::Infallible,
     sync::{Arc, Mutex},
 };
-use tracing::{error, info, instrument};
+use tracing::{error, info, instrument, log::warn};
 use warp::http::StatusCode;
 
 #[instrument(level = "trace", skip(firestore, igdb))]
@@ -64,10 +65,59 @@ pub async fn post_update_game_webhook(
         firestore::games::read(&firestore, igdb_game.id)
     };
     match game_entry {
-        Ok(game_entry) => {
-            let diff = game_entry.igdb_game.diff(igdb_game);
-            if diff.is_empty() {
+        Ok(mut game_entry) => {
+            let diff = game_entry.igdb_game.diff(&igdb_game);
+            let reverse_diff = igdb_game.diff(&game_entry.igdb_game);
+            if diff.empty() && reverse_diff.empty() {
                 return Ok(StatusCode::OK);
+            }
+
+            if reverse_diff.needs_resolve() {
+                warn!("remove game from companies/collections if necessary");
+            }
+
+            match diff.needs_resolve() {
+                false => {
+                    game_entry.igdb_game = igdb_game;
+                    if let Some(name) = &diff.name {
+                        game_entry.name = name.clone();
+                    }
+                    if let Some(category) = diff.category {
+                        game_entry.category = GameCategory::from(category);
+                    }
+                    if let Some(status) = diff.status {
+                        game_entry.status = GameStatus::from(status);
+                    }
+
+                    let mut firestore = firestore.lock().unwrap();
+                    firestore.validate();
+                    if let Err(e) = firestore::games::write(&firestore, &game_entry) {
+                        error!(
+                            labels.log_type = "webhook_logs",
+                            labels.handler = "post_update_game",
+                            labels.counter = "firestore_read_fail",
+                            webhook.game_id = game_entry.igdb_game.id,
+                            webhook.error = e.to_string(),
+                            "failed to read '{}' ({})",
+                            game_entry.igdb_game.name,
+                            game_entry.igdb_game.id,
+                        );
+                    }
+                }
+                true => {
+                    if let Err(e) = igdb.resolve(firestore, igdb_game).await {
+                        error!(
+                            labels.log_type = "webhook_logs",
+                            labels.handler = "post_update_game",
+                            labels.counter = "resolve_fail",
+                            webhook.game_id = game_entry.id,
+                            webhook.error = e.to_string(),
+                            "failed to resolve '{}' ({})",
+                            game_entry.name,
+                            game_entry.id,
+                        );
+                    }
+                }
             }
 
             info!(
@@ -113,7 +163,8 @@ pub async fn post_update_game_webhook(
                 labels.counter = "firestore_read_fail",
                 webhook.game_id = igdb_game.id,
                 webhook.error = e.to_string(),
-                "failed to store {}",
+                "failed to read '{}' ({})",
+                igdb_game.name,
                 igdb_game.id,
             );
         }

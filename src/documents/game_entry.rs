@@ -15,6 +15,9 @@ pub struct GameEntry {
     pub category: GameCategory,
 
     #[serde(default)]
+    pub status: GameStatus,
+
+    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cover: Option<Image>,
 
@@ -92,6 +95,7 @@ impl From<IgdbGame> for GameEntry {
                 Some(_) => GameCategory::Version,
                 None => GameCategory::from(igdb_game.category),
             },
+            status: GameStatus::from(igdb_game.status),
 
             parent: match igdb_game.parent_game {
                 Some(id) => Some(GameDigest {
@@ -158,6 +162,47 @@ impl Default for GameCategory {
 }
 
 impl std::fmt::Display for GameCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+pub enum GameStatus {
+    Unknown,
+    Released,
+    Alpha,
+    Beta,
+    EarlyAccess,
+    Offline,
+    Cancelled,
+    Rumored,
+    Delisted,
+}
+
+impl From<u64> for GameStatus {
+    fn from(igdb_category: u64) -> Self {
+        match igdb_category {
+            0 => GameStatus::Released,
+            2 => GameStatus::Alpha,
+            3 => GameStatus::Beta,
+            4 => GameStatus::EarlyAccess,
+            5 => GameStatus::Offline,
+            6 => GameStatus::Cancelled,
+            7 => GameStatus::Rumored,
+            8 => GameStatus::Delisted,
+            _ => GameStatus::Unknown,
+        }
+    }
+}
+
+impl Default for GameStatus {
+    fn default() -> Self {
+        GameStatus::Released
+    }
+}
+
+impl std::fmt::Display for GameStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
