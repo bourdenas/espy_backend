@@ -16,14 +16,13 @@ pub fn read(firestore: &FirestoreApi, store: &str, store_id: &str) -> Result<Ext
         store_id = %external_game.store_id,
     )
 )]
-pub fn write(
-    firestore: &FirestoreApi,
-    store: &str,
-    external_game: &ExternalGame,
-) -> Result<(), Status> {
+pub fn write(firestore: &FirestoreApi, external_game: &ExternalGame) -> Result<(), Status> {
     firestore.write(
         "external_games",
-        Some(&format!("{}_{}", store, &external_game.store_id)),
+        Some(&format!(
+            "{}_{}",
+            &external_game.store_name, &external_game.store_id
+        )),
         external_game,
     )?;
     Ok(())

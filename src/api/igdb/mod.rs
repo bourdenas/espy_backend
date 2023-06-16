@@ -9,6 +9,6 @@ mod webhooks;
 
 pub use batch::IgdbBatchApi;
 use connection::IgdbConnection;
-pub use docs::IgdbGame;
+pub use docs::{IgdbExternalGame, IgdbGame};
 pub use service::IgdbApi;
 pub use webhooks::IgdbWebhooksApi;

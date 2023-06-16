@@ -248,8 +248,30 @@ pub struct IgdbExternalGame {
     pub game: u64,
     pub uid: String,
 
+    // Enum of the external's game store.
+    // {steam: 1, GOG: 5}
+    pub category: u64,
+
     #[serde(default)]
     pub url: Option<String>,
+}
+
+impl IgdbExternalGame {
+    pub fn is_steam(&self) -> bool {
+        self.category == 1
+    }
+
+    pub fn is_gog(&self) -> bool {
+        self.category == 5
+    }
+
+    pub fn store(&self) -> &str {
+        match self.category {
+            1 => "steam",
+            5 => "gog",
+            _ => "unknown",
+        }
+    }
 }
 
 #[derive(Deserialize, Default, Debug, Clone)]

@@ -5,7 +5,7 @@ use std::{
 use tracing::warn;
 use warp::{self, Filter};
 
-use crate::api::{FirestoreApi, IgdbApi, IgdbGame};
+use crate::api::{FirestoreApi, IgdbApi, IgdbExternalGame, IgdbGame};
 
 use super::handlers;
 
@@ -15,7 +15,8 @@ pub fn routes(
     firestore: Arc<Mutex<FirestoreApi>>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     post_add_game(Arc::clone(&firestore), Arc::clone(&igdb))
-        .or(post_update_game(firestore, igdb))
+        .or(post_update_game(Arc::clone(&firestore), Arc::clone(&igdb)))
+        .or(post_external_game(Arc::clone(&firestore)))
         .or_else(|e| async {
             warn! {"Rejected route: {:?}", e};
             Err(e)
@@ -46,6 +47,17 @@ fn post_update_game(
         .and(with_firestore(firestore))
         .and(with_igdb(igdb))
         .and_then(handlers::update_game_webhook)
+}
+
+/// POST /update_game
+fn post_external_game(
+    firestore: Arc<Mutex<FirestoreApi>>,
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+    warp::path!("external_game")
+        .and(warp::post())
+        .and(json_body::<IgdbExternalGame>())
+        .and(with_firestore(firestore))
+        .and_then(handlers::external_game_webhook)
 }
 
 fn json_body<T: serde::de::DeserializeOwned + Send>(
