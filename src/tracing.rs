@@ -43,9 +43,11 @@ impl Tracing {
         match tracing_subscriber::registry()
             .with(tracing_opentelemetry::layer())
             .with(
-                tracing_stackdriver::layer().with_cloud_trace(CloudTraceConfiguration {
-                    project_id: project_id.to_owned(),
-                }),
+                tracing_stackdriver::layer()
+                    .with_cloud_trace(CloudTraceConfiguration {
+                        project_id: project_id.to_owned(),
+                    })
+                    .with_writer(std::io::stdout.with_max_level(Level::INFO)),
             )
             .try_init()
         {

@@ -1,21 +1,26 @@
 use serde::{Deserialize, Serialize};
 
+use crate::api::IgdbExternalGame;
+
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct ExternalGame {
     pub igdb_id: u64,
     pub store_id: String,
+
+    pub store_name: String,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub store_url: Option<String>,
 }
 
-impl ExternalGame {
-    pub fn new(igdb_id: u64, store_id: String, store_url: Option<String>) -> Self {
+impl From<IgdbExternalGame> for ExternalGame {
+    fn from(external: IgdbExternalGame) -> Self {
         ExternalGame {
-            igdb_id,
-            store_id,
-            store_url,
+            store_name: external.store().to_owned(),
+            igdb_id: external.game,
+            store_id: external.uid,
+            store_url: external.url,
         }
     }
 }

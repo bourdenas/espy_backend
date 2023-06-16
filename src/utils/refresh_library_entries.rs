@@ -87,7 +87,7 @@ async fn refresh_library_entries(
             Err(_) => match igdb.get(entry.id).await {
                 Ok(igdb_game) => {
                     info!("#{k} Fetching from igdb '{title}'", title = igdb_game.name);
-                    match igdb.get_digest(Arc::clone(&firestore), &igdb_game).await {
+                    match igdb.get_digest(Arc::clone(&firestore), igdb_game).await {
                         Ok(game_entry) => game_entry,
                         Err(e) => {
                             error!("Failed to igdb.get_digest: {e}");

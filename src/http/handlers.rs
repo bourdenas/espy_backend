@@ -19,6 +19,7 @@ pub async fn welcome() -> Result<impl warp::Reply, Infallible> {
         http_request.request_url = "/",
         labels.log_type = "query_logs",
         labels.handler = "welcome",
+        "welcome"
     );
     Ok("welcome")
 }
@@ -50,6 +51,8 @@ pub async fn post_search(
                 search.title = search.title,
                 search.latency = resp_time.as_millis(),
                 search.results = candidates.len(),
+                "search '{}'",
+                search.title
             );
             Ok(Box::new(warp::reply::json(&candidates)))
         }
@@ -62,6 +65,8 @@ pub async fn post_search(
                 search.title = search.title,
                 search.latency = resp_time.as_millis(),
                 search.error = e.to_string(),
+                "search '{}'",
+                search.title
             );
             Ok(Box::new(StatusCode::NOT_FOUND))
         }
@@ -91,6 +96,9 @@ pub async fn post_resolve(
                 resolve.game_id = resolve.game_id,
                 resolve.title = game_entry.name,
                 resolve.latency = resp_time.as_millis(),
+                "resolve '{}' ({})",
+                game_entry.name,
+                resolve.game_id,
             );
             Ok(StatusCode::OK)
         }
@@ -103,6 +111,8 @@ pub async fn post_resolve(
                 resolve.game_id = resolve.game_id,
                 resolve.latency = resp_time.as_millis(),
                 resolve.error = e.to_string(),
+                "resolve: {}",
+                resolve.game_id,
             );
             Ok(StatusCode::NOT_FOUND)
         }
@@ -161,6 +171,13 @@ pub async fn post_match(
     };
     let resp_time = SystemTime::now().duration_since(started).unwrap();
 
+    let op = match (match_op_clone.game_entry, match_op_clone.unmatch_entry) {
+        (Some(_), None) => "match",
+        (None, Some(_)) => "unmatch",
+        (Some(_), Some(_)) => "rematch",
+        (None, None) => "bad_request",
+    };
+
     match response {
         Ok(()) => {
             info!(
@@ -169,17 +186,13 @@ pub async fn post_match(
                 labels.log_type = "query_logs",
                 labels.handler = "match",
                 matchOp.user_id = user_id,
-                matchOp.operation = match (match_op_clone.game_entry, match_op_clone.unmatch_entry)
-                {
-                    (Some(_), None) => "match",
-                    (None, Some(_)) => "unmatch",
-                    (Some(_), Some(_)) => "rematch",
-                    (None, None) => "bad_request",
-                },
+                matchOp.operation = op,
                 matchOp.store_entry_id = match_op_clone.store_entry.id,
                 matchOp.store_entry_title = match_op_clone.store_entry.title,
                 matchOp.store_entry_storefront = match_op_clone.store_entry.storefront_name,
                 matchOp.latency = resp_time.as_millis(),
+                "{op} '{}'",
+                match_op_clone.store_entry.title,
             );
             Ok(StatusCode::OK)
         }
@@ -190,18 +203,14 @@ pub async fn post_match(
                 labels.log_type = "query_logs",
                 labels.handler = "match",
                 matchOp.user_id = user_id,
-                matchOp.operation = match (match_op_clone.game_entry, match_op_clone.unmatch_entry)
-                {
-                    (Some(_), None) => "match",
-                    (None, Some(_)) => "unmatch",
-                    (Some(_), Some(_)) => "rematch",
-                    (None, None) => "bad_request",
-                },
+                matchOp.operation = op,
                 matchOp.store_entry_id = match_op_clone.store_entry.id,
                 matchOp.store_entry_title = match_op_clone.store_entry.title,
                 matchOp.store_entry_storefront = match_op_clone.store_entry.storefront_name,
                 matchOp.latency = resp_time.as_millis(),
                 matchOp.error = e.to_string(),
+                "{op} '{}'",
+                match_op_clone.store_entry.title,
             );
             Ok(StatusCode::NOT_FOUND)
         }
@@ -212,18 +221,14 @@ pub async fn post_match(
                 labels.log_type = "query_logs",
                 labels.handler = "match",
                 matchOp.user_id = user_id,
-                matchOp.operation = match (match_op_clone.game_entry, match_op_clone.unmatch_entry)
-                {
-                    (Some(_), None) => "match",
-                    (None, Some(_)) => "unmatch",
-                    (Some(_), Some(_)) => "rematch",
-                    (None, None) => "bad_request",
-                },
+                matchOp.operation = op,
                 matchOp.store_entry_id = match_op_clone.store_entry.id,
                 matchOp.store_entry_title = match_op_clone.store_entry.title,
                 matchOp.store_entry_storefront = match_op_clone.store_entry.storefront_name,
                 matchOp.latency = resp_time.as_millis(),
                 matchOp.error = e.to_string(),
+                "{op} '{}'",
+                match_op_clone.store_entry.title,
             );
             Ok(StatusCode::BAD_REQUEST)
         }
@@ -234,18 +239,14 @@ pub async fn post_match(
                 labels.log_type = "query_logs",
                 labels.handler = "match",
                 matchOp.user_id = user_id,
-                matchOp.operation = match (match_op_clone.game_entry, match_op_clone.unmatch_entry)
-                {
-                    (Some(_), None) => "match",
-                    (None, Some(_)) => "unmatch",
-                    (Some(_), Some(_)) => "rematch",
-                    (None, None) => "bad_request",
-                },
+                matchOp.operation = op,
                 matchOp.store_entry_id = match_op_clone.store_entry.id,
                 matchOp.store_entry_title = match_op_clone.store_entry.title,
                 matchOp.store_entry_storefront = match_op_clone.store_entry.storefront_name,
                 matchOp.latency = resp_time.as_millis(),
                 matchOp.error = e.to_string(),
+                "{op} '{}'",
+                match_op_clone.store_entry.title,
             );
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
@@ -276,6 +277,11 @@ pub async fn post_wishlist(
     };
     let resp_time = SystemTime::now().duration_since(started).unwrap();
 
+    let op = match (wishlist_clone.add_game, wishlist_clone.remove_game) {
+        (Some(_), _) => "add_to_wishlist",
+        (_, Some(_)) => "remove_from_wishlist",
+        _ => "bad_request",
+    };
     match response {
         Ok(game_id) => {
             info!(
@@ -284,13 +290,10 @@ pub async fn post_wishlist(
                 labels.log_type = "query_logs",
                 labels.handler = "wishlist",
                 wishlist.user_id = user_id,
-                wishlist.operation = match (wishlist_clone.add_game, wishlist_clone.remove_game) {
-                    (Some(_), _) => "add_to_wishlist",
-                    (_, Some(_)) => "remove_from_wishlist",
-                    _ => "bad_request",
-                },
+                wishlist.operation = op,
                 wishlist.game_id = game_id,
                 wishlist.latency = resp_time.as_millis(),
+                "{op} '{game_id}'",
             );
             Ok(StatusCode::OK)
         }
@@ -301,13 +304,10 @@ pub async fn post_wishlist(
                 labels.log_type = "query_logs",
                 labels.handler = "wishlist",
                 wishlist.user_id = user_id,
-                wishlist.operation = match (wishlist_clone.add_game, wishlist_clone.remove_game) {
-                    (Some(_), _) => "add_to_wishlist",
-                    (_, Some(_)) => "remove_from_wishlist",
-                    _ => "bad_request",
-                },
+                wishlist.operation = op,
                 wishlist.latency = resp_time.as_millis(),
                 wishlist.error = e.to_string(),
+                "{op}",
             );
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
@@ -347,6 +347,7 @@ pub async fn post_unlink(
                 unlink.user_id = user_id,
                 unlink.storefront = unlink.storefront_id,
                 unlink.latency = resp_time.as_millis(),
+                "unlink",
             );
             Ok(StatusCode::OK)
         }
@@ -360,6 +361,7 @@ pub async fn post_unlink(
                 unlink.storefront = unlink.storefront_id,
                 unlink.latency = resp_time.as_millis(),
                 unlink.error = e.to_string(),
+                "unlink",
             );
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
@@ -420,6 +422,7 @@ pub async fn post_sync(
         sync.user_id = user_id,
         sync.report = format!("{:?}", report),
         sync.latency = resp_time.as_millis(),
+        "sync",
     );
 
     let resp: Box<dyn warp::Reply> = Box::new(warp::reply::json(&report));
@@ -458,6 +461,7 @@ pub async fn post_upload(
         sync.user_id = user_id,
         sync.report = format!("{:?}", report),
         sync.latency = resp_time.as_millis(),
+        "upload",
     );
 
     let resp: Box<dyn warp::Reply> = Box::new(warp::reply::json(&report));
@@ -507,6 +511,7 @@ fn log_sync_err(
         sync.user_id = user_id,
         sync.latency = resp_time.as_millis(),
         sync.error = e.to_string(),
+        "get_image",
     );
 
     let status: Box<dyn warp::Reply> = Box::new(match e {

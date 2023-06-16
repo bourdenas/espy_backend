@@ -78,9 +78,10 @@ pub async fn get_short_digest(connection: &IgdbConnection, id: u64) -> Result<Ga
 pub async fn resolve_game_digest(
     connection: Arc<IgdbConnection>,
     firestore: Arc<Mutex<FirestoreApi>>,
-    igdb_game: &IgdbGame,
+    igdb_game: IgdbGame,
 ) -> Result<GameEntry, Status> {
     let mut game_entry = GameEntry::from(igdb_game);
+    let igdb_game = &game_entry.igdb_game;
 
     if let Some(cover) = igdb_game.cover {
         game_entry.cover = get_cover(&connection, cover).await?;
@@ -151,17 +152,18 @@ pub async fn resolve_game_digest(
 #[async_recursion]
 #[instrument(
     level = "trace",
-    skip(connection, igdb_game, game_entry),
+    skip(connection, game_entry),
     fields(
-        game_id = %igdb_game.id,
-        game_name = %igdb_game.name,
+        game_id = %game_entry.id,
+        game_name = %game_entry.name,
     )
 )]
 pub async fn resolve_game_info(
     connection: Arc<IgdbConnection>,
-    igdb_game: IgdbGame,
     game_entry: &mut GameEntry,
 ) -> Result<(), Status> {
+    let igdb_game = &game_entry.igdb_game;
+
     if !igdb_game.screenshots.is_empty() {
         if let Ok(screenshots) = get_screenshots(&connection, &igdb_game.screenshots).await {
             game_entry.screenshots = screenshots;
@@ -174,20 +176,26 @@ pub async fn resolve_game_info(
     }
     if igdb_game.websites.len() > 0 {
         if let Ok(websites) = get_websites(&connection, &igdb_game.websites).await {
-            game_entry
-                .websites
-                .extend(websites.into_iter().map(|website| Website {
-                    url: website.url,
-                    authority: match website.category {
-                        1 => WebsiteAuthority::Official,
-                        3 => WebsiteAuthority::Wikipedia,
-                        9 => WebsiteAuthority::Youtube,
-                        13 => WebsiteAuthority::Steam,
-                        16 => WebsiteAuthority::Egs,
-                        17 => WebsiteAuthority::Gog,
-                        _ => WebsiteAuthority::Null,
-                    },
-                }));
+            game_entry.websites.extend(
+                websites
+                    .into_iter()
+                    .map(|website| Website {
+                        url: website.url,
+                        authority: match website.category {
+                            1 => WebsiteAuthority::Official,
+                            3 => WebsiteAuthority::Wikipedia,
+                            9 => WebsiteAuthority::Youtube,
+                            13 => WebsiteAuthority::Steam,
+                            16 => WebsiteAuthority::Egs,
+                            17 => WebsiteAuthority::Gog,
+                            _ => WebsiteAuthority::Null,
+                        },
+                    })
+                    .filter(|website| match website.authority {
+                        WebsiteAuthority::Null => false,
+                        _ => true,
+                    }),
+            );
         }
     }
 
@@ -204,28 +212,28 @@ pub async fn resolve_game_info(
             game_entry.parent = Some(game);
         };
     }
-    for id in igdb_game.expansions.into_iter() {
-        if let Ok(game) = get_short_digest(&connection, id).await {
+    for id in igdb_game.expansions.iter() {
+        if let Ok(game) = get_short_digest(&connection, *id).await {
             game_entry.expansions.push(game);
         };
     }
-    for id in igdb_game.standalone_expansions.into_iter() {
-        if let Ok(game) = get_short_digest(&connection, id).await {
+    for id in igdb_game.standalone_expansions.iter() {
+        if let Ok(game) = get_short_digest(&connection, *id).await {
             game_entry.expansions.push(game);
         };
     }
-    for id in igdb_game.dlcs.into_iter() {
-        if let Ok(game) = get_short_digest(&connection, id).await {
+    for id in igdb_game.dlcs.iter() {
+        if let Ok(game) = get_short_digest(&connection, *id).await {
             game_entry.dlcs.push(game);
         };
     }
-    for id in igdb_game.remakes.into_iter() {
-        if let Ok(game) = get_short_digest(&connection, id).await {
+    for id in igdb_game.remakes.iter() {
+        if let Ok(game) = get_short_digest(&connection, *id).await {
             game_entry.remakes.push(game);
         };
     }
-    for id in igdb_game.remasters.into_iter() {
-        if let Ok(game) = get_short_digest(&connection, id).await {
+    for id in igdb_game.remasters.iter() {
+        if let Ok(game) = get_short_digest(&connection, *id).await {
             game_entry.remasters.push(game);
         };
     }

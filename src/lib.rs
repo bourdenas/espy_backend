@@ -7,6 +7,7 @@ pub mod http;
 pub mod library;
 pub mod traits;
 pub mod util;
+pub mod webhooks;
 
 mod status;
 pub use status::Status;

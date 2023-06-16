@@ -132,7 +132,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         },
                         None => None,
                     };
-                    let mut game_entry = GameEntry::from(igdb_game);
+                    let mut game_entry = GameEntry::from(igdb_game.clone());
                     game_entry.cover = cover;
                     let digest = GameDigest::from(game_entry);
 
