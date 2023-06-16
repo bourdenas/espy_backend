@@ -14,8 +14,8 @@ pub fn routes(
     igdb: Arc<IgdbApi>,
     firestore: Arc<Mutex<FirestoreApi>>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-    post_add_game_webhook(Arc::clone(&firestore), Arc::clone(&igdb))
-        .or(post_update_game_webhook(firestore, igdb))
+    post_add_game(Arc::clone(&firestore), Arc::clone(&igdb))
+        .or(post_update_game(firestore, igdb))
         .or_else(|e| async {
             warn! {"Rejected route: {:?}", e};
             Err(e)
@@ -23,7 +23,7 @@ pub fn routes(
 }
 
 /// POST /add_game
-fn post_add_game_webhook(
+fn post_add_game(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
@@ -32,11 +32,11 @@ fn post_add_game_webhook(
         .and(json_body::<IgdbGame>())
         .and(with_firestore(firestore))
         .and(with_igdb(igdb))
-        .and_then(handlers::post_add_game_webhook)
+        .and_then(handlers::add_game_webhook)
 }
 
 /// POST /update_game
-fn post_update_game_webhook(
+fn post_update_game(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
@@ -45,7 +45,7 @@ fn post_update_game_webhook(
         .and(json_body::<IgdbGame>())
         .and(with_firestore(firestore))
         .and(with_igdb(igdb))
-        .and_then(handlers::post_update_game_webhook)
+        .and_then(handlers::update_game_webhook)
 }
 
 fn json_body<T: serde::de::DeserializeOwned + Send>(

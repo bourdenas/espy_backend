@@ -12,7 +12,7 @@ use tracing::{error, info, instrument, log::warn};
 use warp::http::StatusCode;
 
 #[instrument(level = "trace", skip(firestore, igdb))]
-pub async fn post_add_game_webhook(
+pub async fn add_game_webhook(
     igdb_game: IgdbGame,
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
@@ -50,7 +50,7 @@ pub async fn post_add_game_webhook(
 }
 
 #[instrument(level = "trace", skip(firestore, igdb))]
-pub async fn post_update_game_webhook(
+pub async fn update_game_webhook(
     igdb_game: IgdbGame,
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
