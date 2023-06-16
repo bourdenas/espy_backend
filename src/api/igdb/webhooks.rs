@@ -1,7 +1,11 @@
 use crate::Status;
 use tracing::instrument;
 
-use super::{backend::create_webhook, resolve::GAMES_ENDPOINT, IgdbApi};
+use super::{
+    backend::create_webhook,
+    resolve::{EXTERNAL_GAMES_ENDPOINT, GAMES_ENDPOINT},
+    IgdbApi,
+};
 
 pub struct IgdbWebhooksApi {
     service: IgdbApi,
@@ -31,6 +35,22 @@ impl IgdbWebhooksApi {
             &connection,
             GAMES_ENDPOINT,
             &format!("{webhook_url}/update_game"),
+            "update",
+            secret,
+        )
+        .await?;
+        create_webhook(
+            &connection,
+            EXTERNAL_GAMES_ENDPOINT,
+            &format!("{webhook_url}/external_game"),
+            "create",
+            secret,
+        )
+        .await?;
+        create_webhook(
+            &connection,
+            EXTERNAL_GAMES_ENDPOINT,
+            &format!("{webhook_url}/external_game"),
             "update",
             secret,
         )
