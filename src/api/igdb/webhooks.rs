@@ -3,7 +3,7 @@ use tracing::instrument;
 
 use super::{
     backend::create_webhook,
-    resolve::{EXTERNAL_GAMES_ENDPOINT, GAMES_ENDPOINT},
+    resolve::{EXTERNAL_GAMES_ENDPOINT, GAMES_ENDPOINT, GENRES_ENDPOINT, KEYWORDS_ENDPOINT},
     IgdbApi,
 };
 
@@ -42,7 +42,7 @@ impl IgdbWebhooksApi {
         create_webhook(
             &connection,
             EXTERNAL_GAMES_ENDPOINT,
-            &format!("{webhook_url}/external_game"),
+            &format!("{webhook_url}/external_games"),
             "create",
             secret,
         )
@@ -50,7 +50,39 @@ impl IgdbWebhooksApi {
         create_webhook(
             &connection,
             EXTERNAL_GAMES_ENDPOINT,
-            &format!("{webhook_url}/external_game"),
+            &format!("{webhook_url}/external_games"),
+            "update",
+            secret,
+        )
+        .await?;
+        create_webhook(
+            &connection,
+            GENRES_ENDPOINT,
+            &format!("{webhook_url}/genres"),
+            "create",
+            secret,
+        )
+        .await?;
+        create_webhook(
+            &connection,
+            GENRES_ENDPOINT,
+            &format!("{webhook_url}/genres"),
+            "update",
+            secret,
+        )
+        .await?;
+        create_webhook(
+            &connection,
+            KEYWORDS_ENDPOINT,
+            &format!("{webhook_url}/keywords"),
+            "create",
+            secret,
+        )
+        .await?;
+        create_webhook(
+            &connection,
+            KEYWORDS_ENDPOINT,
+            &format!("{webhook_url}/keywords"),
             "update",
             secret,
         )
