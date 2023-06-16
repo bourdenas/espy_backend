@@ -16,12 +16,6 @@ pub async fn post_add_game_webhook(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    info!(
-        labels.log_type = "webhook_logs",
-        labels.handler = "post_add_game",
-        game_added.id = igdb_game.id,
-    );
-
     if !igdb_game.is_pc_game() || !igdb_game.has_hype() {
         return Ok(StatusCode::OK);
     }
@@ -60,12 +54,6 @@ pub async fn post_update_game_webhook(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    info!(
-        labels.log_type = "webhook_logs",
-        labels.handler = "post_update_game",
-        igdb.game_id = igdb_game.id,
-    );
-
     if !igdb_game.is_pc_game() || !igdb_game.has_hype() {
         return Ok(StatusCode::OK);
     }
