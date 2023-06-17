@@ -11,7 +11,7 @@ use std::{
 use tracing::{error, info, instrument, log::warn};
 use warp::http::StatusCode;
 
-#[instrument(level = "trace", skip(firestore, igdb))]
+#[instrument(level = "trace", skip(igdb_game, firestore, igdb))]
 pub async fn add_game_webhook(
     igdb_game: IgdbGame,
     firestore: Arc<Mutex<FirestoreApi>>,
@@ -49,7 +49,7 @@ pub async fn add_game_webhook(
     Ok(StatusCode::OK)
 }
 
-#[instrument(level = "trace", skip(firestore, igdb))]
+#[instrument(level = "trace", skip(igdb_game, firestore, igdb))]
 pub async fn update_game_webhook(
     igdb_game: IgdbGame,
     firestore: Arc<Mutex<FirestoreApi>>,
@@ -173,7 +173,7 @@ pub async fn update_game_webhook(
     Ok(StatusCode::OK)
 }
 
-#[instrument(level = "trace", skip(firestore))]
+#[instrument(level = "trace", skip(external_game, firestore))]
 pub async fn external_games_webhook(
     external_game: IgdbExternalGame,
     firestore: Arc<Mutex<FirestoreApi>>,
@@ -212,7 +212,7 @@ pub async fn external_games_webhook(
     Ok(StatusCode::OK)
 }
 
-#[instrument(level = "trace", skip(firestore))]
+#[instrument(level = "trace", skip(genre, firestore))]
 pub async fn genres_webhook(
     genre: Genre,
     firestore: Arc<Mutex<FirestoreApi>>,
@@ -243,7 +243,7 @@ pub async fn genres_webhook(
     Ok(StatusCode::OK)
 }
 
-#[instrument(level = "trace", skip(firestore))]
+#[instrument(level = "trace", skip(keyword, firestore))]
 pub async fn keywords_webhook(
     keyword: Keyword,
     firestore: Arc<Mutex<FirestoreApi>>,
