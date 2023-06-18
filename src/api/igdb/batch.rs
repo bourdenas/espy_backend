@@ -158,16 +158,12 @@ impl IgdbBatchApi {
     }
 
     #[instrument(level = "trace", skip(self))]
-    pub async fn collect_keywords(
-        &self,
-        updated_since: u64,
-        offset: u64,
-    ) -> Result<Vec<Keyword>, Status> {
+    pub async fn collect_keywords(&self, offset: u64) -> Result<Vec<Keyword>, Status> {
         let connection = self.service.connection()?;
         post::<Vec<Keyword>>(
             &connection,
             KEYWORDS_ENDPOINT,
-            &format!("fields *; where updated_at >= {updated_since}; limit 500; offset {offset};"),
+            &format!("fields *; limit 500; offset {offset};"),
         )
         .await
     }
@@ -193,9 +189,7 @@ impl IgdbBatchApi {
         post::<Vec<IgdbExternalGame>>(
             &connection,
             EXTERNAL_GAMES_ENDPOINT,
-            &format!(
-                "fields *; sort uid; where category = {category}; limit 500; offset {offset};"
-            ),
+            &format!("fields *; where category = {category}; limit 500; offset {offset};"),
         )
         .await
     }

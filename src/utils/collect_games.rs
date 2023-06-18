@@ -59,6 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .as_secs();
 
     let mut k = opts.offset;
+    let mut counter = 0;
     let firestore = Arc::new(Mutex::new(firestore));
     for i in 0.. {
         let games = igdb_batch
@@ -84,6 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 Err(_) => match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
                     Ok(game_entry) => {
                         info!("#{} Resolved '{}' ({})", k, game_entry.name, game_entry.id);
+                        counter += 1;
                     }
                     Err(e) => {
                         error!("{e}");
@@ -93,6 +95,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
             k += 1;
         }
+
+        info!("Retrieved {counter} new games from IGDB.");
     }
 
     Ok(())

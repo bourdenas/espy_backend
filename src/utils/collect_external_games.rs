@@ -54,11 +54,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         for external_game in external_games {
             firestore.validate();
 
-            let external_game =
-                ExternalGame::new(external_game.game, external_game.uid, external_game.url);
-            if let Err(e) =
-                firestore::external_games::write(&firestore, &opts.store, &external_game)
-            {
+            let external_game = ExternalGame::from(external_game);
+            if let Err(e) = firestore::external_games::write(&firestore, &external_game) {
                 error!(
                     "Failed to save '{}_{}' in Firestore: {e}",
                     &opts.store, external_game.store_id
