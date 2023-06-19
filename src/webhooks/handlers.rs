@@ -69,6 +69,15 @@ pub async fn update_game_webhook(
             let diff = game_entry.igdb_game.diff(&igdb_game);
             let reverse_diff = igdb_game.diff(&game_entry.igdb_game);
             if diff.empty() && reverse_diff.empty() {
+                info!(
+                    labels.log_type = "webhook_logs",
+                    labels.handler = "post_update_game",
+                    labels.counter = "update_game_no_diff",
+                    game_update.game_id = game_entry.id,
+                    game_update.game_diff = diff.to_string(),
+                    "no diff for '{}'",
+                    game_entry.name,
+                );
                 return Ok(StatusCode::OK);
             }
 
