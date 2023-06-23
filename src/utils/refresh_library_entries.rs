@@ -31,6 +31,10 @@ struct Opts {
     /// Export in a text file the library (for inspection) instead of refreshing it.
     #[clap(long)]
     export: bool,
+
+    /// Print a summary of the library (for inspection) instead of refreshing it.
+    #[clap(long)]
+    summary: bool,
 }
 
 #[tokio::main]
@@ -48,6 +52,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if opts.export {
         let library = library::firestore::library::read(&firestore, &opts.user)?;
         let text = export_library(library);
+        println!("{text}");
+    } else if opts.summary {
+        let library = library::firestore::library::read(&firestore, &opts.user)?;
+        let text = summary_library(library);
         println!("{text}");
     } else {
         refresh_library_entries(firestore, igdb, &opts.user).await?;
@@ -139,6 +147,8 @@ async fn refresh_library_entries(
 #[instrument(level = "trace", skip(library))]
 fn export_library(library: Library) -> String {
     info!("exporting {} titles...", library.entries.len());
+    let serialized = serde_json::to_string(&library).unwrap();
+    info!("library size: {}KB", serialized.len() / 1024);
     let mut entries: Vec<_> = library
         .entries
         .iter()
@@ -163,4 +173,32 @@ fn export_library(library: Library) -> String {
     entries.sort();
 
     entries.join("\n")
+}
+
+#[instrument(level = "trace", skip(library))]
+fn summary_library(library: Library) -> String {
+    let serialized = serde_json::to_string(&library).unwrap();
+    info!("Library contains {} titles", library.entries.len());
+    info!("Library size: {}KB", serialized.len() / 1024);
+    let categories = group_by_category(library);
+    let mut entries: Vec<_> = categories
+        .iter()
+        .map(|(category, count)| format!("{category:<10}: {count} titles"))
+        .collect();
+    entries.sort();
+
+    entries.join("\n")
+}
+
+fn group_by_category(library: Library) -> HashMap<String, u64> {
+    let mut groups = HashMap::<String, u64>::new();
+
+    for entry in library.entries {
+        groups
+            .entry(entry.digest.category.to_string().to_uppercase())
+            .and_modify(|e| *e += 1)
+            .or_insert(1);
+    }
+
+    groups
 }
