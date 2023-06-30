@@ -57,6 +57,28 @@ pub fn remove_entry(firestore: &FirestoreApi, user_id: &str, game_id: u64) -> Re
     Ok(())
 }
 
+#[instrument(
+    name = "wishlist::remove_entry",
+    level = "trace",
+    skip(firestore, user_id)
+)]
+pub fn remove_entries(
+    firestore: &FirestoreApi,
+    user_id: &str,
+    game_ids: &[u64],
+) -> Result<(), Status> {
+    let mut wishlist = read(firestore, user_id)?;
+    let old_size = wishlist.entries.len();
+    for game_id in game_ids {
+        remove(*game_id, &mut wishlist);
+    }
+
+    match wishlist.entries.len() < old_size {
+        true => write(firestore, user_id, &wishlist),
+        false => Ok(()),
+    }
+}
+
 fn add(library_entry: LibraryEntry, wishlist: &mut Library) -> bool {
     match wishlist.entries.iter().find(|e| e.id == library_entry.id) {
         Some(_) => false,

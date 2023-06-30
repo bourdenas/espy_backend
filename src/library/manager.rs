@@ -104,8 +104,16 @@ impl LibraryManager {
             .collect();
 
         // Adds all resolved entries in the library.
-        // TODO: Should also remove entries from wishlist.
         let firestore = &firestore.lock().unwrap();
+        firestore::wishlist::remove_entries(
+            firestore,
+            user_id,
+            &entries
+                .iter()
+                .map(|(digests, _)| digests.iter().map(|digest| digest.id))
+                .flatten()
+                .collect::<Vec<_>>(),
+        )?;
         firestore::library::add_entries(firestore, user_id, entries)?;
         firestore::storefront::add_entries(firestore, user_id, store_entries)
     }
