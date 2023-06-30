@@ -1,6 +1,6 @@
 use clap::Parser;
 use espy_backend::{
-    api::{FirestoreApi, IgdbApi, IgdbWebhooksApi},
+    api::{FirestoreApi, IgdbApi},
     util, webhooks, Status, Tracing,
 };
 use std::{
@@ -60,10 +60,6 @@ async fn main() -> Result<(), Status> {
     };
 
     info!("webhooks handler started");
-    let webhooks_api = IgdbWebhooksApi::new(igdb.clone());
-    webhooks_api
-        .register_games_webhook("https://webhooks-fjxkoqq4wq-ew.a.run.app", "foo")
-        .await?;
 
     warp::serve(
         webhooks::routes::routes(Arc::new(igdb), firestore).with(
