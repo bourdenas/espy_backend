@@ -129,15 +129,40 @@ impl From<GameEntry> for GameDigest {
                 .into_iter()
                 .collect(),
 
-            genres: match game_entry.steam_data {
-                Some(steam_data) => steam_data
-                    .genres
-                    .into_iter()
-                    .map(|genre| genre.description)
-                    .collect(),
-                None => game_entry.genres,
-            },
-            keywords: game_entry.keywords,
+            genres: extract_genres(&game_entry.genres),
+            keywords: vec![], // game_entry.keywords,
         }
     }
 }
+
+fn extract_genres(igdb_genres: &Vec<String>) -> Vec<String> {
+    igdb_genres
+        .iter()
+        .filter_map(|igdb_genre| match GENRES.get(&igdb_genre) {
+            Some(genre) => Some((*genre).to_owned()),
+            None => None,
+        })
+        .collect()
+}
+
+use phf::phf_map;
+
+static GENRES: phf::Map<&'static str, &'static str> = phf_map! {
+    "Point-and-click" => "Adventure",
+    "Adventure" => "Adventure",
+    "Pinball" => "Arcade",
+    "Arcade" => "Arcade",
+    "Fighting" => "Arcade",
+    "Card & Board Game" => "Card & Board Game",
+    "MOBA" => "MOBA",
+    "Platform" => "Platformer",
+    "Racing" => "Racing",
+    "Role-playing (RPG)" => "RPG",
+    "Shooter" => "Shooter",
+    "Simulator" => "Simulator",
+    "Sport" => "Sport",
+    "Real Time Strategy (RTS)" => "Strategy",
+    "Strategy" => "Strategy",
+    "Turn-based strategy (TBS)" => "Strategy",
+    "Tactical" => "Strategy",
+};
