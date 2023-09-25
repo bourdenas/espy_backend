@@ -200,6 +200,17 @@ impl LibraryManager {
         firestore::library::add_entry(firestore, &self.user_id, store_entry, digests)
     }
 
+    #[instrument(level = "trace", skip(self, igdb))]
+    pub async fn update_game(&self, igdb: Arc<IgdbApi>, game_id: u64) -> Result<(), Status> {
+        let digests = self.get_digest(igdb, game_id).await?;
+        firestore::library::update_entry(
+            &self.firestore.lock().unwrap(),
+            &self.user_id,
+            game_id,
+            digests,
+        )
+    }
+
     #[instrument(level = "trace", skip(self))]
     pub async fn add_to_wishlist(&self, library_entry: LibraryEntry) -> Result<(), Status> {
         firestore::wishlist::add_entry(

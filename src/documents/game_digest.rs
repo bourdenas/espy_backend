@@ -47,10 +47,6 @@ pub struct GameDigest {
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub genres: Vec<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub keywords: Vec<String>,
 }
 
 impl GameDigest {
@@ -130,7 +126,6 @@ impl From<GameEntry> for GameDigest {
                 .collect(),
 
             genres: extract_genres(&game_entry.genres),
-            keywords: vec![], // game_entry.keywords,
         }
     }
 }

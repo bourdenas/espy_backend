@@ -45,6 +45,11 @@ pub struct MatchOp {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct UpdateOp {
+    pub game_id: u64,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct WishlistOp {
     #[serde(default)]
     pub add_game: Option<documents::LibraryEntry>,

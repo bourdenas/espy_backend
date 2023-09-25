@@ -3,7 +3,7 @@ use crate::{
     documents::{GameDigest, Library, LibraryEntry, StoreEntry},
     Status,
 };
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 #[instrument(name = "library::read", level = "trace", skip(firestore, user_id))]
 pub fn read(firestore: &FirestoreApi, user_id: &str) -> Result<Library, Status> {
@@ -83,6 +83,31 @@ pub fn remove_entry(
     if remove(store_entry, &mut library) {
         write(firestore, user_id, &library)?;
     }
+    Ok(())
+}
+
+#[instrument(
+    name = "library::update_entry",
+    level = "trace",
+    skip(firestore, user_id, digests)
+)]
+pub fn update_entry(
+    firestore: &FirestoreApi,
+    user_id: &str,
+    game_id: u64,
+    digests: Vec<GameDigest>,
+) -> Result<(), Status> {
+    let mut library = read(firestore, user_id)?;
+
+    for digest in digests {
+        match library.entries.iter_mut().find(|e| e.id == digest.id) {
+            Some(existing_entry) => existing_entry.digest = digest,
+            None => warn!(
+                "update_entry() called for game_id={game_id} but library entry was not found."
+            ),
+        }
+    }
+
     Ok(())
 }
 

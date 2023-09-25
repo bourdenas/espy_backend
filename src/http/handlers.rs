@@ -253,6 +253,52 @@ pub async fn post_match(
     }
 }
 
+#[instrument(level = "trace", skip(firestore, igdb))]
+pub async fn post_update(
+    user_id: String,
+    update: models::UpdateOp,
+    firestore: Arc<Mutex<FirestoreApi>>,
+    igdb: Arc<IgdbApi>,
+) -> Result<impl warp::Reply, Infallible> {
+    let started = SystemTime::now();
+
+    let game_id = update.game_id;
+    let manager = LibraryManager::new(&user_id, firestore);
+    let response = manager.update_game(igdb, game_id).await;
+
+    let resp_time = SystemTime::now().duration_since(started).unwrap();
+
+    match response {
+        Ok(()) => {
+            info!(
+                http_request.request_method = "POST",
+                http_request.request_url = "/library/_/update",
+                labels.log_type = "query_logs",
+                labels.handler = "update",
+                update.user_id = user_id,
+                update.game_id = game_id,
+                update.latency = resp_time.as_millis(),
+                "update '{game_id}'",
+            );
+            Ok(StatusCode::OK)
+        }
+        Err(e) => {
+            error!(
+                http_request.request_method = "POST",
+                http_request.request_url = "/library/_/update",
+                labels.log_type = "query_logs",
+                labels.handler = "update",
+                update.user_id = user_id,
+                update.game_id = game_id,
+                update.latency = resp_time.as_millis(),
+                update.error = e.to_string(),
+                "update '{game_id}'",
+            );
+            Ok(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
 #[instrument(level = "trace", skip(firestore))]
 pub async fn post_wishlist(
     user_id: String,
