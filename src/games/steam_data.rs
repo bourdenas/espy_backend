@@ -4,6 +4,7 @@ use crate::{
     util::rate_limiter::RateLimiter,
     Status,
 };
+use chrono::NaiveDateTime;
 use std::time::Duration;
 use tracing::{instrument, warn};
 
@@ -40,6 +41,20 @@ impl SteamDataApi {
                     e,
                 ));
             }
+        };
+
+        game_entry.release_date = match &game_entry.steam_data.as_ref().unwrap().release_date {
+            Some(date) => match NaiveDateTime::parse_from_str(
+                &format!("{} 12:00:00", &date.date),
+                "%e %b, %Y %H:%M:%S",
+            ) {
+                Ok(date) => Some(date.timestamp() as u64),
+                Err(e) => {
+                    warn!("{e}");
+                    None
+                }
+            },
+            None => None,
         };
 
         Ok(())

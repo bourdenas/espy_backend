@@ -19,6 +19,10 @@ pub struct GameEntry {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub release_date: Option<u64>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cover: Option<Image>,
 
     #[serde(default)]

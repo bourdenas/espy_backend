@@ -10,6 +10,10 @@ pub struct SteamData {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub release_date: Option<ReleaseDate>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub header_image: Option<String>,
 
     #[serde(default)]
@@ -39,6 +43,12 @@ pub struct SteamData {
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub movies: Vec<Movie>,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct ReleaseDate {
+    pub coming_soon: bool,
+    pub date: String,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
