@@ -97,7 +97,7 @@ pub fn update_entry(
             Some(existing_entry) => existing_entry.digest = digest,
             None => {
                 return Err(Status::not_found(format!(
-                    "update_entry() called for game_id={game_id} but entry was not found in wishlist."
+                    "update_entry() called for game_id={game_id} but entry was not found in library."
                 )));
             }
         }

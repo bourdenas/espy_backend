@@ -203,12 +203,15 @@ impl LibraryManager {
     #[instrument(level = "trace", skip(self, igdb))]
     pub async fn update_game(&self, igdb: Arc<IgdbApi>, game_id: u64) -> Result<(), Status> {
         let digests = self.get_digest(igdb, game_id).await?;
-        match firestore::library::update_entry(
-            &self.firestore.lock().unwrap(),
-            &self.user_id,
-            game_id,
-            digests.clone(),
-        ) {
+        let result = {
+            firestore::library::update_entry(
+                &self.firestore.lock().unwrap(),
+                &self.user_id,
+                game_id,
+                digests.clone(),
+            )
+        };
+        match result {
             Ok(()) => Ok(()),
             Err(Status::NotFound(_)) => firestore::wishlist::update_entry(
                 &self.firestore.lock().unwrap(),

@@ -19,7 +19,7 @@ pub struct GameEntry {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub release_date: Option<u64>,
+    pub release_date: Option<i64>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]

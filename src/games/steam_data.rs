@@ -48,7 +48,7 @@ impl SteamDataApi {
                 &format!("{} 12:00:00", &date.date),
                 "%e %b, %Y %H:%M:%S",
             ) {
-                Ok(date) => Some(date.timestamp() as u64),
+                Ok(date) => Some(date.timestamp()),
                 Err(e) => {
                     warn!("{e}");
                     None

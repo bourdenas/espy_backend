@@ -85,7 +85,10 @@ impl From<GameEntry> for GameDigest {
                 None => None,
             },
 
-            release_date: game_entry.igdb_game.first_release_date,
+            release_date: match game_entry.release_date {
+                Some(date) => Some(date),
+                None => game_entry.igdb_game.first_release_date,
+            },
             rating: game_entry.igdb_game.aggregated_rating,
 
             parent_id: match game_entry.parent {
