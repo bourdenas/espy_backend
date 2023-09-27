@@ -1,6 +1,6 @@
 use crate::{
     api::FirestoreApi,
-    documents::{Library, LibraryEntry},
+    documents::{GameDigest, Library, LibraryEntry},
     Status,
 };
 use tracing::instrument;
@@ -77,6 +77,33 @@ pub fn remove_entries(
         true => write(firestore, user_id, &wishlist),
         false => Ok(()),
     }
+}
+
+#[instrument(
+    name = "wishlist::update_entry",
+    level = "trace",
+    skip(firestore, user_id, digests)
+)]
+pub fn update_entry(
+    firestore: &FirestoreApi,
+    user_id: &str,
+    game_id: u64,
+    digests: Vec<GameDigest>,
+) -> Result<(), Status> {
+    let mut wishlist = read(firestore, user_id)?;
+
+    for digest in digests {
+        match wishlist.entries.iter_mut().find(|e| e.id == digest.id) {
+            Some(existing_entry) => existing_entry.digest = digest,
+            None => {
+                return Err(Status::not_found(format!(
+                    "update_entry() called for game_id={game_id} but entry was not found in wishlist."
+                )));
+            }
+        }
+    }
+
+    write(firestore, user_id, &wishlist)
 }
 
 fn add(library_entry: LibraryEntry, wishlist: &mut Library) -> bool {

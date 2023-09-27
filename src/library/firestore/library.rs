@@ -102,13 +102,15 @@ pub fn update_entry(
     for digest in digests {
         match library.entries.iter_mut().find(|e| e.id == digest.id) {
             Some(existing_entry) => existing_entry.digest = digest,
-            None => warn!(
-                "update_entry() called for game_id={game_id} but library entry was not found."
-            ),
+            None => {
+                return Err(Status::not_found(format!(
+                    "update_entry() called for game_id={game_id} but entry was not found in library."
+                )));
+            }
         }
     }
 
-    Ok(())
+    write(firestore, user_id, &library)
 }
 
 #[instrument(
