@@ -34,6 +34,12 @@ pub struct IgdbGame {
     pub name: String,
 
     #[serde(default)]
+    pub category: u64,
+
+    #[serde(default)]
+    pub status: u64,
+
+    #[serde(default)]
     pub url: String,
 
     #[serde(default)]
@@ -57,16 +63,12 @@ pub struct IgdbGame {
     pub total_rating: Option<f64>,
 
     #[serde(default)]
-    pub follows: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub follows: Option<i64>,
 
     #[serde(default)]
-    pub hypes: i64,
-
-    #[serde(default)]
-    pub category: u64,
-
-    #[serde(default)]
-    pub status: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hypes: Option<i64>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -155,7 +157,7 @@ impl IgdbGame {
     }
 
     pub fn has_hype(&self) -> bool {
-        self.follows > 0 || self.hypes > 0
+        self.follows.unwrap_or_default() > 0 || self.hypes.unwrap_or_default() > 0
     }
 
     pub fn diff(&self, other: &IgdbGame) -> IgdbGameDiff {
@@ -186,6 +188,7 @@ impl IgdbGame {
                 false => Some(other.storyline.clone()),
                 true => None,
             },
+
             first_release_date: match self.first_release_date == other.first_release_date {
                 false => other.first_release_date,
                 true => None,
@@ -194,6 +197,27 @@ impl IgdbGame {
                 false => other.aggregated_rating,
                 true => None,
             },
+
+            follows: match self.follows == other.follows {
+                false => other.follows,
+                true => None,
+            },
+            hypes: match self.hypes == other.hypes {
+                false => other.hypes,
+                true => None,
+            },
+
+            genres: vec_diff(&self.genres, &other.genres),
+            keywords: vec_diff(&self.keywords, &other.keywords),
+            expansions: vec_diff(&self.expansions, &other.expansions),
+            standalone_expansions: vec_diff(
+                &self.standalone_expansions,
+                &other.standalone_expansions,
+            ),
+            dlcs: vec_diff(&self.dlcs, &other.dlcs),
+            remakes: vec_diff(&self.remakes, &other.remakes),
+            remasters: vec_diff(&self.remasters, &other.remasters),
+            bundles: vec_diff(&self.bundles, &other.bundles),
 
             parent_game: match self.parent_game == other.parent_game {
                 false => other.parent_game,
@@ -208,10 +232,6 @@ impl IgdbGame {
                 true => None,
             },
 
-            cover: match self.cover == other.cover {
-                false => other.cover,
-                true => None,
-            },
             collection: match self.collection == other.collection {
                 false => other.collection,
                 true => None,
@@ -220,24 +240,16 @@ impl IgdbGame {
                 false => other.franchise,
                 true => None,
             },
-
             franchises: vec_diff(&self.franchises, &other.franchises),
             involved_companies: vec_diff(&self.involved_companies, &other.involved_companies),
+
+            cover: match self.cover == other.cover {
+                false => other.cover,
+                true => None,
+            },
             screenshots: vec_diff(&self.screenshots, &other.screenshots),
             artworks: vec_diff(&self.artworks, &other.artworks),
             websites: vec_diff(&self.websites, &other.websites),
-
-            genres: vec_diff(&self.genres, &other.genres),
-            keywords: vec_diff(&self.keywords, &other.keywords),
-            expansions: vec_diff(&self.expansions, &other.expansions),
-            standalone_expansions: vec_diff(
-                &self.standalone_expansions,
-                &other.standalone_expansions,
-            ),
-            dlcs: vec_diff(&self.dlcs, &other.dlcs),
-            remakes: vec_diff(&self.remakes, &other.remakes),
-            remasters: vec_diff(&self.remasters, &other.remasters),
-            bundles: vec_diff(&self.bundles, &other.bundles),
         }
     }
 }
@@ -359,6 +371,7 @@ pub struct IgdbGameDiff {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<u64>,
@@ -385,39 +398,10 @@ pub struct IgdbGameDiff {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent_game: Option<u64>,
+    pub follows: Option<i64>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub version_parent: Option<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub version_title: Option<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cover: Option<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub collection: Option<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub franchise: Option<u64>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub franchises: Vec<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub involved_companies: Vec<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub screenshots: Vec<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub artworks: Vec<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub websites: Vec<u64>,
+    pub hypes: Option<i64>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -443,6 +427,42 @@ pub struct IgdbGameDiff {
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub bundles: Vec<u64>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_game: Option<u64>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version_parent: Option<u64>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version_title: Option<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collection: Option<u64>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub franchise: Option<u64>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub franchises: Vec<u64>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub involved_companies: Vec<u64>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cover: Option<u64>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub screenshots: Vec<u64>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub artworks: Vec<u64>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub websites: Vec<u64>,
 }
 
 impl fmt::Display for IgdbGameDiff {
@@ -468,17 +488,8 @@ impl IgdbGameDiff {
             || self.storyline.is_some()
             || self.first_release_date.is_some()
             || self.aggregated_rating.is_some()
-            || self.parent_game.is_some()
-            || self.version_parent.is_some()
-            || self.version_title.is_some()
-            || self.cover.is_some()
-            || self.collection.is_some()
-            || self.franchise.is_some()
-            || !self.franchises.is_empty()
-            || !self.involved_companies.is_empty()
-            || !self.screenshots.is_empty()
-            || !self.artworks.is_empty()
-            || !self.websites.is_empty()
+            || self.follows.is_some()
+            || self.hypes.is_some()
             || !self.genres.is_empty()
             || !self.keywords.is_empty()
             || !self.expansions.is_empty()
@@ -487,26 +498,37 @@ impl IgdbGameDiff {
             || !self.remakes.is_empty()
             || !self.remasters.is_empty()
             || !self.bundles.is_empty()
-    }
-
-    pub fn needs_resolve(&self) -> bool {
-        self.parent_game.is_some()
+            || self.parent_game.is_some()
             || self.version_parent.is_some()
-            || self.cover.is_some()
+            || self.version_title.is_some()
             || self.collection.is_some()
             || self.franchise.is_some()
             || !self.franchises.is_empty()
             || !self.involved_companies.is_empty()
+            || self.cover.is_some()
             || !self.screenshots.is_empty()
             || !self.artworks.is_empty()
             || !self.websites.is_empty()
-            || !self.genres.is_empty()
+    }
+
+    pub fn needs_resolve(&self) -> bool {
+        !self.genres.is_empty()
             || !self.keywords.is_empty()
             || !self.expansions.is_empty()
             || !self.standalone_expansions.is_empty()
             || !self.dlcs.is_empty()
             || !self.remakes.is_empty()
             || !self.remasters.is_empty()
+            || self.parent_game.is_some()
+            || self.version_parent.is_some()
+            || self.collection.is_some()
+            || self.franchise.is_some()
+            || !self.franchises.is_empty()
+            || !self.involved_companies.is_empty()
+            || self.cover.is_some()
+            || !self.screenshots.is_empty()
+            || !self.artworks.is_empty()
+            || !self.websites.is_empty()
     }
 }
 
