@@ -6,7 +6,7 @@ use crate::{
 };
 use chrono::NaiveDateTime;
 use std::time::Duration;
-use tracing::{instrument, warn};
+use tracing::{info, instrument, warn};
 
 pub struct SteamDataApi {
     qps: RateLimiter,
@@ -31,6 +31,14 @@ impl SteamDataApi {
             warn!("Missing steam entry for '{}'", game_entry.name);
             return Ok(());
         }
+
+        info!(
+            labels.log_type = "counters",
+            labels.counter = "steam_fetch",
+            "Steam fetch: '{}' ({})",
+            &game_entry.name,
+            &game_entry.id
+        );
 
         self.qps.wait();
         let score = match SteamApi::get_app_score(steam_appid.unwrap()).await {

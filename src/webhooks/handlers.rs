@@ -2,7 +2,7 @@ use crate::{
     api::{FirestoreApi, IgdbApi, IgdbExternalGame, IgdbGame},
     documents::{ExternalGame, GameCategory, GameStatus, Genre, Keyword},
     library::firestore,
-    Status,
+    Status, games::SteamDataApi,
 };
 use std::{
     convert::Infallible,
@@ -96,6 +96,11 @@ pub async fn update_game_webhook(
                     }
                     if let Some(status) = diff.status {
                         game_entry.status = GameStatus::from(status);
+                    }
+
+                    let steam = SteamDataApi::new();
+                    if let Err(e) = steam.retrieve_steam_data(&mut game_entry).await {
+                        error!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
                     }
 
                     let mut firestore = firestore.lock().unwrap();
