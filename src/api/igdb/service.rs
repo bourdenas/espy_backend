@@ -301,7 +301,7 @@ impl IgdbApi {
         firestore: Arc<Mutex<FirestoreApi>>,
         igdb_game: IgdbGame,
     ) -> Result<GameEntry, Status> {
-        IgdbCounters::igdb_resolve(&igdb_game);
+        IgdbCounters::resolve(&igdb_game);
 
         {
             let mut firestore = firestore.lock().unwrap();
