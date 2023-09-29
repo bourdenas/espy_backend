@@ -12,6 +12,8 @@ use std::{
 use tracing::{debug, error, info, instrument, warn};
 use warp::http::StatusCode;
 
+use super::query_logs::SearchEvent;
+
 #[instrument(level = "trace")]
 pub async fn welcome() -> Result<impl warp::Reply, Infallible> {
     info!(
@@ -30,44 +32,19 @@ pub async fn post_search(
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
     let started = SystemTime::now();
-    let response = match igdb
+    let response = igdb
         .search_by_title_with_cover(&search.title, search.base_game_only)
-        .await
-    {
-        Ok(candidates) => Ok(candidates),
-        Err(e) => Err(Status::internal(format!(
-            "search_by_title_with_cover(): {e}"
-        ))),
-    };
+        .await;
     let resp_time = SystemTime::now().duration_since(started).unwrap();
 
+    let event = SearchEvent::new(search);
     match response {
         Ok(candidates) => {
-            info!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/search",
-                labels.log_type = "query_logs",
-                labels.handler = "search",
-                search.title = search.title,
-                search.latency = resp_time.as_millis(),
-                search.results = candidates.len(),
-                "search '{}'",
-                search.title
-            );
+            event.log(resp_time, &candidates);
             Ok(Box::new(warp::reply::json(&candidates)))
         }
-        Err(e) => {
-            error!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/search",
-                labels.log_type = "query_logs",
-                labels.handler = "search",
-                search.title = search.title,
-                search.latency = resp_time.as_millis(),
-                search.error = e.to_string(),
-                "search '{}'",
-                search.title
-            );
+        Err(status) => {
+            event.log_error(resp_time, status);
             Ok(Box::new(StatusCode::NOT_FOUND))
         }
     }
