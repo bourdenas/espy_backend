@@ -3,7 +3,6 @@ use crate::{
     documents::{ExternalGame, GameCategory, GameStatus, Genre, Keyword},
     games::SteamDataApi,
     library::firestore,
-    logging::{AddGameEvent, ExternalGameEvent, GenresEvent, KeywordsEvent, UpdateGameEvent},
     Status,
 };
 use std::{
@@ -12,6 +11,10 @@ use std::{
 };
 use tracing::{instrument, warn};
 use warp::http::StatusCode;
+
+use super::event_logs::{
+    AddGameEvent, ExternalGameEvent, GenresEvent, KeywordsEvent, UpdateGameEvent,
+};
 
 #[instrument(level = "trace", skip(igdb_game, firestore, igdb))]
 pub async fn add_game_webhook(
