@@ -6,7 +6,7 @@ pub fn counter(name: &str, description: &str) {
     info!(
         labels.log_type = "counters",
         labels.counter = name,
-        description
+        "{description}"
     );
 }
 
@@ -16,7 +16,7 @@ pub fn error_counter(name: &str, description: &str, status: &Status) {
         labels.counter_type = "error",
         labels.status = status.to_string(),
         labels.counter = name,
-        description
+        "{description}"
     );
 }
 

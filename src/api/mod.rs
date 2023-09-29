@@ -7,5 +7,5 @@ mod steam;
 pub use firestore::FirestoreApi;
 pub use gog::GogApi;
 pub use gog_token::GogToken;
-pub use igdb::{IgdbApi, IgdbBatchApi, IgdbExternalGame, IgdbGame, IgdbWebhooksApi};
+pub use igdb::*;
 pub use steam::SteamApi;
