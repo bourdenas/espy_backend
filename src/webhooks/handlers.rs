@@ -3,14 +3,14 @@ use crate::{
     documents::{ExternalGame, GameCategory, GameStatus, Genre, Keyword},
     games::SteamDataApi,
     library::firestore,
-    logging::{AddGameEvent, UpdateGameEvent},
+    logging::{AddGameEvent, ExternalGameEvent, GenresEvent, KeywordsEvent, UpdateGameEvent},
     Status,
 };
 use std::{
     convert::Infallible,
     sync::{Arc, Mutex},
 };
-use tracing::{error, info, instrument, log::warn};
+use tracing::{instrument, warn};
 use warp::http::StatusCode;
 
 #[instrument(level = "trace", skip(igdb_game, firestore, igdb))]
@@ -121,26 +121,11 @@ pub async fn external_games_webhook(
     let mut firestore = firestore.lock().unwrap();
     firestore.validate();
     let result = firestore::external_games::write(&firestore, &external_game);
+    let event = ExternalGameEvent::new(external_game);
 
     match result {
-        Ok(()) => info!(
-            labels.log_type = "webhook_logs",
-            labels.handler = "post_external_game",
-            labels.counter = "update_external_game",
-            external_game.store = external_game.store_name,
-            external_game.store_id = external_game.store_id,
-            "external game updated",
-        ),
-        Err(e) => error!(
-            labels.log_type = "webhook_logs",
-            labels.handler = "post_external_game",
-            labels.counter = "update_external_game",
-            external_game.store = external_game.store_name,
-            external_game.store_id = external_game.store_id,
-            external_game.error = e.to_string(),
-            "failed to store {:?}",
-            external_game,
-        ),
+        Ok(()) => event.log(),
+        Err(status) => event.log_error(status),
     }
 
     Ok(StatusCode::OK)
@@ -154,24 +139,11 @@ pub async fn genres_webhook(
     let mut firestore = firestore.lock().unwrap();
     firestore.validate();
     let result = firestore::genres::write(&firestore, &genre);
+    let event = GenresEvent::new(genre);
 
     match result {
-        Ok(()) => info!(
-            labels.log_type = "webhook_logs",
-            labels.handler = "post_genres",
-            labels.counter = "update_genre",
-            genre.name = genre.name,
-            "genre updated",
-        ),
-        Err(e) => error!(
-            labels.log_type = "webhook_logs",
-            labels.handler = "post_genres",
-            labels.counter = "update_genre",
-            genre.name = genre.name,
-            genre.error = e.to_string(),
-            "failed to strore {:?}",
-            genre,
-        ),
+        Ok(()) => event.log(),
+        Err(status) => event.log_error(status),
     }
 
     Ok(StatusCode::OK)
@@ -185,24 +157,11 @@ pub async fn keywords_webhook(
     let mut firestore = firestore.lock().unwrap();
     firestore.validate();
     let result = firestore::keywords::write(&firestore, &keyword);
+    let event = KeywordsEvent::new(keyword);
 
     match result {
-        Ok(()) => info!(
-            labels.log_type = "webhook_logs",
-            labels.handler = "post_keywords",
-            labels.counter = "update_keyword",
-            keyword.name = keyword.name,
-            "keyword updated",
-        ),
-        Err(e) => error!(
-            labels.log_type = "webhook_logs",
-            labels.handler = "post_keywords",
-            labels.counter = "update_keyword",
-            keyword.name = keyword.name,
-            keyword.error = e.to_string(),
-            "failed to strore {:?}",
-            keyword,
-        ),
+        Ok(()) => event.log(),
+        Err(status) => event.log_error(status),
     }
 
     Ok(StatusCode::OK)
