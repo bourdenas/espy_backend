@@ -59,9 +59,10 @@ impl SteamDataApi {
         };
 
         game_entry.release_date = match &game_entry.steam_data.as_ref().unwrap().release_date {
+            // TODO: Make parsing more resilient to location formatting.
             Some(date) => match NaiveDateTime::parse_from_str(
                 &format!("{} 12:00:00", &date.date),
-                "%e %b, %Y %H:%M:%S",
+                "%b %e, %Y %H:%M:%S",
             ) {
                 Ok(date) => Some(date.timestamp()),
                 Err(status) => {
