@@ -1,12 +1,13 @@
 use crate::{
     api::SteamApi,
     documents::{self, GameEntry},
+    logging::SteamCounters,
     util::rate_limiter::RateLimiter,
     Status,
 };
 use chrono::NaiveDateTime;
 use std::time::Duration;
-use tracing::{info, instrument, warn};
+use tracing::instrument;
 
 pub struct SteamDataApi {
     qps: RateLimiter,
@@ -28,26 +29,18 @@ impl SteamDataApi {
         let steam_appid = get_steam_appid(game_entry);
 
         if let None = steam_appid {
-            warn!("Missing steam entry for '{}'", game_entry.name);
+            SteamCounters::missing_id(&game_entry);
             return Ok(());
         }
 
-        info!(
-            labels.log_type = "counters",
-            labels.counter = "steam_fetch",
-            "Steam fetch: '{}' ({})",
-            &game_entry.name,
-            &game_entry.id
-        );
+        SteamCounters::fetch(&game_entry);
 
         self.qps.wait();
         let score = match SteamApi::get_app_score(steam_appid.unwrap()).await {
             Ok(result) => Some(result),
-            Err(e) => {
-                return Err(Status::new(
-                    &format!("Failed to retrieve Steam score for '{}'", game_entry.name),
-                    e,
-                ));
+            Err(status) => {
+                SteamCounters::fetch_score_fail(&game_entry, &status);
+                None
             }
         };
         self.qps.wait();
@@ -56,10 +49,11 @@ impl SteamDataApi {
                 result.score = score;
                 Some(result)
             }
-            Err(e) => {
+            Err(status) => {
+                SteamCounters::fetch_appdetails_fail(&game_entry, &status);
                 return Err(Status::new(
                     &format!("Failed to retrieve Steam data for '{}'", game_entry.name),
-                    e,
+                    status,
                 ));
             }
         };
@@ -70,8 +64,11 @@ impl SteamDataApi {
                 "%e %b, %Y %H:%M:%S",
             ) {
                 Ok(date) => Some(date.timestamp()),
-                Err(e) => {
-                    warn!("{e}");
+                Err(status) => {
+                    SteamCounters::date_parsing_fail(
+                        &game_entry,
+                        &Status::internal(format!("{status}")),
+                    );
                     None
                 }
             },

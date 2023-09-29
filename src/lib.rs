@@ -5,6 +5,7 @@ pub mod documents;
 pub mod games;
 pub mod http;
 pub mod library;
+pub mod logging;
 pub mod traits;
 pub mod util;
 pub mod webhooks;

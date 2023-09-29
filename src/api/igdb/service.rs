@@ -6,6 +6,7 @@ use crate::{
     },
     games::SteamDataApi,
     library::firestore,
+    logging::IgdbCounters,
     util::rate_limiter::RateLimiter,
     Status,
 };
@@ -15,7 +16,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tracing::{error, info, instrument, trace_span, Instrument};
+use tracing::{error, instrument, trace_span, Instrument};
 
 use super::{
     backend::post,
@@ -300,13 +301,7 @@ impl IgdbApi {
         firestore: Arc<Mutex<FirestoreApi>>,
         igdb_game: IgdbGame,
     ) -> Result<GameEntry, Status> {
-        info!(
-            labels.log_type = "counters",
-            labels.counter = "igdb_resolve",
-            "IGDB resolve: '{}' ({})",
-            &igdb_game.name,
-            &igdb_game.id
-        );
+        IgdbCounters::igdb_resolve(&igdb_game);
 
         {
             let mut firestore = firestore.lock().unwrap();
