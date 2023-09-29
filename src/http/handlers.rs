@@ -12,7 +12,7 @@ use std::{
 use tracing::{debug, error, info, instrument, warn};
 use warp::http::StatusCode;
 
-use super::query_logs::SearchEvent;
+use super::query_logs::{ResolveEvent, SearchEvent};
 
 #[instrument(level = "trace")]
 pub async fn welcome() -> Result<impl warp::Reply, Infallible> {
@@ -59,38 +59,22 @@ pub async fn post_resolve(
     let started = SystemTime::now();
     let response = match igdb.get(resolve.game_id).await {
         Ok(igdb_game) => igdb.resolve(firestore, igdb_game).await,
-        Err(e) => Err(Status::internal(format!("igdb.get(): {e}"))),
+        Err(status) => {
+            let event = ResolveEvent::new(resolve);
+            event.log_error(SystemTime::now().duration_since(started).unwrap(), status);
+            return Ok(StatusCode::NOT_FOUND);
+        }
     };
     let resp_time = SystemTime::now().duration_since(started).unwrap();
 
+    let event = ResolveEvent::new(resolve);
     match response {
         Ok(game_entry) => {
-            info!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/resolve",
-                labels.log_type = "query_logs",
-                labels.handler = "resolve",
-                resolve.game_id = resolve.game_id,
-                resolve.title = game_entry.name,
-                resolve.latency = resp_time.as_millis(),
-                "resolve '{}' ({})",
-                game_entry.name,
-                resolve.game_id,
-            );
+            event.log(resp_time, game_entry);
             Ok(StatusCode::OK)
         }
-        Err(e) => {
-            error!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/resolve",
-                labels.log_type = "query_logs",
-                labels.handler = "resolve",
-                resolve.game_id = resolve.game_id,
-                resolve.latency = resp_time.as_millis(),
-                resolve.error = e.to_string(),
-                "resolve: {}",
-                resolve.game_id,
-            );
+        Err(status) => {
+            event.log_error(resp_time, status);
             Ok(StatusCode::NOT_FOUND)
         }
     }
