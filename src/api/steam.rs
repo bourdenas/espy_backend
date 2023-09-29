@@ -1,5 +1,5 @@
 use crate::{
-    documents::{SteamData, StoreEntry},
+    documents::{SteamData, SteamScore, StoreEntry},
     traits::Storefront,
     Status,
 };
@@ -40,6 +40,29 @@ impl SteamApi {
             .unwrap();
 
         Ok(resp.data)
+    }
+
+    #[instrument(level = "trace")]
+    pub async fn get_app_score(steam_appid: u64) -> Result<SteamScore, Status> {
+        let uri = format!("https://store.steampowered.com/appreviews/{steam_appid}?json=1");
+
+        let resp = reqwest::get(&uri).await?;
+        let text = resp.text().await?;
+        let resp = serde_json::from_str::<SteamAppReviewsResponse>(&text).map_err(|e| {
+            let msg = format!(
+                "({steam_appid}) Parse error: {}\n Steam response: {}",
+                e, &text
+            );
+            Status::internal(msg)
+        })?;
+
+        Ok(SteamScore {
+            review_score: ((resp.query_summary.total_positive as f64
+                / resp.query_summary.total_reviews as f64)
+                * 100.0)
+                .round() as u64,
+            review_score_desc: resp.query_summary.review_score_desc,
+        })
     }
 }
 
@@ -99,6 +122,30 @@ struct GameEntry {
 struct SteamAppDetailsResponse {
     success: bool,
     data: SteamData,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug)]
+struct SteamAppReviewsResponse {
+    success: u64,
+    query_summary: SteamAppReviewsQuerySummary,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug)]
+struct SteamAppReviewsQuerySummary {
+    #[serde(default)]
+    review_score: u64,
+
+    #[serde(default)]
+    review_score_desc: String,
+
+    #[serde(default)]
+    total_positive: u64,
+
+    #[serde(default)]
+    total_negative: u64,
+
+    #[serde(default)]
+    total_reviews: u64,
 }
 
 const STEAM_HOST: &str = "http://api.steampowered.com";

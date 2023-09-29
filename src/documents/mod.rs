@@ -22,7 +22,7 @@ pub use genre::Genre;
 pub use keyword::Keyword;
 pub use library_entry::{Library, LibraryEntry};
 pub use recent::{Recent, RecentEntry};
-pub use steam_data::SteamData;
+pub use steam_data::{SteamData, SteamScore};
 pub use store_entry::{FailedEntries, StoreEntry};
 pub use storefront::Storefront;
 pub use user_data::{Keys, UserData};

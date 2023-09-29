@@ -33,6 +33,18 @@ pub struct SteamData {
     pub dlc: Vec<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub score: Option<SteamScore>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metacritic: Option<Metacritic>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recommendations: Option<Recommendations>,
+
+    #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub genres: Vec<Genre>,
 
@@ -49,6 +61,26 @@ pub struct SteamData {
 pub struct ReleaseDate {
     pub coming_soon: bool,
     pub date: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct SteamScore {
+    #[serde(default)]
+    pub review_score: u64,
+
+    #[serde(default)]
+    pub review_score_desc: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct Metacritic {
+    pub score: u64,
+    pub url: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct Recommendations {
+    pub total: u64,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]

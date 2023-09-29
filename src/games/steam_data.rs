@@ -33,8 +33,21 @@ impl SteamDataApi {
         }
 
         self.qps.wait();
-        game_entry.steam_data = match SteamApi::get_app_details(steam_appid.unwrap()).await {
+        let score = match SteamApi::get_app_score(steam_appid.unwrap()).await {
             Ok(result) => Some(result),
+            Err(e) => {
+                return Err(Status::new(
+                    &format!("Failed to retrieve Steam score for '{}'", game_entry.name),
+                    e,
+                ));
+            }
+        };
+        self.qps.wait();
+        game_entry.steam_data = match SteamApi::get_app_details(steam_appid.unwrap()).await {
+            Ok(mut result) => {
+                result.score = score;
+                Some(result)
+            }
             Err(e) => {
                 return Err(Status::new(
                     &format!("Failed to retrieve Steam data for '{}'", game_entry.name),
