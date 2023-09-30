@@ -103,6 +103,55 @@ impl<'a> ResolveEvent<'a> {
     }
 }
 
+pub struct UpdateEvent<'a> {
+    request: &'a models::UpdateOp,
+    start: SystemTime,
+}
+
+impl<'a> UpdateEvent<'a> {
+    pub fn new(request: &'a models::UpdateOp) -> Self {
+        Self {
+            request,
+            start: SystemTime::now(),
+        }
+    }
+
+    pub fn log(self, user_id: &str) {
+        info!(
+            http_request.request_method = "POST",
+            http_request.request_url = "/library/_/update",
+            labels.log_type = QUERY_LOGS,
+            labels.handler = UPDATE_HANDLER,
+            request.game_id = self.request.game_id,
+            update.user_id = user_id,
+            update.latency = SystemTime::now()
+                .duration_since(self.start)
+                .unwrap()
+                .as_millis(),
+            "update {}",
+            self.request.game_id,
+        )
+    }
+
+    pub fn log_error(self, user_id: &str, status: Status) {
+        error!(
+            http_request.request_method = "POST",
+            http_request.request_url = "/library/_/update",
+            labels.log_type = QUERY_LOGS,
+            labels.handler = UPDATE_HANDLER,
+            labels.status = status.to_string(),
+            request.game_id = self.request.game_id,
+            update.user_id = user_id,
+            update.latency = SystemTime::now()
+                .duration_since(self.start)
+                .unwrap()
+                .as_millis(),
+            "update {}",
+            self.request.game_id,
+        )
+    }
+}
+
 pub struct MatchEvent {
     request: models::MatchOp,
     start: SystemTime,
@@ -171,13 +220,13 @@ impl MatchEvent {
     }
 }
 
-pub struct UpdateEvent<'a> {
-    request: &'a models::UpdateOp,
+pub struct WishlistEvent {
+    request: models::WishlistOp,
     start: SystemTime,
 }
 
-impl<'a> UpdateEvent<'a> {
-    pub fn new(request: &'a models::UpdateOp) -> Self {
+impl WishlistEvent {
+    pub fn new(request: models::WishlistOp) -> Self {
         Self {
             request,
             start: SystemTime::now(),
@@ -187,41 +236,62 @@ impl<'a> UpdateEvent<'a> {
     pub fn log(self, user_id: &str) {
         info!(
             http_request.request_method = "POST",
-            http_request.request_url = "/library/_/update",
+            http_request.request_url = "/library/_/wishlist",
             labels.log_type = QUERY_LOGS,
-            labels.handler = UPDATE_HANDLER,
-            request.game_id = self.request.game_id,
-            update.user_id = user_id,
-            update.latency = SystemTime::now()
+            labels.handler = WISHLIST_HANDLER,
+            request.op = self.op(),
+            request.game_id = self.game_id(),
+            wishlist.user_id = user_id,
+            wishlist.latency = SystemTime::now()
                 .duration_since(self.start)
                 .unwrap()
                 .as_millis(),
-            "update {}",
-            self.request.game_id,
+            "{} '{}'",
+            self.op(),
+            self.game_id(),
         )
     }
 
     pub fn log_error(self, user_id: &str, status: Status) {
         error!(
             http_request.request_method = "POST",
-            http_request.request_url = "/library/_/update",
+            http_request.request_url = "/library/_/wishlist",
             labels.log_type = QUERY_LOGS,
-            labels.handler = UPDATE_HANDLER,
+            labels.handler = WISHLIST_HANDLER,
             labels.status = status.to_string(),
-            request.game_id = self.request.game_id,
-            update.user_id = user_id,
-            update.latency = SystemTime::now()
+            request.op = self.op(),
+            request.game_id = self.game_id(),
+            wishlist.user_id = user_id,
+            wishlist.latency = SystemTime::now()
                 .duration_since(self.start)
                 .unwrap()
                 .as_millis(),
-            "update {}",
-            self.request.game_id,
+            "{} '{}'",
+            self.op(),
+            self.game_id(),
         )
+    }
+
+    fn op(&self) -> &'static str {
+        match (&self.request.add_game, &self.request.remove_game) {
+            (Some(_), _) => "add_to_wishlist",
+            (_, Some(_)) => "remove_from_wishlist",
+            _ => "bad_request",
+        }
+    }
+
+    fn game_id(&self) -> u64 {
+        match (&self.request.add_game, &self.request.remove_game) {
+            (Some(library_entry), _) => library_entry.id,
+            (_, Some(id)) => *id,
+            _ => 0,
+        }
     }
 }
 
 const QUERY_LOGS: &str = "query_logs";
 const SEARCH_HANDLER: &str = "search";
 const RESOLVE_HANDLER: &str = "resolve";
-const MATCH_HANDLER: &str = "match";
 const UPDATE_HANDLER: &str = "update";
+const MATCH_HANDLER: &str = "match";
+const WISHLIST_HANDLER: &str = "wishlist";

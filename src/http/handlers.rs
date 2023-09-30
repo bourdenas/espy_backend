@@ -72,6 +72,28 @@ pub async fn post_resolve(
     }
 }
 
+#[instrument(level = "trace", skip(firestore, igdb))]
+pub async fn post_update(
+    user_id: String,
+    update: models::UpdateOp,
+    firestore: Arc<Mutex<FirestoreApi>>,
+    igdb: Arc<IgdbApi>,
+) -> Result<impl warp::Reply, Infallible> {
+    let event = UpdateEvent::new(&update);
+
+    let manager = LibraryManager::new(&user_id, firestore);
+    match manager.update_game(igdb, update.game_id).await {
+        Ok(()) => {
+            event.log(&user_id);
+            Ok(StatusCode::OK)
+        }
+        Err(status) => {
+            event.log_error(&user_id, status);
+            Ok(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
 #[instrument(
     level = "trace",
     skip(match_op, firestore, igdb),
@@ -149,85 +171,42 @@ pub async fn post_match(
     }
 }
 
-#[instrument(level = "trace", skip(firestore, igdb))]
-pub async fn post_update(
-    user_id: String,
-    update: models::UpdateOp,
-    firestore: Arc<Mutex<FirestoreApi>>,
-    igdb: Arc<IgdbApi>,
-) -> Result<impl warp::Reply, Infallible> {
-    let event = UpdateEvent::new(&update);
-
-    let manager = LibraryManager::new(&user_id, firestore);
-    match manager.update_game(igdb, update.game_id).await {
-        Ok(()) => {
-            event.log(&user_id);
-            Ok(StatusCode::OK)
-        }
-        Err(status) => {
-            event.log_error(&user_id, status);
-            Ok(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
-
 #[instrument(level = "trace", skip(firestore))]
 pub async fn post_wishlist(
     user_id: String,
     wishlist: models::WishlistOp,
     firestore: Arc<Mutex<FirestoreApi>>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let started = SystemTime::now();
+    let event = WishlistEvent::new(wishlist.clone());
+
     let manager = LibraryManager::new(&user_id, firestore);
-    let wishlist_clone = wishlist.clone();
-    let response = match (wishlist.add_game, wishlist.remove_game) {
+    match (wishlist.add_game, wishlist.remove_game) {
         (Some(library_entry), _) => match manager.add_to_wishlist(library_entry).await {
-            Ok(()) => Ok(wishlist_clone.add_game.as_ref().unwrap().id),
-            Err(e) => Err(Status::internal(format!("add_to_wishlist(): {e}"))),
+            Ok(()) => {
+                event.log(&user_id);
+                Ok(StatusCode::OK)
+            }
+            Err(status) => {
+                event.log_error(&user_id, status);
+                Ok(StatusCode::INTERNAL_SERVER_ERROR)
+            }
         },
         (_, Some(game_id)) => match manager.remove_from_wishlist(game_id).await {
-            Ok(()) => Ok(game_id),
-            Err(e) => Err(Status::internal(format!("remove_from_wishlist(): {e}"))),
+            Ok(()) => {
+                event.log(&user_id);
+                Ok(StatusCode::OK)
+            }
+            Err(status) => {
+                event.log_error(&user_id, status);
+                Ok(StatusCode::INTERNAL_SERVER_ERROR)
+            }
         },
-        _ => Err(Status::invalid_argument(
-            "Missing both add_game and remove_game arguments.",
-        )),
-    };
-    let resp_time = SystemTime::now().duration_since(started).unwrap();
-
-    let op = match (wishlist_clone.add_game, wishlist_clone.remove_game) {
-        (Some(_), _) => "add_to_wishlist",
-        (_, Some(_)) => "remove_from_wishlist",
-        _ => "bad_request",
-    };
-    match response {
-        Ok(game_id) => {
-            info!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/_/wishlist",
-                labels.log_type = "query_logs",
-                labels.handler = "wishlist",
-                wishlist.user_id = user_id,
-                wishlist.operation = op,
-                wishlist.game_id = game_id,
-                wishlist.latency = resp_time.as_millis(),
-                "{op} '{game_id}'",
+        _ => {
+            event.log_error(
+                &user_id,
+                Status::invalid_argument("Missing both add_game and remove_game arguments."),
             );
-            Ok(StatusCode::OK)
-        }
-        Err(e) => {
-            error!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/_/wishlist",
-                labels.log_type = "query_logs",
-                labels.handler = "wishlist",
-                wishlist.user_id = user_id,
-                wishlist.operation = op,
-                wishlist.latency = resp_time.as_millis(),
-                wishlist.error = e.to_string(),
-                "{op}",
-            );
-            Ok(StatusCode::INTERNAL_SERVER_ERROR)
+            Ok(StatusCode::BAD_REQUEST)
         }
     }
 }
