@@ -12,7 +12,7 @@ use std::{
 use tracing::{debug, error, info, instrument, warn};
 use warp::http::StatusCode;
 
-use super::query_logs::{ResolveEvent, SearchEvent};
+use super::query_logs::*;
 
 #[instrument(level = "trace")]
 pub async fn welcome() -> Result<impl warp::Reply, Infallible> {
@@ -85,17 +85,26 @@ pub async fn post_match(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let started = SystemTime::now();
-    let match_op_clone = match_op.clone();
+    let event = MatchEvent::new(match_op.clone());
+
     let manager = LibraryManager::new(&user_id, firestore);
-    let response = match (match_op.game_entry, match_op.unmatch_entry) {
+    match (match_op.game_entry, match_op.unmatch_entry) {
         // Match StoreEntry to GameEntry and add in Library.
         (Some(game_entry), None) => match manager.get_digest(igdb, game_entry.id).await {
             Ok(digests) => match manager.create_library_entry(match_op.store_entry, digests) {
-                Ok(()) => Ok(()),
-                Err(e) => Err(Status::internal(format!("create_library_entry(): {e}"))),
+                Ok(()) => {
+                    event.log(&user_id);
+                    Ok(StatusCode::OK)
+                }
+                Err(status) => {
+                    event.log_error(&user_id, status);
+                    Ok(StatusCode::INTERNAL_SERVER_ERROR)
+                }
             },
-            Err(e) => Err(Status::not_found(format!("get_digest(): {e}"))),
+            Err(status) => {
+                event.log_error(&user_id, status);
+                Ok(StatusCode::NOT_FOUND)
+            }
         },
         // Remove StoreEntry from Library.
         (None, Some(_library_entry)) => {
@@ -103,8 +112,14 @@ pub async fn post_match(
                 .unmatch_game(match_op.store_entry, match_op.delete_unmatched)
                 .await
             {
-                Ok(()) => Ok(()),
-                Err(e) => Err(Status::internal(format!("unmatch_game(): {e}"))),
+                Ok(()) => {
+                    event.log(&user_id);
+                    Ok(StatusCode::OK)
+                }
+                Err(status) => {
+                    event.log_error(&user_id, status);
+                    Ok(StatusCode::INTERNAL_SERVER_ERROR)
+                }
             }
         }
         // Match StoreEntry with a different GameEntry.
@@ -113,95 +128,23 @@ pub async fn post_match(
                 .rematch_game(igdb, match_op.store_entry, game_entry.id)
                 .await
             {
-                Ok(()) => Ok(()),
-                Err(e) => Err(Status::internal(format!("rematch_game(): {e}"))),
+                Ok(()) => {
+                    event.log(&user_id);
+                    Ok(StatusCode::OK)
+                }
+                Err(status) => {
+                    event.log_error(&user_id, status);
+                    Ok(StatusCode::INTERNAL_SERVER_ERROR)
+                }
             }
         }
-        // Unexpected request.
-        (None, None) => Err(Status::invalid_argument(
-            "Missing both game_entry and unmatch_entry args.",
-        )),
-    };
-    let resp_time = SystemTime::now().duration_since(started).unwrap();
-
-    let op = match (match_op_clone.game_entry, match_op_clone.unmatch_entry) {
-        (Some(_), None) => "match",
-        (None, Some(_)) => "unmatch",
-        (Some(_), Some(_)) => "rematch",
-        (None, None) => "bad_request",
-    };
-
-    match response {
-        Ok(()) => {
-            info!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/_/match",
-                labels.log_type = "query_logs",
-                labels.handler = "match",
-                matchOp.user_id = user_id,
-                matchOp.operation = op,
-                matchOp.store_entry_id = match_op_clone.store_entry.id,
-                matchOp.store_entry_title = match_op_clone.store_entry.title,
-                matchOp.store_entry_storefront = match_op_clone.store_entry.storefront_name,
-                matchOp.latency = resp_time.as_millis(),
-                "{op} '{}'",
-                match_op_clone.store_entry.title,
-            );
-            Ok(StatusCode::OK)
-        }
-        Err(Status::NotFound(e)) => {
-            error!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/{user_id}/match",
-                labels.log_type = "query_logs",
-                labels.handler = "match",
-                matchOp.user_id = user_id,
-                matchOp.operation = op,
-                matchOp.store_entry_id = match_op_clone.store_entry.id,
-                matchOp.store_entry_title = match_op_clone.store_entry.title,
-                matchOp.store_entry_storefront = match_op_clone.store_entry.storefront_name,
-                matchOp.latency = resp_time.as_millis(),
-                matchOp.error = e.to_string(),
-                "{op} '{}'",
-                match_op_clone.store_entry.title,
-            );
-            Ok(StatusCode::NOT_FOUND)
-        }
-        Err(Status::InvalidArgument(e)) => {
-            error!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/{user_id}/match",
-                labels.log_type = "query_logs",
-                labels.handler = "match",
-                matchOp.user_id = user_id,
-                matchOp.operation = op,
-                matchOp.store_entry_id = match_op_clone.store_entry.id,
-                matchOp.store_entry_title = match_op_clone.store_entry.title,
-                matchOp.store_entry_storefront = match_op_clone.store_entry.storefront_name,
-                matchOp.latency = resp_time.as_millis(),
-                matchOp.error = e.to_string(),
-                "{op} '{}'",
-                match_op_clone.store_entry.title,
+        // Bad request, at least one must be present.
+        (None, None) => {
+            event.log_error(
+                &user_id,
+                Status::invalid_argument("Missing both game_entry and unmatch_entry args."),
             );
             Ok(StatusCode::BAD_REQUEST)
-        }
-        Err(e) => {
-            error!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/{user_id}/match",
-                labels.log_type = "query_logs",
-                labels.handler = "match",
-                matchOp.user_id = user_id,
-                matchOp.operation = op,
-                matchOp.store_entry_id = match_op_clone.store_entry.id,
-                matchOp.store_entry_title = match_op_clone.store_entry.title,
-                matchOp.store_entry_storefront = match_op_clone.store_entry.storefront_name,
-                matchOp.latency = resp_time.as_millis(),
-                matchOp.error = e.to_string(),
-                "{op} '{}'",
-                match_op_clone.store_entry.title,
-            );
-            Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
