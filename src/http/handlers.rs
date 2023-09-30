@@ -31,20 +31,17 @@ pub async fn post_search(
     search: models::Search,
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    let started = SystemTime::now();
-    let response = igdb
+    let event = SearchEvent::new(&search);
+    match igdb
         .search_by_title_with_cover(&search.title, search.base_game_only)
-        .await;
-    let resp_time = SystemTime::now().duration_since(started).unwrap();
-
-    let event = SearchEvent::new(search);
-    match response {
+        .await
+    {
         Ok(candidates) => {
-            event.log(resp_time, &candidates);
+            event.log(&candidates);
             Ok(Box::new(warp::reply::json(&candidates)))
         }
         Err(status) => {
-            event.log_error(resp_time, status);
+            event.log_error(status);
             Ok(Box::new(StatusCode::NOT_FOUND))
         }
     }
@@ -56,25 +53,20 @@ pub async fn post_resolve(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let started = SystemTime::now();
-    let response = match igdb.get(resolve.game_id).await {
-        Ok(igdb_game) => igdb.resolve(firestore, igdb_game).await,
+    let event = ResolveEvent::new(&resolve);
+    match igdb.get(resolve.game_id).await {
+        Ok(igdb_game) => match igdb.resolve(firestore, igdb_game).await {
+            Ok(game_entry) => {
+                event.log(game_entry);
+                Ok(StatusCode::OK)
+            }
+            Err(status) => {
+                event.log_error(status);
+                Ok(StatusCode::NOT_FOUND)
+            }
+        },
         Err(status) => {
-            let event = ResolveEvent::new(resolve);
-            event.log_error(SystemTime::now().duration_since(started).unwrap(), status);
-            return Ok(StatusCode::NOT_FOUND);
-        }
-    };
-    let resp_time = SystemTime::now().duration_since(started).unwrap();
-
-    let event = ResolveEvent::new(resolve);
-    match response {
-        Ok(game_entry) => {
-            event.log(resp_time, game_entry);
-            Ok(StatusCode::OK)
-        }
-        Err(status) => {
-            event.log_error(resp_time, status);
+            event.log_error(status);
             Ok(StatusCode::NOT_FOUND)
         }
     }
