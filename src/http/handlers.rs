@@ -156,40 +156,16 @@ pub async fn post_update(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let started = SystemTime::now();
+    let event = UpdateEvent::new(&update);
 
-    let game_id = update.game_id;
     let manager = LibraryManager::new(&user_id, firestore);
-    let response = manager.update_game(igdb, game_id).await;
-
-    let resp_time = SystemTime::now().duration_since(started).unwrap();
-
-    match response {
+    match manager.update_game(igdb, update.game_id).await {
         Ok(()) => {
-            info!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/_/update",
-                labels.log_type = "query_logs",
-                labels.handler = "update",
-                update.user_id = user_id,
-                update.game_id = game_id,
-                update.latency = resp_time.as_millis(),
-                "update '{game_id}'",
-            );
+            event.log(&user_id);
             Ok(StatusCode::OK)
         }
-        Err(e) => {
-            error!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/_/update",
-                labels.log_type = "query_logs",
-                labels.handler = "update",
-                update.user_id = user_id,
-                update.game_id = game_id,
-                update.latency = resp_time.as_millis(),
-                update.error = e.to_string(),
-                "update '{game_id}'",
-            );
+        Err(status) => {
+            event.log_error(&user_id, status);
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
