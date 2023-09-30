@@ -217,49 +217,32 @@ pub async fn post_unlink(
     unlink: models::Unlink,
     firestore: Arc<Mutex<FirestoreApi>>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let started = SystemTime::now();
-    // Remove storefront credentials from UserData.
-    let mut response = match User::new(Arc::clone(&firestore), &user_id) {
+    let event = UnlinkEvent::new(&unlink);
+
+    match User::new(Arc::clone(&firestore), &user_id) {
+        // Remove storefront credentials from UserData.
         Ok(mut user) => match user.remove_storefront(&unlink.storefront_id) {
-            Ok(()) => Ok(()),
-            Err(e) => Err(Status::internal(format!("remove_storefront(): {e}"))),
+            Ok(()) => {
+                // Remove storefront library entries.
+                let manager = LibraryManager::new(&user_id, firestore);
+                match manager.remove_storefront(&unlink.storefront_id).await {
+                    Ok(()) => {
+                        event.log(&user_id);
+                        Ok(StatusCode::OK)
+                    }
+                    Err(status) => {
+                        event.log_error(&user_id, status);
+                        Ok(StatusCode::INTERNAL_SERVER_ERROR)
+                    }
+                }
+            }
+            Err(status) => {
+                event.log_error(&user_id, status);
+                Ok(StatusCode::INTERNAL_SERVER_ERROR)
+            }
         },
-        Err(e) => Err(e),
-    };
-
-    if response.is_ok() {
-        // Remove storefront library entries.
-        let manager = LibraryManager::new(&user_id, firestore);
-        response = manager.remove_storefront(&unlink.storefront_id).await;
-    }
-    let resp_time = SystemTime::now().duration_since(started).unwrap();
-
-    match response {
-        Ok(()) => {
-            info!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/_/unlink",
-                labels.log_type = "query_logs",
-                labels.handler = "unlink",
-                unlink.user_id = user_id,
-                unlink.storefront = unlink.storefront_id,
-                unlink.latency = resp_time.as_millis(),
-                "unlink",
-            );
-            Ok(StatusCode::OK)
-        }
-        Err(e) => {
-            error!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/_/unlink",
-                labels.log_type = "query_logs",
-                labels.handler = "unlink",
-                unlink.user_id = user_id,
-                unlink.storefront = unlink.storefront_id,
-                unlink.latency = resp_time.as_millis(),
-                unlink.error = e.to_string(),
-                "unlink",
-            );
+        Err(status) => {
+            event.log_error(&user_id, status);
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }

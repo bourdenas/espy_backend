@@ -289,9 +289,59 @@ impl WishlistEvent {
     }
 }
 
+pub struct UnlinkEvent<'a> {
+    request: &'a models::Unlink,
+    start: SystemTime,
+}
+
+impl<'a> UnlinkEvent<'a> {
+    pub fn new(request: &'a models::Unlink) -> Self {
+        Self {
+            request,
+            start: SystemTime::now(),
+        }
+    }
+
+    pub fn log(self, user_id: &str) {
+        info!(
+            http_request.request_method = "POST",
+            http_request.request_url = "/library/_/unlink",
+            labels.log_type = QUERY_LOGS,
+            labels.handler = UNLINK_HANDLER,
+            request.storefront = self.request.storefront_id,
+            unlink.user_id = user_id,
+            unlink.latency = SystemTime::now()
+                .duration_since(self.start)
+                .unwrap()
+                .as_millis(),
+            "unlink {}",
+            self.request.storefront_id
+        )
+    }
+
+    pub fn log_error(self, user_id: &str, status: Status) {
+        error!(
+            http_request.request_method = "POST",
+            http_request.request_url = "/library/_/unlink",
+            labels.log_type = QUERY_LOGS,
+            labels.handler = UNLINK_HANDLER,
+            labels.status = status.to_string(),
+            request.storefront = self.request.storefront_id,
+            unlink.user_id = user_id,
+            unlink.latency = SystemTime::now()
+                .duration_since(self.start)
+                .unwrap()
+                .as_millis(),
+            "unlink {}",
+            self.request.storefront_id
+        )
+    }
+}
+
 const QUERY_LOGS: &str = "query_logs";
 const SEARCH_HANDLER: &str = "search";
 const RESOLVE_HANDLER: &str = "resolve";
 const UPDATE_HANDLER: &str = "update";
 const MATCH_HANDLER: &str = "match";
 const WISHLIST_HANDLER: &str = "wishlist";
+const UNLINK_HANDLER: &str = "unlink";
