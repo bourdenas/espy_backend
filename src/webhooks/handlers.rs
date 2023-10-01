@@ -1,15 +1,20 @@
 use crate::{
     api::{FirestoreApi, IgdbApi, IgdbExternalGame, IgdbGame},
     documents::{ExternalGame, GameCategory, GameStatus, Genre, Keyword},
+    games::SteamDataApi,
     library::firestore,
-    Status, games::SteamDataApi,
+    Status,
 };
 use std::{
     convert::Infallible,
     sync::{Arc, Mutex},
 };
-use tracing::{error, info, instrument, log::warn};
+use tracing::{instrument, warn};
 use warp::http::StatusCode;
+
+use super::event_logs::{
+    AddGameEvent, ExternalGameEvent, GenresEvent, KeywordsEvent, UpdateGameEvent,
+};
 
 #[instrument(level = "trace", skip(igdb_game, firestore, igdb))]
 pub async fn add_game_webhook(
@@ -21,30 +26,11 @@ pub async fn add_game_webhook(
         return Ok(StatusCode::OK);
     }
 
-    let game_id = igdb_game.id;
-    let game_entry = match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
-        Ok(game_entry) => game_entry,
-        Err(e) => {
-            error!(
-                labels.log_type = "webhook_logs",
-                labels.handler = "post_add_game",
-                labels.counter = "resolve_fail",
-                game_added.id = game_id,
-                game_added.error = e.to_string(),
-                "failed to resolve {game_id}"
-            );
-            return Ok(StatusCode::OK);
-        }
-    };
-
-    info!(
-        labels.log_type = "webhook_logs",
-        labels.handler = "post_add_game",
-        labels.counter = "add_game",
-        game_added.id = game_entry.id,
-        "added '{}'",
-        game_entry.name,
-    );
+    let event = AddGameEvent::new(igdb_game.id, igdb_game.name.clone());
+    match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
+        Ok(_) => event.log(),
+        Err(status) => event.log_error(status),
+    }
 
     Ok(StatusCode::OK)
 }
@@ -59,6 +45,8 @@ pub async fn update_game_webhook(
         return Ok(StatusCode::OK);
     }
 
+    let event = UpdateGameEvent::new(igdb_game.id, igdb_game.name.clone());
+
     let game_entry = {
         let mut firestore = firestore.lock().unwrap();
         firestore.validate();
@@ -69,15 +57,7 @@ pub async fn update_game_webhook(
             let diff = game_entry.igdb_game.diff(&igdb_game);
             let reverse_diff = igdb_game.diff(&game_entry.igdb_game);
             if diff.empty() && reverse_diff.empty() {
-                info!(
-                    labels.log_type = "webhook_logs",
-                    labels.handler = "post_update_game",
-                    labels.counter = "update_game_no_diff",
-                    game_update.game_id = game_entry.id,
-                    game_update.game_diff = diff.to_string(),
-                    "no diff for '{}'",
-                    game_entry.name,
-                );
+                event.log(None);
                 return Ok(StatusCode::OK);
             }
 
@@ -100,88 +80,31 @@ pub async fn update_game_webhook(
 
                     let steam = SteamDataApi::new();
                     if let Err(e) = steam.retrieve_steam_data(&mut game_entry).await {
-                        error!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
+                        warn!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
                     }
 
                     let mut firestore = firestore.lock().unwrap();
                     firestore.validate();
-                    if let Err(e) = firestore::games::write(&firestore, &game_entry) {
-                        error!(
-                            labels.log_type = "webhook_logs",
-                            labels.handler = "post_update_game",
-                            labels.counter = "firestore_read_fail",
-                            game_update.game_id = game_entry.igdb_game.id,
-                            game_update.error = e.to_string(),
-                            "failed to read '{}' ({})",
-                            game_entry.igdb_game.name,
-                            game_entry.igdb_game.id,
-                        );
+                    if let Err(status) = firestore::games::write(&firestore, &game_entry) {
+                        event.log_error(status);
+                        return Ok(StatusCode::OK);
                     }
                 }
                 true => {
-                    if let Err(e) = igdb.resolve(firestore, igdb_game).await {
-                        error!(
-                            labels.log_type = "webhook_logs",
-                            labels.handler = "post_update_game",
-                            labels.counter = "resolve_fail",
-                            game_update.game_id = game_entry.id,
-                            game_update.error = e.to_string(),
-                            "failed to resolve '{}' ({})",
-                            game_entry.name,
-                            game_entry.id,
-                        );
+                    if let Err(status) = igdb.resolve(firestore, igdb_game).await {
+                        event.log_error(status);
+                        return Ok(StatusCode::OK);
                     }
                 }
             }
 
-            info!(
-                labels.log_type = "webhook_logs",
-                labels.handler = "post_update_game",
-                labels.counter = "update_game",
-                game_update.game_id = game_entry.id,
-                game_update.game_diff = diff.to_string(),
-                "updated '{}'",
-                game_entry.name,
-            );
+            event.log(Some(diff));
         }
-        Err(Status::NotFound(_)) => {
-            let game_id = igdb_game.id;
-            let game_entry = match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
-                Ok(game_entry) => game_entry,
-                Err(e) => {
-                    error!(
-                        labels.log_type = "webhook_logs",
-                        labels.handler = "post_update_game",
-                        labels.counter = "resolve_fail",
-                        game_update.game_id = game_id,
-                        game_update.error = e.to_string(),
-                        "failed to resolve {game_id}"
-                    );
-                    return Ok(StatusCode::OK);
-                }
-            };
-
-            info!(
-                labels.log_type = "webhook_logs",
-                labels.handler = "post_update_game",
-                labels.counter = "add_game",
-                game_update.game_id = game_entry.id,
-                "added '{}'",
-                game_entry.name,
-            );
-        }
-        Err(e) => {
-            error!(
-                labels.log_type = "webhook_logs",
-                labels.handler = "post_update_game",
-                labels.counter = "firestore_read_fail",
-                game_update.game_id = igdb_game.id,
-                game_update.error = e.to_string(),
-                "failed to read '{}' ({})",
-                igdb_game.name,
-                igdb_game.id,
-            );
-        }
+        Err(Status::NotFound(_)) => match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
+            Ok(_) => event.log_added(),
+            Err(status) => event.log_error(status),
+        },
+        Err(status) => event.log_error(status),
     }
 
     Ok(StatusCode::OK)
@@ -201,26 +124,11 @@ pub async fn external_games_webhook(
     let mut firestore = firestore.lock().unwrap();
     firestore.validate();
     let result = firestore::external_games::write(&firestore, &external_game);
+    let event = ExternalGameEvent::new(external_game);
 
     match result {
-        Ok(()) => info!(
-            labels.log_type = "webhook_logs",
-            labels.handler = "post_external_game",
-            labels.counter = "update_external_game",
-            external_game.store = external_game.store_name,
-            external_game.store_id = external_game.store_id,
-            "external game updated",
-        ),
-        Err(e) => error!(
-            labels.log_type = "webhook_logs",
-            labels.handler = "post_external_game",
-            labels.counter = "update_external_game",
-            external_game.store = external_game.store_name,
-            external_game.store_id = external_game.store_id,
-            external_game.error = e.to_string(),
-            "failed to store {:?}",
-            external_game,
-        ),
+        Ok(()) => event.log(),
+        Err(status) => event.log_error(status),
     }
 
     Ok(StatusCode::OK)
@@ -234,24 +142,11 @@ pub async fn genres_webhook(
     let mut firestore = firestore.lock().unwrap();
     firestore.validate();
     let result = firestore::genres::write(&firestore, &genre);
+    let event = GenresEvent::new(genre);
 
     match result {
-        Ok(()) => info!(
-            labels.log_type = "webhook_logs",
-            labels.handler = "post_genres",
-            labels.counter = "update_genre",
-            genre.name = genre.name,
-            "genre updated",
-        ),
-        Err(e) => error!(
-            labels.log_type = "webhook_logs",
-            labels.handler = "post_genres",
-            labels.counter = "update_genre",
-            genre.name = genre.name,
-            genre.error = e.to_string(),
-            "failed to strore {:?}",
-            genre,
-        ),
+        Ok(()) => event.log(),
+        Err(status) => event.log_error(status),
     }
 
     Ok(StatusCode::OK)
@@ -265,24 +160,11 @@ pub async fn keywords_webhook(
     let mut firestore = firestore.lock().unwrap();
     firestore.validate();
     let result = firestore::keywords::write(&firestore, &keyword);
+    let event = KeywordsEvent::new(keyword);
 
     match result {
-        Ok(()) => info!(
-            labels.log_type = "webhook_logs",
-            labels.handler = "post_keywords",
-            labels.counter = "update_keyword",
-            keyword.name = keyword.name,
-            "keyword updated",
-        ),
-        Err(e) => error!(
-            labels.log_type = "webhook_logs",
-            labels.handler = "post_keywords",
-            labels.counter = "update_keyword",
-            keyword.name = keyword.name,
-            keyword.error = e.to_string(),
-            "failed to strore {:?}",
-            keyword,
-        ),
+        Ok(()) => event.log(),
+        Err(status) => event.log_error(status),
     }
 
     Ok(StatusCode::OK)

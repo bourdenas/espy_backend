@@ -1,7 +1,7 @@
-use crate::Status;
+use crate::{logging::IgdbCounters, Status};
 use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
-use tracing::{error, info};
+use tracing::info;
 
 use super::IgdbConnection;
 
@@ -24,13 +24,25 @@ pub async fn post<T: DeserializeOwned>(
         )
         .body(String::from(body))
         .send()
-        .await?;
+        .await;
+
+    let resp = match resp {
+        Ok(resp) => resp,
+        Err(e) => {
+            let status =
+                Status::internal(format!("Request failed: {e}\nuri: {uri}\nquery: {body}"));
+            IgdbCounters::request_fail(&status);
+            return Err(status);
+        }
+    };
 
     let text = resp.text().await?;
     let resp = serde_json::from_str::<T>(&text).map_err(|_| {
-        let msg = format!("Received unexpected response: {text}\nuri: {uri}\nquery: {body}");
-        error!(msg);
-        Status::internal(msg)
+        let status = Status::internal(format!(
+            "Failed to parse response: {text}\nuri: {uri}\nquery: {body}"
+        ));
+        IgdbCounters::response_parsing_fail(&status);
+        status
     });
 
     resp

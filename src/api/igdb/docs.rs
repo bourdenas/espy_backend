@@ -371,7 +371,6 @@ pub struct IgdbGameDiff {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<u64>,

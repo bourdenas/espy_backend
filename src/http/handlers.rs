@@ -7,10 +7,11 @@ use crate::{
 use std::{
     convert::Infallible,
     sync::{Arc, Mutex},
-    time::{Duration, SystemTime},
 };
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{info, instrument, warn};
 use warp::http::StatusCode;
+
+use super::query_logs::*;
 
 #[instrument(level = "trace")]
 pub async fn welcome() -> Result<impl warp::Reply, Infallible> {
@@ -29,45 +30,17 @@ pub async fn post_search(
     search: models::Search,
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    let started = SystemTime::now();
-    let response = match igdb
+    let event = SearchEvent::new(&search);
+    match igdb
         .search_by_title_with_cover(&search.title, search.base_game_only)
         .await
     {
-        Ok(candidates) => Ok(candidates),
-        Err(e) => Err(Status::internal(format!(
-            "search_by_title_with_cover(): {e}"
-        ))),
-    };
-    let resp_time = SystemTime::now().duration_since(started).unwrap();
-
-    match response {
         Ok(candidates) => {
-            info!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/search",
-                labels.log_type = "query_logs",
-                labels.handler = "search",
-                search.title = search.title,
-                search.latency = resp_time.as_millis(),
-                search.results = candidates.len(),
-                "search '{}'",
-                search.title
-            );
+            event.log(&candidates);
             Ok(Box::new(warp::reply::json(&candidates)))
         }
-        Err(e) => {
-            error!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/search",
-                labels.log_type = "query_logs",
-                labels.handler = "search",
-                search.title = search.title,
-                search.latency = resp_time.as_millis(),
-                search.error = e.to_string(),
-                "search '{}'",
-                search.title
-            );
+        Err(status) => {
+            event.log_error(status);
             Ok(Box::new(StatusCode::NOT_FOUND))
         }
     }
@@ -79,42 +52,43 @@ pub async fn post_resolve(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let started = SystemTime::now();
-    let response = match igdb.get(resolve.game_id).await {
-        Ok(igdb_game) => igdb.resolve(firestore, igdb_game).await,
-        Err(e) => Err(Status::internal(format!("igdb.get(): {e}"))),
-    };
-    let resp_time = SystemTime::now().duration_since(started).unwrap();
+    let event = ResolveEvent::new(&resolve);
+    match igdb.get(resolve.game_id).await {
+        Ok(igdb_game) => match igdb.resolve(firestore, igdb_game).await {
+            Ok(game_entry) => {
+                event.log(game_entry);
+                Ok(StatusCode::OK)
+            }
+            Err(status) => {
+                event.log_error(status);
+                Ok(StatusCode::NOT_FOUND)
+            }
+        },
+        Err(status) => {
+            event.log_error(status);
+            Ok(StatusCode::NOT_FOUND)
+        }
+    }
+}
 
-    match response {
-        Ok(game_entry) => {
-            info!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/resolve",
-                labels.log_type = "query_logs",
-                labels.handler = "resolve",
-                resolve.game_id = resolve.game_id,
-                resolve.title = game_entry.name,
-                resolve.latency = resp_time.as_millis(),
-                "resolve '{}' ({})",
-                game_entry.name,
-                resolve.game_id,
-            );
+#[instrument(level = "trace", skip(firestore, igdb))]
+pub async fn post_update(
+    user_id: String,
+    update: models::UpdateOp,
+    firestore: Arc<Mutex<FirestoreApi>>,
+    igdb: Arc<IgdbApi>,
+) -> Result<impl warp::Reply, Infallible> {
+    let event = UpdateEvent::new(&update);
+
+    let manager = LibraryManager::new(&user_id, firestore);
+    match manager.update_game(igdb, update.game_id).await {
+        Ok(()) => {
+            event.log(&user_id);
             Ok(StatusCode::OK)
         }
-        Err(e) => {
-            error!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/resolve",
-                labels.log_type = "query_logs",
-                labels.handler = "resolve",
-                resolve.game_id = resolve.game_id,
-                resolve.latency = resp_time.as_millis(),
-                resolve.error = e.to_string(),
-                "resolve: {}",
-                resolve.game_id,
-            );
-            Ok(StatusCode::NOT_FOUND)
+        Err(status) => {
+            event.log_error(&user_id, status);
+            Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
@@ -132,17 +106,26 @@ pub async fn post_match(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let started = SystemTime::now();
-    let match_op_clone = match_op.clone();
+    let event = MatchEvent::new(match_op.clone());
+
     let manager = LibraryManager::new(&user_id, firestore);
-    let response = match (match_op.game_entry, match_op.unmatch_entry) {
+    match (match_op.game_entry, match_op.unmatch_entry) {
         // Match StoreEntry to GameEntry and add in Library.
         (Some(game_entry), None) => match manager.get_digest(igdb, game_entry.id).await {
             Ok(digests) => match manager.create_library_entry(match_op.store_entry, digests) {
-                Ok(()) => Ok(()),
-                Err(e) => Err(Status::internal(format!("create_library_entry(): {e}"))),
+                Ok(()) => {
+                    event.log(&user_id);
+                    Ok(StatusCode::OK)
+                }
+                Err(status) => {
+                    event.log_error(&user_id, status);
+                    Ok(StatusCode::INTERNAL_SERVER_ERROR)
+                }
             },
-            Err(e) => Err(Status::not_found(format!("get_digest(): {e}"))),
+            Err(status) => {
+                event.log_error(&user_id, status);
+                Ok(StatusCode::NOT_FOUND)
+            }
         },
         // Remove StoreEntry from Library.
         (None, Some(_library_entry)) => {
@@ -150,8 +133,14 @@ pub async fn post_match(
                 .unmatch_game(match_op.store_entry, match_op.delete_unmatched)
                 .await
             {
-                Ok(()) => Ok(()),
-                Err(e) => Err(Status::internal(format!("unmatch_game(): {e}"))),
+                Ok(()) => {
+                    event.log(&user_id);
+                    Ok(StatusCode::OK)
+                }
+                Err(status) => {
+                    event.log_error(&user_id, status);
+                    Ok(StatusCode::INTERNAL_SERVER_ERROR)
+                }
             }
         }
         // Match StoreEntry with a different GameEntry.
@@ -160,141 +149,23 @@ pub async fn post_match(
                 .rematch_game(igdb, match_op.store_entry, game_entry.id)
                 .await
             {
-                Ok(()) => Ok(()),
-                Err(e) => Err(Status::internal(format!("rematch_game(): {e}"))),
+                Ok(()) => {
+                    event.log(&user_id);
+                    Ok(StatusCode::OK)
+                }
+                Err(status) => {
+                    event.log_error(&user_id, status);
+                    Ok(StatusCode::INTERNAL_SERVER_ERROR)
+                }
             }
         }
-        // Unexpected request.
-        (None, None) => Err(Status::invalid_argument(
-            "Missing both game_entry and unmatch_entry args.",
-        )),
-    };
-    let resp_time = SystemTime::now().duration_since(started).unwrap();
-
-    let op = match (match_op_clone.game_entry, match_op_clone.unmatch_entry) {
-        (Some(_), None) => "match",
-        (None, Some(_)) => "unmatch",
-        (Some(_), Some(_)) => "rematch",
-        (None, None) => "bad_request",
-    };
-
-    match response {
-        Ok(()) => {
-            info!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/_/match",
-                labels.log_type = "query_logs",
-                labels.handler = "match",
-                matchOp.user_id = user_id,
-                matchOp.operation = op,
-                matchOp.store_entry_id = match_op_clone.store_entry.id,
-                matchOp.store_entry_title = match_op_clone.store_entry.title,
-                matchOp.store_entry_storefront = match_op_clone.store_entry.storefront_name,
-                matchOp.latency = resp_time.as_millis(),
-                "{op} '{}'",
-                match_op_clone.store_entry.title,
-            );
-            Ok(StatusCode::OK)
-        }
-        Err(Status::NotFound(e)) => {
-            error!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/{user_id}/match",
-                labels.log_type = "query_logs",
-                labels.handler = "match",
-                matchOp.user_id = user_id,
-                matchOp.operation = op,
-                matchOp.store_entry_id = match_op_clone.store_entry.id,
-                matchOp.store_entry_title = match_op_clone.store_entry.title,
-                matchOp.store_entry_storefront = match_op_clone.store_entry.storefront_name,
-                matchOp.latency = resp_time.as_millis(),
-                matchOp.error = e.to_string(),
-                "{op} '{}'",
-                match_op_clone.store_entry.title,
-            );
-            Ok(StatusCode::NOT_FOUND)
-        }
-        Err(Status::InvalidArgument(e)) => {
-            error!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/{user_id}/match",
-                labels.log_type = "query_logs",
-                labels.handler = "match",
-                matchOp.user_id = user_id,
-                matchOp.operation = op,
-                matchOp.store_entry_id = match_op_clone.store_entry.id,
-                matchOp.store_entry_title = match_op_clone.store_entry.title,
-                matchOp.store_entry_storefront = match_op_clone.store_entry.storefront_name,
-                matchOp.latency = resp_time.as_millis(),
-                matchOp.error = e.to_string(),
-                "{op} '{}'",
-                match_op_clone.store_entry.title,
+        // Bad request, at least one must be present.
+        (None, None) => {
+            event.log_error(
+                &user_id,
+                Status::invalid_argument("Missing both game_entry and unmatch_entry args."),
             );
             Ok(StatusCode::BAD_REQUEST)
-        }
-        Err(e) => {
-            error!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/{user_id}/match",
-                labels.log_type = "query_logs",
-                labels.handler = "match",
-                matchOp.user_id = user_id,
-                matchOp.operation = op,
-                matchOp.store_entry_id = match_op_clone.store_entry.id,
-                matchOp.store_entry_title = match_op_clone.store_entry.title,
-                matchOp.store_entry_storefront = match_op_clone.store_entry.storefront_name,
-                matchOp.latency = resp_time.as_millis(),
-                matchOp.error = e.to_string(),
-                "{op} '{}'",
-                match_op_clone.store_entry.title,
-            );
-            Ok(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
-
-#[instrument(level = "trace", skip(firestore, igdb))]
-pub async fn post_update(
-    user_id: String,
-    update: models::UpdateOp,
-    firestore: Arc<Mutex<FirestoreApi>>,
-    igdb: Arc<IgdbApi>,
-) -> Result<impl warp::Reply, Infallible> {
-    let started = SystemTime::now();
-
-    let game_id = update.game_id;
-    let manager = LibraryManager::new(&user_id, firestore);
-    let response = manager.update_game(igdb, game_id).await;
-
-    let resp_time = SystemTime::now().duration_since(started).unwrap();
-
-    match response {
-        Ok(()) => {
-            info!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/_/update",
-                labels.log_type = "query_logs",
-                labels.handler = "update",
-                update.user_id = user_id,
-                update.game_id = game_id,
-                update.latency = resp_time.as_millis(),
-                "update '{game_id}'",
-            );
-            Ok(StatusCode::OK)
-        }
-        Err(e) => {
-            error!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/_/update",
-                labels.log_type = "query_logs",
-                labels.handler = "update",
-                update.user_id = user_id,
-                update.game_id = game_id,
-                update.latency = resp_time.as_millis(),
-                update.error = e.to_string(),
-                "update '{game_id}'",
-            );
-            Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
@@ -305,57 +176,36 @@ pub async fn post_wishlist(
     wishlist: models::WishlistOp,
     firestore: Arc<Mutex<FirestoreApi>>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let started = SystemTime::now();
+    let event = WishlistEvent::new(wishlist.clone());
+
     let manager = LibraryManager::new(&user_id, firestore);
-    let wishlist_clone = wishlist.clone();
-    let response = match (wishlist.add_game, wishlist.remove_game) {
+    match (wishlist.add_game, wishlist.remove_game) {
         (Some(library_entry), _) => match manager.add_to_wishlist(library_entry).await {
-            Ok(()) => Ok(wishlist_clone.add_game.as_ref().unwrap().id),
-            Err(e) => Err(Status::internal(format!("add_to_wishlist(): {e}"))),
+            Ok(()) => {
+                event.log(&user_id);
+                Ok(StatusCode::OK)
+            }
+            Err(status) => {
+                event.log_error(&user_id, status);
+                Ok(StatusCode::INTERNAL_SERVER_ERROR)
+            }
         },
         (_, Some(game_id)) => match manager.remove_from_wishlist(game_id).await {
-            Ok(()) => Ok(game_id),
-            Err(e) => Err(Status::internal(format!("remove_from_wishlist(): {e}"))),
+            Ok(()) => {
+                event.log(&user_id);
+                Ok(StatusCode::OK)
+            }
+            Err(status) => {
+                event.log_error(&user_id, status);
+                Ok(StatusCode::INTERNAL_SERVER_ERROR)
+            }
         },
-        _ => Err(Status::invalid_argument(
-            "Missing both add_game and remove_game arguments.",
-        )),
-    };
-    let resp_time = SystemTime::now().duration_since(started).unwrap();
-
-    let op = match (wishlist_clone.add_game, wishlist_clone.remove_game) {
-        (Some(_), _) => "add_to_wishlist",
-        (_, Some(_)) => "remove_from_wishlist",
-        _ => "bad_request",
-    };
-    match response {
-        Ok(game_id) => {
-            info!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/_/wishlist",
-                labels.log_type = "query_logs",
-                labels.handler = "wishlist",
-                wishlist.user_id = user_id,
-                wishlist.operation = op,
-                wishlist.game_id = game_id,
-                wishlist.latency = resp_time.as_millis(),
-                "{op} '{game_id}'",
+        _ => {
+            event.log_error(
+                &user_id,
+                Status::invalid_argument("Missing both add_game and remove_game arguments."),
             );
-            Ok(StatusCode::OK)
-        }
-        Err(e) => {
-            error!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/_/wishlist",
-                labels.log_type = "query_logs",
-                labels.handler = "wishlist",
-                wishlist.user_id = user_id,
-                wishlist.operation = op,
-                wishlist.latency = resp_time.as_millis(),
-                wishlist.error = e.to_string(),
-                "{op}",
-            );
-            Ok(StatusCode::INTERNAL_SERVER_ERROR)
+            Ok(StatusCode::BAD_REQUEST)
         }
     }
 }
@@ -366,49 +216,32 @@ pub async fn post_unlink(
     unlink: models::Unlink,
     firestore: Arc<Mutex<FirestoreApi>>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let started = SystemTime::now();
-    // Remove storefront credentials from UserData.
-    let mut response = match User::new(Arc::clone(&firestore), &user_id) {
+    let event = UnlinkEvent::new(&unlink);
+
+    match User::new(Arc::clone(&firestore), &user_id) {
+        // Remove storefront credentials from UserData.
         Ok(mut user) => match user.remove_storefront(&unlink.storefront_id) {
-            Ok(()) => Ok(()),
-            Err(e) => Err(Status::internal(format!("remove_storefront(): {e}"))),
+            Ok(()) => {
+                // Remove storefront library entries.
+                let manager = LibraryManager::new(&user_id, firestore);
+                match manager.remove_storefront(&unlink.storefront_id).await {
+                    Ok(()) => {
+                        event.log(&user_id);
+                        Ok(StatusCode::OK)
+                    }
+                    Err(status) => {
+                        event.log_error(&user_id, status);
+                        Ok(StatusCode::INTERNAL_SERVER_ERROR)
+                    }
+                }
+            }
+            Err(status) => {
+                event.log_error(&user_id, status);
+                Ok(StatusCode::INTERNAL_SERVER_ERROR)
+            }
         },
-        Err(e) => Err(e),
-    };
-
-    if response.is_ok() {
-        // Remove storefront library entries.
-        let manager = LibraryManager::new(&user_id, firestore);
-        response = manager.remove_storefront(&unlink.storefront_id).await;
-    }
-    let resp_time = SystemTime::now().duration_since(started).unwrap();
-
-    match response {
-        Ok(()) => {
-            info!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/_/unlink",
-                labels.log_type = "query_logs",
-                labels.handler = "unlink",
-                unlink.user_id = user_id,
-                unlink.storefront = unlink.storefront_id,
-                unlink.latency = resp_time.as_millis(),
-                "unlink",
-            );
-            Ok(StatusCode::OK)
-        }
-        Err(e) => {
-            error!(
-                http_request.request_method = "POST",
-                http_request.request_url = "/library/_/unlink",
-                labels.log_type = "query_logs",
-                labels.handler = "unlink",
-                unlink.user_id = user_id,
-                unlink.storefront = unlink.storefront_id,
-                unlink.latency = resp_time.as_millis(),
-                unlink.error = e.to_string(),
-                "unlink",
-            );
+        Err(status) => {
+            event.log_error(&user_id, status);
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -421,56 +254,32 @@ pub async fn post_sync(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    let started = SystemTime::now();
+    let event = SyncEvent::new();
 
     let store_entries = match User::new(Arc::clone(&firestore), &user_id) {
         Ok(mut user) => match user.sync_accounts(&api_keys).await {
             Ok(entries) => entries,
-            Err(e) => {
-                return Ok(log_sync_err(
-                    &user_id,
-                    "sync",
-                    SystemTime::now().duration_since(started).unwrap(),
-                    e,
-                ))
+            Err(status) => {
+                event.log_error(&user_id, status);
+                return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
             }
         },
-        Err(e) => {
-            return Ok(log_sync_err(
-                &user_id,
-                "sync",
-                SystemTime::now().duration_since(started).unwrap(),
-                e,
-            ))
+        Err(status) => {
+            event.log_error(&user_id, status);
+            return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
         }
     };
 
     let manager = LibraryManager::new(&user_id, firestore);
     let report = match manager.recon_store_entries(store_entries, igdb).await {
         Ok(report) => report,
-        Err(e) => {
-            return Ok(log_sync_err(
-                &user_id,
-                "sync",
-                SystemTime::now().duration_since(started).unwrap(),
-                e,
-            ))
+        Err(status) => {
+            event.log_error(&user_id, status);
+            return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
         }
     };
 
-    let resp_time = SystemTime::now().duration_since(started).unwrap();
-
-    info!(
-        http_request.request_method = "POST",
-        http_request.request_url = format!("/library/_/sync"),
-        labels.log_type = "query_logs",
-        labels.handler = "sync",
-        sync.user_id = user_id,
-        sync.report = format!("{:?}", report),
-        sync.latency = resp_time.as_millis(),
-        "sync",
-    );
-
+    event.log(&user_id, &report);
     let resp: Box<dyn warp::Reply> = Box::new(warp::reply::json(&report));
     Ok(resp)
 }
@@ -482,34 +291,18 @@ pub async fn post_upload(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    let started = SystemTime::now();
+    let event = UploadEvent::new();
 
     let manager = LibraryManager::new(&user_id, firestore);
     let report = match manager.recon_store_entries(upload.entries, igdb).await {
         Ok(report) => report,
-        Err(e) => {
-            return Ok(log_sync_err(
-                &user_id,
-                "upload",
-                SystemTime::now().duration_since(started).unwrap(),
-                e,
-            ))
+        Err(status) => {
+            event.log_error(&user_id, status);
+            return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
         }
     };
 
-    let resp_time = SystemTime::now().duration_since(started).unwrap();
-
-    info!(
-        http_request.request_method = "POST",
-        http_request.request_url = format!("/library/_/upload"),
-        labels.log_type = "query_logs",
-        labels.handler = "upload",
-        sync.user_id = user_id,
-        sync.report = format!("{:?}", report),
-        sync.latency = resp_time.as_millis(),
-        "upload",
-    );
-
+    event.log(&user_id, &report);
     let resp: Box<dyn warp::Reply> = Box::new(warp::reply::json(&report));
     Ok(resp)
 }
@@ -519,8 +312,6 @@ pub async fn get_images(
     resolution: String,
     image: String,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    debug!("GET /images/{resolution}/{image}");
-
     let uri = format!("{IGDB_IMAGES_URL}/{resolution}/{image}");
     let resp = match reqwest::Client::new().get(&uri).send().await {
         Ok(resp) => resp,
@@ -542,28 +333,3 @@ pub async fn get_images(
 }
 
 const IGDB_IMAGES_URL: &str = "https://images.igdb.com/igdb/image/upload";
-
-fn log_sync_err(
-    user_id: &str,
-    handler_name: &str,
-    resp_time: Duration,
-    e: Status,
-) -> Box<dyn warp::Reply> {
-    error!(
-        http_request.request_method = "POST",
-        http_request.request_url = format!("/library/_/{handler_name}"),
-        labels.log_type = "query_logs",
-        labels.handler = handler_name,
-        sync.user_id = user_id,
-        sync.latency = resp_time.as_millis(),
-        sync.error = e.to_string(),
-        "get_image",
-    );
-
-    let status: Box<dyn warp::Reply> = Box::new(match e {
-        Status::NotFound(_) => StatusCode::NOT_FOUND,
-        Status::InvalidArgument(_) => StatusCode::BAD_REQUEST,
-        _ => StatusCode::INTERNAL_SERVER_ERROR,
-    });
-    status
-}
