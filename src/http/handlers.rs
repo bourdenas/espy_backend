@@ -7,9 +7,8 @@ use crate::{
 use std::{
     convert::Infallible,
     sync::{Arc, Mutex},
-    time::{Duration, SystemTime},
 };
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{info, instrument, warn};
 use warp::http::StatusCode;
 
 use super::query_logs::*;
@@ -255,56 +254,32 @@ pub async fn post_sync(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    let started = SystemTime::now();
+    let event = SyncEvent::new();
 
     let store_entries = match User::new(Arc::clone(&firestore), &user_id) {
         Ok(mut user) => match user.sync_accounts(&api_keys).await {
             Ok(entries) => entries,
-            Err(e) => {
-                return Ok(log_sync_err(
-                    &user_id,
-                    "sync",
-                    SystemTime::now().duration_since(started).unwrap(),
-                    e,
-                ))
+            Err(status) => {
+                event.log_error(&user_id, status);
+                return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
             }
         },
-        Err(e) => {
-            return Ok(log_sync_err(
-                &user_id,
-                "sync",
-                SystemTime::now().duration_since(started).unwrap(),
-                e,
-            ))
+        Err(status) => {
+            event.log_error(&user_id, status);
+            return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
         }
     };
 
     let manager = LibraryManager::new(&user_id, firestore);
     let report = match manager.recon_store_entries(store_entries, igdb).await {
         Ok(report) => report,
-        Err(e) => {
-            return Ok(log_sync_err(
-                &user_id,
-                "sync",
-                SystemTime::now().duration_since(started).unwrap(),
-                e,
-            ))
+        Err(status) => {
+            event.log_error(&user_id, status);
+            return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
         }
     };
 
-    let resp_time = SystemTime::now().duration_since(started).unwrap();
-
-    info!(
-        http_request.request_method = "POST",
-        http_request.request_url = format!("/library/_/sync"),
-        labels.log_type = "query_logs",
-        labels.handler = "sync",
-        sync.user_id = user_id,
-        sync.report = format!("{:?}", report),
-        sync.latency = resp_time.as_millis(),
-        "sync",
-    );
-
+    event.log(&user_id, &report);
     let resp: Box<dyn warp::Reply> = Box::new(warp::reply::json(&report));
     Ok(resp)
 }
@@ -316,34 +291,18 @@ pub async fn post_upload(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    let started = SystemTime::now();
+    let event = UploadEvent::new();
 
     let manager = LibraryManager::new(&user_id, firestore);
     let report = match manager.recon_store_entries(upload.entries, igdb).await {
         Ok(report) => report,
-        Err(e) => {
-            return Ok(log_sync_err(
-                &user_id,
-                "upload",
-                SystemTime::now().duration_since(started).unwrap(),
-                e,
-            ))
+        Err(status) => {
+            event.log_error(&user_id, status);
+            return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
         }
     };
 
-    let resp_time = SystemTime::now().duration_since(started).unwrap();
-
-    info!(
-        http_request.request_method = "POST",
-        http_request.request_url = format!("/library/_/upload"),
-        labels.log_type = "query_logs",
-        labels.handler = "upload",
-        sync.user_id = user_id,
-        sync.report = format!("{:?}", report),
-        sync.latency = resp_time.as_millis(),
-        "upload",
-    );
-
+    event.log(&user_id, &report);
     let resp: Box<dyn warp::Reply> = Box::new(warp::reply::json(&report));
     Ok(resp)
 }
@@ -353,8 +312,6 @@ pub async fn get_images(
     resolution: String,
     image: String,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    debug!("GET /images/{resolution}/{image}");
-
     let uri = format!("{IGDB_IMAGES_URL}/{resolution}/{image}");
     let resp = match reqwest::Client::new().get(&uri).send().await {
         Ok(resp) => resp,
@@ -376,28 +333,3 @@ pub async fn get_images(
 }
 
 const IGDB_IMAGES_URL: &str = "https://images.igdb.com/igdb/image/upload";
-
-fn log_sync_err(
-    user_id: &str,
-    handler_name: &str,
-    resp_time: Duration,
-    e: Status,
-) -> Box<dyn warp::Reply> {
-    error!(
-        http_request.request_method = "POST",
-        http_request.request_url = format!("/library/_/{handler_name}"),
-        labels.log_type = "query_logs",
-        labels.handler = handler_name,
-        sync.user_id = user_id,
-        sync.latency = resp_time.as_millis(),
-        sync.error = e.to_string(),
-        "get_image",
-    );
-
-    let status: Box<dyn warp::Reply> = Box::new(match e {
-        Status::NotFound(_) => StatusCode::NOT_FOUND,
-        Status::InvalidArgument(_) => StatusCode::BAD_REQUEST,
-        _ => StatusCode::INTERNAL_SERVER_ERROR,
-    });
-    status
-}
