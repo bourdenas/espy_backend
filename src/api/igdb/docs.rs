@@ -162,7 +162,6 @@ impl IgdbGame {
 
     pub fn diff(&self, other: &IgdbGame) -> IgdbGameDiff {
         IgdbGameDiff {
-            id: self.id,
             name: match self.name == other.name {
                 false => Some(other.name.clone()),
                 true => None,
@@ -366,8 +365,6 @@ pub struct IgdbAnnotation {
 
 #[derive(Serialize, Default, Debug, Clone)]
 pub struct IgdbGameDiff {
-    pub id: u64,
-
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
