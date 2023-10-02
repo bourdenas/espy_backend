@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{collections::HashSet, fmt};
 
 use serde::{Deserialize, Serialize};
 
@@ -162,49 +162,19 @@ impl IgdbGame {
 
     pub fn diff(&self, other: &IgdbGame) -> IgdbGameDiff {
         IgdbGameDiff {
-            name: match self.name == other.name {
-                false => Some(other.name.clone()),
-                true => None,
-            },
-            category: match self.category == other.category {
-                false => Some(other.category),
-                true => None,
-            },
-            status: match self.status == other.status {
-                false => Some(other.status),
-                true => None,
-            },
+            name: self.name != other.name,
+            category: self.category != other.category,
+            status: self.status != other.status,
 
-            url: match self.url == other.url {
-                false => Some(other.url.clone()),
-                true => None,
-            },
-            summary: match self.summary == other.summary {
-                false => Some(other.summary.clone()),
-                true => None,
-            },
-            storyline: match self.storyline == other.storyline {
-                false => Some(other.storyline.clone()),
-                true => None,
-            },
+            url: self.url != other.url,
+            summary: self.summary != other.summary,
+            storyline: self.storyline != other.storyline,
 
-            first_release_date: match self.first_release_date == other.first_release_date {
-                false => other.first_release_date,
-                true => None,
-            },
-            aggregated_rating: match self.aggregated_rating == other.aggregated_rating {
-                false => other.aggregated_rating,
-                true => None,
-            },
+            first_release_date: self.first_release_date != other.first_release_date,
+            aggregated_rating: self.aggregated_rating != other.aggregated_rating,
 
-            follows: match self.follows == other.follows {
-                false => other.follows,
-                true => None,
-            },
-            hypes: match self.hypes == other.hypes {
-                false => other.hypes,
-                true => None,
-            },
+            follows: self.follows != other.follows,
+            hypes: self.hypes != other.hypes,
 
             genres: vec_diff(&self.genres, &other.genres),
             keywords: vec_diff(&self.keywords, &other.keywords),
@@ -218,34 +188,16 @@ impl IgdbGame {
             remasters: vec_diff(&self.remasters, &other.remasters),
             bundles: vec_diff(&self.bundles, &other.bundles),
 
-            parent_game: match self.parent_game == other.parent_game {
-                false => other.parent_game,
-                true => None,
-            },
-            version_parent: match self.version_parent == other.version_parent {
-                false => other.version_parent,
-                true => None,
-            },
-            version_title: match self.version_title == other.version_title {
-                false => other.version_title.clone(),
-                true => None,
-            },
+            parent_game: self.parent_game != other.parent_game,
+            version_parent: self.version_parent != other.version_parent,
+            version_title: self.version_title != other.version_title,
 
-            collection: match self.collection == other.collection {
-                false => other.collection,
-                true => None,
-            },
-            franchise: match self.franchise == other.franchise {
-                false => other.franchise,
-                true => None,
-            },
+            collection: self.collection != other.collection,
+            franchise: self.franchise != other.franchise,
             franchises: vec_diff(&self.franchises, &other.franchises),
             involved_companies: vec_diff(&self.involved_companies, &other.involved_companies),
 
-            cover: match self.cover == other.cover {
-                false => other.cover,
-                true => None,
-            },
+            cover: self.cover != other.cover,
             screenshots: vec_diff(&self.screenshots, &other.screenshots),
             artworks: vec_diff(&self.artworks, &other.artworks),
             websites: vec_diff(&self.websites, &other.websites),
@@ -365,100 +317,75 @@ pub struct IgdbAnnotation {
 
 #[derive(Serialize, Default, Debug, Clone)]
 pub struct IgdbGameDiff {
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub category: Option<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<u64>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub name: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub category: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub status: bool,
 
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub url: Option<String>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub summary: Option<String>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub storyline: Option<String>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub url: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub summary: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub storyline: bool,
 
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub first_release_date: Option<i64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub aggregated_rating: Option<f64>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub first_release_date: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub aggregated_rating: bool,
 
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub follows: Option<i64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hypes: Option<i64>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub follows: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub hypes: bool,
 
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub genres: Vec<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub keywords: Vec<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub expansions: Vec<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub standalone_expansions: Vec<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub dlcs: Vec<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub remakes: Vec<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub remasters: Vec<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub bundles: Vec<u64>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub genres: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub keywords: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub expansions: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub standalone_expansions: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub dlcs: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub remakes: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub remasters: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub bundles: bool,
 
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent_game: Option<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub version_parent: Option<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub version_title: Option<String>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub parent_game: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub version_parent: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub version_title: bool,
 
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub collection: Option<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub franchise: Option<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub franchises: Vec<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub involved_companies: Vec<u64>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub collection: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub franchise: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub franchises: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub involved_companies: bool,
 
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cover: Option<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub screenshots: Vec<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub artworks: Vec<u64>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub websites: Vec<u64>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub cover: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub screenshots: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub artworks: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub websites: bool,
+}
+
+fn is_default<T: Default + PartialEq>(t: &T) -> bool {
+    t == &T::default()
 }
 
 impl fmt::Display for IgdbGameDiff {
@@ -476,65 +403,60 @@ impl IgdbGameDiff {
     }
 
     pub fn is_not_empty(&self) -> bool {
-        self.name.is_some()
-            || self.category.is_some()
-            || self.status.is_some()
-            || self.url.is_some()
-            || self.summary.is_some()
-            || self.storyline.is_some()
-            || self.first_release_date.is_some()
-            || self.aggregated_rating.is_some()
-            || self.follows.is_some()
-            || self.hypes.is_some()
-            || !self.genres.is_empty()
-            || !self.keywords.is_empty()
-            || !self.expansions.is_empty()
-            || !self.standalone_expansions.is_empty()
-            || !self.dlcs.is_empty()
-            || !self.remakes.is_empty()
-            || !self.remasters.is_empty()
-            || !self.bundles.is_empty()
-            || self.parent_game.is_some()
-            || self.version_parent.is_some()
-            || self.version_title.is_some()
-            || self.collection.is_some()
-            || self.franchise.is_some()
-            || !self.franchises.is_empty()
-            || !self.involved_companies.is_empty()
-            || self.cover.is_some()
-            || !self.screenshots.is_empty()
-            || !self.artworks.is_empty()
-            || !self.websites.is_empty()
+        self.name
+            || self.category
+            || self.status
+            || self.url
+            || self.summary
+            || self.storyline
+            || self.first_release_date
+            || self.aggregated_rating
+            || self.follows
+            || self.hypes
+            || self.genres
+            || self.keywords
+            || self.expansions
+            || self.standalone_expansions
+            || self.dlcs
+            || self.remakes
+            || self.remasters
+            || self.bundles
+            || self.parent_game
+            || self.version_parent
+            || self.version_title
+            || self.collection
+            || self.franchise
+            || self.franchises
+            || self.involved_companies
+            || self.cover
+            || self.screenshots
+            || self.artworks
+            || self.websites
     }
 
     pub fn needs_resolve(&self) -> bool {
-        !self.genres.is_empty()
-            || !self.keywords.is_empty()
-            || !self.expansions.is_empty()
-            || !self.standalone_expansions.is_empty()
-            || !self.dlcs.is_empty()
-            || !self.remakes.is_empty()
-            || !self.remasters.is_empty()
-            || self.parent_game.is_some()
-            || self.version_parent.is_some()
-            || self.collection.is_some()
-            || self.franchise.is_some()
-            || !self.franchises.is_empty()
-            || !self.involved_companies.is_empty()
-            || self.cover.is_some()
-            || !self.screenshots.is_empty()
-            || !self.artworks.is_empty()
-            || !self.websites.is_empty()
+        self.genres
+            || self.keywords
+            || self.expansions
+            || self.standalone_expansions
+            || self.dlcs
+            || self.remakes
+            || self.remasters
+            || self.parent_game
+            || self.version_parent
+            || self.collection
+            || self.franchise
+            || self.franchises
+            || self.involved_companies
+            || self.cover
+            || self.screenshots
+            || self.artworks
+            || self.websites
     }
 }
 
-fn vec_diff(left: &[u64], right: &[u64]) -> Vec<u64> {
-    match right.is_empty() {
-        false => right
-            .into_iter()
-            .filter(|id| !left.contains(id))
-            .cloned()
-            .collect(),
-        true => vec![],
-    }
+fn vec_diff(left: &[u64], right: &[u64]) -> bool {
+    let left = HashSet::<u64>::from_iter(left.iter().cloned());
+    let right = HashSet::<u64>::from_iter(right.iter().cloned());
+    left.intersection(&right).count() != left.len()
 }

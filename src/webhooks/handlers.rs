@@ -1,6 +1,6 @@
 use crate::{
     api::{FirestoreApi, IgdbApi, IgdbExternalGame, IgdbGame},
-    documents::{ExternalGame, GameCategory, GameStatus, Genre, Keyword},
+    documents::{ExternalGame, GameCategory, GameEntry, GameStatus, Genre, Keyword},
     games::SteamDataApi,
     library::firestore,
     Status,
@@ -46,60 +46,24 @@ pub async fn update_game_webhook(
     }
 
     let event = UpdateGameEvent::new(igdb_game.id, igdb_game.name.clone());
-
     let game_entry = {
         let mut firestore = firestore.lock().unwrap();
         firestore.validate();
         firestore::games::read(&firestore, igdb_game.id)
     };
+
     match game_entry {
-        Ok(mut game_entry) => {
-            let diff = game_entry.igdb_game.diff(&igdb_game);
-            let reverse_diff = igdb_game.diff(&game_entry.igdb_game);
-            if diff.empty() && reverse_diff.empty() {
-                event.log(None);
-                return Ok(StatusCode::OK);
-            }
-
-            if reverse_diff.needs_resolve() {
-                warn!("remove game from companies/collections if necessary");
-            }
-
-            match diff.needs_resolve() {
-                false => {
-                    game_entry.igdb_game = igdb_game;
-                    if let Some(name) = &diff.name {
-                        game_entry.name = name.clone();
-                    }
-                    if let Some(category) = diff.category {
-                        game_entry.category = GameCategory::from(category);
-                    }
-                    if let Some(status) = diff.status {
-                        game_entry.status = GameStatus::from(status);
-                    }
-
-                    let steam = SteamDataApi::new();
-                    if let Err(e) = steam.retrieve_steam_data(&mut game_entry).await {
-                        warn!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
-                    }
-
-                    let mut firestore = firestore.lock().unwrap();
-                    firestore.validate();
-                    if let Err(status) = firestore::games::write(&firestore, &game_entry) {
-                        event.log_error(status);
-                        return Ok(StatusCode::OK);
-                    }
-                }
-                true => {
-                    if let Err(status) = igdb.resolve(firestore, igdb_game).await {
-                        event.log_error(status);
-                        return Ok(StatusCode::OK);
-                    }
-                }
-            }
-
-            event.log(Some(diff));
-        }
+        Ok(mut game_entry) => match game_entry.igdb_game.diff(&igdb_game) {
+            diff if diff.empty() => event.log(None),
+            diff if diff.needs_resolve() => match igdb.resolve(firestore, igdb_game).await {
+                Ok(_) => event.log(Some(diff)),
+                Err(status) => event.log_error(status),
+            },
+            diff => match update_game_entry(firestore, &mut game_entry, igdb_game).await {
+                Ok(()) => event.log(Some(diff)),
+                Err(status) => event.log_error(status),
+            },
+        },
         Err(Status::NotFound(_)) => match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
             Ok(_) => event.log_added(),
             Err(status) => event.log_error(status),
@@ -108,6 +72,26 @@ pub async fn update_game_webhook(
     }
 
     Ok(StatusCode::OK)
+}
+
+async fn update_game_entry(
+    firestore: Arc<Mutex<FirestoreApi>>,
+    game_entry: &mut GameEntry,
+    igdb_game: IgdbGame,
+) -> Result<(), Status> {
+    game_entry.name = igdb_game.name.clone();
+    game_entry.category = GameCategory::from(igdb_game.category);
+    game_entry.status = GameStatus::from(igdb_game.status);
+    game_entry.igdb_game = igdb_game;
+
+    let steam = SteamDataApi::new();
+    if let Err(e) = steam.retrieve_steam_data(game_entry).await {
+        warn!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
+    }
+
+    let mut firestore = firestore.lock().unwrap();
+    firestore.validate();
+    firestore::games::write(&firestore, &game_entry)
 }
 
 #[instrument(level = "trace", skip(external_game, firestore))]
