@@ -64,11 +64,11 @@ pub struct IgdbGame {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub follows: Option<i64>,
+    pub follows: Option<u64>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub hypes: Option<i64>,
+    pub hypes: Option<u64>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]

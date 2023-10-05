@@ -61,8 +61,14 @@ impl GameDigest {
                 None => None,
             },
 
-            release_date: game_entry.igdb_game.first_release_date,
-            rating: game_entry.igdb_game.aggregated_rating,
+            release_date: match game_entry.release_date {
+                Some(date) => Some(date),
+                None => game_entry.igdb_game.first_release_date,
+            },
+            rating: match game_entry.score {
+                Some(score) => Some(score as f64),
+                None => game_entry.igdb_game.aggregated_rating,
+            },
 
             parent_id: match &game_entry.parent {
                 Some(parent) => Some(parent.id),
@@ -89,7 +95,10 @@ impl From<GameEntry> for GameDigest {
                 Some(date) => Some(date),
                 None => game_entry.igdb_game.first_release_date,
             },
-            rating: game_entry.igdb_game.aggregated_rating,
+            rating: match game_entry.score {
+                Some(score) => Some(score as f64),
+                None => game_entry.igdb_game.aggregated_rating,
+            },
 
             parent_id: match game_entry.parent {
                 Some(parent) => Some(parent.id),

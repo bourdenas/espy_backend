@@ -61,6 +61,7 @@ impl SteamApi {
                 / resp.query_summary.total_reviews as f64)
                 * 100.0)
                 .round() as u64,
+            total_reviews: resp.query_summary.total_reviews,
             review_score_desc: resp.query_summary.review_score_desc,
         })
     }

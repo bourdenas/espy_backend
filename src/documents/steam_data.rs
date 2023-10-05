@@ -69,6 +69,9 @@ pub struct SteamScore {
     pub review_score: u64,
 
     #[serde(default)]
+    pub total_reviews: u64,
+
+    #[serde(default)]
     pub review_score_desc: String,
 }
 

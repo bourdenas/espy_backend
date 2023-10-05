@@ -26,17 +26,18 @@ impl SteamDataApi {
         fields(game_entry = %game_entry.name),
     )]
     pub async fn retrieve_steam_data(&self, game_entry: &mut GameEntry) -> Result<(), Status> {
-        let steam_appid = get_steam_appid(game_entry);
-
-        if let None = steam_appid {
-            SteamCounters::missing_id(&game_entry);
-            return Ok(());
-        }
+        let steam_appid = match get_steam_appid(game_entry) {
+            Some(id) => id,
+            None => {
+                SteamCounters::missing_id(&game_entry);
+                return Ok(());
+            }
+        };
 
         SteamCounters::fetch(&game_entry);
 
         self.qps.wait();
-        let score = match SteamApi::get_app_score(steam_appid.unwrap()).await {
+        let score = match SteamApi::get_app_score(steam_appid).await {
             Ok(result) => Some(result),
             Err(status) => {
                 SteamCounters::fetch_score_fail(&game_entry, &status);
@@ -44,10 +45,10 @@ impl SteamDataApi {
             }
         };
         self.qps.wait();
-        game_entry.steam_data = match SteamApi::get_app_details(steam_appid.unwrap()).await {
+        let steam_data = match SteamApi::get_app_details(steam_appid).await {
             Ok(mut result) => {
                 result.score = score;
-                Some(result)
+                result
             }
             Err(status) => {
                 SteamCounters::fetch_appdetails_fail(&game_entry, &status);
@@ -58,7 +59,7 @@ impl SteamDataApi {
             }
         };
 
-        game_entry.release_date = match &game_entry.steam_data.as_ref().unwrap().release_date {
+        game_entry.release_date = match &steam_data.release_date {
             // TODO: Make parsing more resilient to location formatting.
             Some(date) => match NaiveDateTime::parse_from_str(
                 &format!("{} 12:00:00", &date.date),
@@ -70,12 +71,24 @@ impl SteamDataApi {
                         &game_entry,
                         &Status::internal(format!("{status}")),
                     );
-                    None
+                    game_entry.release_date
                 }
             },
-            None => None,
+            None => game_entry.release_date,
+        };
+        game_entry.score = match &steam_data.score {
+            Some(score) => Some(score.review_score),
+            None => match &steam_data.metacritic {
+                Some(metacrtic) => Some(metacrtic.score),
+                None => game_entry.score,
+            },
+        };
+        game_entry.popularity = match &steam_data.recommendations {
+            Some(recommendations) => Some(recommendations.total),
+            None => game_entry.popularity,
         };
 
+        game_entry.steam_data = Some(steam_data);
         Ok(())
     }
 }
