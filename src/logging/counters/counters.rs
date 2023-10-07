@@ -4,7 +4,7 @@ use crate::{documents::GameEntry, Status};
 
 pub fn counter(name: &str, description: &str) {
     info!(
-        labels.log_type = "counters",
+        labels.log_type = COUNTERS,
         labels.counter = name,
         "{description}"
     );
@@ -12,7 +12,7 @@ pub fn counter(name: &str, description: &str) {
 
 pub fn error_counter(name: &str, description: &str, status: &Status) {
     info!(
-        labels.log_type = "counters",
+        labels.log_type = COUNTERS,
         labels.counter_type = "error",
         labels.status = status.to_string(),
         labels.counter = name,
@@ -31,3 +31,5 @@ pub fn game_entry_description(game_entry: &GameEntry) -> String {
         }
     )
 }
+
+pub const COUNTERS: &str = "counters";

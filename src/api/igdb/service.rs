@@ -6,15 +6,13 @@ use crate::{
     },
     games::SteamDataApi,
     library::firestore,
-    logging::IgdbCounters,
+    logging::{IgdbCounters, IgdbResolveCounter},
     util::rate_limiter::RateLimiter,
     Status,
 };
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
-    error::Error,
-    fmt,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -307,29 +305,31 @@ impl IgdbApi {
         firestore: Arc<Mutex<FirestoreApi>>,
         igdb_game: IgdbGame,
     ) -> Result<GameEntry, Status> {
-        Ok(self.resolve_internal(firestore, igdb_game).await?)
-    }
-
-    /// Use an internal impl in order convert internal Status errors into
-    /// ResolveError, which will automatically log failed counters. This way
-    /// public API remains the same and hides the internal error type that does
-    /// the bookkeeping.
-    async fn resolve_internal(
-        &self,
-        firestore: Arc<Mutex<FirestoreApi>>,
-        igdb_game: IgdbGame,
-    ) -> Result<GameEntry, ResolveError> {
-        IgdbCounters::resolve(&igdb_game);
-
         {
             let mut firestore = firestore.lock().unwrap();
             firestore.validate();
         }
         let connection = self.connection()?;
 
+        let counter = IgdbResolveCounter::new();
         let mut game_entry =
-            resolve_game_digest(Arc::clone(&connection), Arc::clone(&firestore), igdb_game).await?;
-        resolve_game_info(connection, &mut game_entry).await?;
+            match resolve_game_digest(Arc::clone(&connection), Arc::clone(&firestore), igdb_game)
+                .await
+            {
+                Ok(entry) => entry,
+                Err(status) => {
+                    counter.log_error(&status);
+                    return Err(status);
+                }
+            };
+        match resolve_game_info(connection, &mut game_entry).await {
+            Ok(()) => {}
+            Err(status) => {
+                counter.log_error(&status);
+                return Err(status);
+            }
+        }
+        counter.log(&game_entry);
 
         let steam = SteamDataApi::new();
         if let Err(e) = steam.retrieve_steam_data(&mut game_entry).await {
@@ -499,37 +499,4 @@ pub const TWITCH_OAUTH_URL: &str = "https://id.twitch.tv/oauth2/token";
 struct TwitchOAuthResponse {
     access_token: String,
     expires_in: i32,
-}
-
-#[derive(Debug)]
-struct ResolveError {
-    status: Status,
-}
-
-// Automatically logs error counters.
-impl ResolveError {
-    fn new(status: Status) -> Self {
-        IgdbCounters::resolve_fail(&status);
-        ResolveError { status }
-    }
-}
-
-impl From<Status> for ResolveError {
-    fn from(status: Status) -> Self {
-        ResolveError::new(status)
-    }
-}
-
-impl Error for ResolveError {}
-
-impl fmt::Display for ResolveError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "IGDB resolve error: {}", self.status)
-    }
-}
-
-impl From<ResolveError> for Status {
-    fn from(err: ResolveError) -> Self {
-        err.status
-    }
 }
