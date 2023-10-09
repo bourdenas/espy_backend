@@ -4,16 +4,16 @@ use tracing::info;
 
 use crate::{documents::GameEntry, Status};
 
-use super::counters::*;
-
 pub struct IgdbCounters;
 
 impl IgdbCounters {
     pub fn connection_fail(status: &Status) {
-        error_counter(
-            "igdb_connection_fail",
-            &format!("IGDB connection failed"),
-            status,
+        info!(
+            labels.log_type = COUNTERS,
+            counter.group = IGDB,
+            counter.name = "connection_fail",
+            counter.status = status.to_string(),
+            "IGDB connection failed",
         )
     }
 }
@@ -32,8 +32,9 @@ impl IgdbResolveCounter {
     pub fn log(self, game_entry: &GameEntry) {
         info!(
             labels.log_type = COUNTERS,
-            labels.counter = "igdb_resolve",
-            igdb_resolve.latency = SystemTime::now()
+            counter.group = IGDB,
+            counter.name = "resolve",
+            counter.latency = SystemTime::now()
                 .duration_since(self.start)
                 .unwrap()
                 .as_millis(),
@@ -46,9 +47,9 @@ impl IgdbResolveCounter {
     pub fn log_error(self, status: &Status) {
         info!(
             labels.log_type = COUNTERS,
-            labels.counter = "igdb_resolve_fail",
-            labels.counter_type = "error",
-            labels.status = status.to_string(),
+            counter.group = IGDB,
+            counter.name = "resolve_fail",
+            counter.status = status.to_string(),
             "IGDB resolve failed",
         )
     }
@@ -70,8 +71,9 @@ impl<'a> IgdbRequestCounter<'a> {
     pub fn log(self) {
         info!(
             labels.log_type = COUNTERS,
-            labels.counter = self.request,
-            igdb_request.latency = SystemTime::now()
+            counter.group = IGDB,
+            counter.name = self.request,
+            counter.latency = SystemTime::now()
                 .duration_since(self.start)
                 .unwrap()
                 .as_millis(),
@@ -83,11 +85,14 @@ impl<'a> IgdbRequestCounter<'a> {
     pub fn log_error(self, status: &Status) {
         info!(
             labels.log_type = COUNTERS,
-            labels.counter = &format!("{}_fail", self.request),
-            labels.counter_type = "error",
-            labels.status = status.to_string(),
+            counter.group = IGDB,
+            counter.name = &format!("{}_fail", self.request),
+            counter.status = status.to_string(),
             "IGDB request failed: {}",
             self.request,
         )
     }
 }
+
+const COUNTERS: &str = "counters";
+const IGDB: &str = "igdb";
