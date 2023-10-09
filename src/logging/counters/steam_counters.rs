@@ -1,54 +1,68 @@
+use std::time::SystemTime;
+
+use tracing::info;
+
 use crate::{documents::GameEntry, Status};
 
-use super::counters::*;
+pub struct SteamFetchCounter {
+    start: SystemTime,
+}
 
-pub struct SteamCounters;
+impl SteamFetchCounter {
+    pub fn new() -> Self {
+        Self {
+            start: SystemTime::now(),
+        }
+    }
 
-impl SteamCounters {
-    pub fn fetch(game_entry: &GameEntry) {
-        counter(
-            "steam_fetch",
-            &format!("Steam fetch: {}", game_entry_description(game_entry)),
+    pub fn log(self, game_entry: &GameEntry) {
+        info!(
+            labels.log_type = COUNTERS,
+            counter.group = STEAM,
+            counter.name = "fetch",
+            counter.latency = SystemTime::now()
+                .duration_since(self.start)
+                .unwrap()
+                .as_millis(),
+            "Steam fetch: {}",
+            game_entry_description(game_entry),
         )
     }
 
-    pub fn missing_id(game_entry: &GameEntry) {
-        counter(
-            "steam_missing_id",
-            &format!("Steam Id missing: {}", game_entry_description(game_entry)),
+    pub fn log_warning(&self, warning: &str, game_entry: &GameEntry, status: &Status) {
+        info!(
+            labels.log_type = COUNTERS,
+            counter.group = STEAM,
+            counter.name = warning,
+            counter.status = status.to_string(),
+            "Steam warning '{warning}': {}",
+            game_entry_description(game_entry),
         )
     }
 
-    pub fn fetch_score_fail(game_entry: &GameEntry, status: &Status) {
-        error_counter(
-            "steam_fetch_score_fail",
-            &format!(
-                "Steam fetch score fail: {}",
-                game_entry_description(game_entry)
-            ),
-            status,
-        )
-    }
-
-    pub fn fetch_appdetails_fail(game_entry: &GameEntry, status: &Status) {
-        error_counter(
-            "steam_fetch_appdetails_fail",
-            &format!(
-                "Steam fetch appdetails fail: {}",
-                game_entry_description(game_entry)
-            ),
-            status,
-        )
-    }
-
-    pub fn date_parsing_fail(game_entry: &GameEntry, status: &Status) {
-        error_counter(
-            "steam_date_parsing_fail",
-            &format!(
-                "Steam date parsing failed: {}",
-                game_entry_description(game_entry)
-            ),
-            status,
+    pub fn log_error(self, game_entry: &GameEntry, status: &Status) {
+        info!(
+            labels.log_type = COUNTERS,
+            counter.group = STEAM,
+            counter.name = "fetch_fail",
+            counter.status = status.to_string(),
+            "Steam fetch fail: {}",
+            game_entry_description(game_entry),
         )
     }
 }
+
+fn game_entry_description(game_entry: &GameEntry) -> String {
+    format!(
+        "'{}', igdb: {}, steam: {}",
+        game_entry.name,
+        game_entry.id,
+        match &game_entry.steam_data {
+            Some(steam_data) => steam_data.steam_appid.to_string(),
+            None => "none".to_owned(),
+        }
+    )
+}
+
+const COUNTERS: &str = "counters";
+const STEAM: &str = "steam";
