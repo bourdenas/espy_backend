@@ -1,38 +1,98 @@
-use crate::{api::IgdbGame, Status};
+use std::time::SystemTime;
 
-use super::counters::*;
+use tracing::info;
+
+use crate::{documents::GameEntry, Status};
 
 pub struct IgdbCounters;
 
 impl IgdbCounters {
-    pub fn resolve(igdb_game: &IgdbGame) {
-        counter(
-            "igdb_resolve",
-            &format!("IGDB resolve: '{}' ({})", &igdb_game.name, &igdb_game.id),
-        )
-    }
-
-    pub fn resolve_fail(status: &Status) {
-        error_counter("igdb_resolve_fail", &format!("IGDB resolve failed"), status)
-    }
-
-    pub fn request_fail(status: &Status) {
-        error_counter("igdb_request_fail", &format!("IGDB request failed"), status)
-    }
-
-    pub fn response_parsing_fail(status: &Status) {
-        error_counter(
-            "igdb_response_parsing_fail",
-            &format!("IGDB response parsing failed"),
-            status,
-        )
-    }
-
     pub fn connection_fail(status: &Status) {
-        error_counter(
-            "igdb_connection_fail",
-            &format!("IGDB connection failed"),
-            status,
+        info!(
+            labels.log_type = COUNTERS,
+            counter.group = IGDB,
+            counter.name = "connection_fail",
+            counter.status = status.to_string(),
+            "IGDB connection failed",
         )
     }
 }
+
+pub struct IgdbResolveCounter {
+    start: SystemTime,
+}
+
+impl IgdbResolveCounter {
+    pub fn new() -> Self {
+        Self {
+            start: SystemTime::now(),
+        }
+    }
+
+    pub fn log(self, game_entry: &GameEntry) {
+        info!(
+            labels.log_type = COUNTERS,
+            counter.group = IGDB,
+            counter.name = "resolve",
+            counter.latency = SystemTime::now()
+                .duration_since(self.start)
+                .unwrap()
+                .as_millis(),
+            "IGDB resolve: '{}' ({})",
+            &game_entry.name,
+            &game_entry.id,
+        )
+    }
+
+    pub fn log_error(self, status: &Status) {
+        info!(
+            labels.log_type = COUNTERS,
+            counter.group = IGDB,
+            counter.name = "resolve_fail",
+            counter.status = status.to_string(),
+            "IGDB resolve failed",
+        )
+    }
+}
+
+pub struct IgdbRequestCounter<'a> {
+    request: &'a str,
+    start: SystemTime,
+}
+
+impl<'a> IgdbRequestCounter<'a> {
+    pub fn new(request: &'a str) -> Self {
+        Self {
+            request,
+            start: SystemTime::now(),
+        }
+    }
+
+    pub fn log(self) {
+        info!(
+            labels.log_type = COUNTERS,
+            counter.group = IGDB,
+            counter.name = self.request,
+            counter.latency = SystemTime::now()
+                .duration_since(self.start)
+                .unwrap()
+                .as_millis(),
+            "IGDB request: {}",
+            self.request,
+        );
+    }
+
+    pub fn log_error(self, status: &Status) {
+        info!(
+            labels.log_type = COUNTERS,
+            counter.group = IGDB,
+            counter.name = &format!("{}_fail", self.request),
+            counter.status = status.to_string(),
+            "IGDB request failed: {}",
+            self.request,
+        )
+    }
+}
+
+const COUNTERS: &str = "counters";
+const IGDB: &str = "igdb";

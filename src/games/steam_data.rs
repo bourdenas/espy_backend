@@ -1,7 +1,7 @@
 use crate::{
     api::SteamApi,
     documents::{self, GameEntry},
-    logging::SteamCounters,
+    logging::SteamFetchCounter,
     util::rate_limiter::RateLimiter,
     Status,
 };
@@ -26,21 +26,25 @@ impl SteamDataApi {
         fields(game_entry = %game_entry.name),
     )]
     pub async fn retrieve_steam_data(&self, game_entry: &mut GameEntry) -> Result<(), Status> {
+        let counter = SteamFetchCounter::new();
+
         let steam_appid = match get_steam_appid(game_entry) {
             Some(id) => id,
             None => {
-                SteamCounters::missing_id(&game_entry);
+                counter.log_warning(
+                    "missing_id",
+                    &game_entry,
+                    &Status::not_found("missing steam id"),
+                );
                 return Ok(());
             }
         };
-
-        SteamCounters::fetch(&game_entry);
 
         self.qps.wait();
         let score = match SteamApi::get_app_score(steam_appid).await {
             Ok(result) => Some(result),
             Err(status) => {
-                SteamCounters::fetch_score_fail(&game_entry, &status);
+                counter.log_warning("fetch_score_fail", game_entry, &status);
                 None
             }
         };
@@ -51,11 +55,8 @@ impl SteamDataApi {
                 result
             }
             Err(status) => {
-                SteamCounters::fetch_appdetails_fail(&game_entry, &status);
-                return Err(Status::new(
-                    &format!("Failed to retrieve Steam data for '{}'", game_entry.name),
-                    status,
-                ));
+                counter.log_error(game_entry, &status);
+                return Err(status);
             }
         };
 
@@ -67,9 +68,13 @@ impl SteamDataApi {
             ) {
                 Ok(date) => Some(date.timestamp()),
                 Err(status) => {
-                    SteamCounters::date_parsing_fail(
-                        &game_entry,
-                        &Status::internal(format!("{status}")),
+                    counter.log_warning(
+                        "date_parsing_fail",
+                        game_entry,
+                        &Status::invalid_argument(format!(
+                            "Invalid date format '{}': {status}",
+                            &date.date
+                        )),
                     );
                     game_entry.release_date
                 }
@@ -87,8 +92,9 @@ impl SteamDataApi {
             Some(recommendations) => Some(recommendations.total),
             None => game_entry.popularity,
         };
-
         game_entry.steam_data = Some(steam_data);
+
+        counter.log(&game_entry);
         Ok(())
     }
 }

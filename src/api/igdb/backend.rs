@@ -1,4 +1,4 @@
-use crate::{logging::IgdbCounters, Status};
+use crate::{logging::IgdbRequestCounter, Status};
 use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
 use tracing::info;
@@ -12,6 +12,8 @@ pub async fn post<T: DeserializeOwned>(
     body: &str,
 ) -> Result<T, Status> {
     connection.qps.wait();
+
+    let counter = IgdbRequestCounter::new(endpoint);
 
     let _permit = connection.qps.connection().await;
     let uri = format!("{IGDB_SERVICE_URL}/{endpoint}/");
@@ -31,21 +33,25 @@ pub async fn post<T: DeserializeOwned>(
         Err(e) => {
             let status =
                 Status::internal(format!("Request failed: {e}\nuri: {uri}\nquery: {body}"));
-            IgdbCounters::request_fail(&status);
+            counter.log_error(&status);
             return Err(status);
         }
     };
 
     let text = resp.text().await?;
-    let resp = serde_json::from_str::<T>(&text).map_err(|_| {
-        let status = Status::internal(format!(
-            "Failed to parse response: {text}\nuri: {uri}\nquery: {body}"
-        ));
-        IgdbCounters::response_parsing_fail(&status);
-        status
-    });
-
-    resp
+    match serde_json::from_str::<T>(&text) {
+        Ok(resp) => {
+            counter.log();
+            Ok(resp)
+        }
+        Err(_) => {
+            let status = Status::internal(format!(
+                "Failed to parse response: {text}\nuri: {uri}\nquery: {body}"
+            ));
+            counter.log_error(&status);
+            Err(status)
+        }
+    }
 }
 
 pub async fn create_webhook(
