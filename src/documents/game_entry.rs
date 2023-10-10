@@ -4,8 +4,8 @@ use crate::api::IgdbGame;
 
 use super::{GameDigest, SteamData};
 
-/// Document type under 'users/{user_id}/games' that represents a game entry in
-/// IGDB.
+/// Document type under 'users/{user_id}/games' that represents an espy game
+/// entry.
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct GameEntry {
     pub id: u64,
