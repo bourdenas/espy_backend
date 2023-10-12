@@ -156,6 +156,13 @@ impl IgdbGame {
         self.platforms.contains(&6) || self.platforms.contains(&13) || self.platforms.contains(&14)
     }
 
+    pub fn is_main_category(&self) -> bool {
+        match self.category {
+            0 | 1 | 2 | 4 | 8 | 9 | 10 | 14 => true,
+            _ => false,
+        }
+    }
+
     pub fn has_hype(&self) -> bool {
         self.follows.unwrap_or_default() > 0 || self.hypes.unwrap_or_default() > 0
     }
