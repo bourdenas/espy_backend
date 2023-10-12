@@ -1,12 +1,15 @@
 use clap::Parser;
 use espy_backend::{
-    documents::{Frontpage, GameDigest, GameEntry},
+    documents::{Frontpage, GameCategory, GameDigest, GameEntry},
     Status, Tracing,
 };
 use firestore::{path, FirestoreDb, FirestoreQueryDirection, FirestoreResult};
 use futures::{stream::BoxStream, TryStreamExt};
 use itertools::Itertools;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{
+    cmp::min,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 use tracing::info;
 
 #[derive(Parser)]
@@ -55,6 +58,19 @@ async fn main() -> Result<(), Status> {
         .await?;
     let upcoming = upcoming.try_collect::<Vec<GameEntry>>().await?;
     info!("upcoming = {}", upcoming.len());
+    let upcoming = upcoming
+        .into_iter()
+        .filter(|entry| match entry.category {
+            GameCategory::Main
+            | GameCategory::Dlc
+            | GameCategory::Expansion
+            | GameCategory::StandaloneExpansion
+            | GameCategory::Remake
+            | GameCategory::Remaster => true,
+            _ => false,
+        })
+        .collect_vec();
+    info!("upcoming after filtering = {}", upcoming.len());
 
     let recent: BoxStream<FirestoreResult<GameEntry>> = db
         .fluent()
@@ -77,6 +93,19 @@ async fn main() -> Result<(), Status> {
         .await?;
     let recent = recent.try_collect::<Vec<GameEntry>>().await?;
     info!("recent = {}", recent.len());
+    let recent = recent
+        .into_iter()
+        .filter(|entry| match entry.category {
+            GameCategory::Main
+            | GameCategory::Dlc
+            | GameCategory::Expansion
+            | GameCategory::StandaloneExpansion
+            | GameCategory::Remake
+            | GameCategory::Remaster => true,
+            _ => false,
+        })
+        .collect_vec();
+    info!("recent after filtering = {}", recent.len());
 
     let frontpage = Frontpage {
         last_updated: now,
@@ -106,12 +135,25 @@ async fn main() -> Result<(), Status> {
             .collect(),
         critically_acclaimed: recent
             .into_iter()
-            .filter(|entry| entry.score.is_some())
-            .sorted_by(|a, b| Ord::cmp(&b.score.unwrap(), &a.score.unwrap()))
+            .filter(|entry| {
+                entry.score.is_some()
+                    && match entry.popularity {
+                        Some(popularity) => popularity > 1000,
+                        None => false,
+                    }
+            })
+            .sorted_by(|a, b| {
+                (b.score.unwrap() as f64 * (min(b.popularity.unwrap(), 10000) as f64 / 10000.0))
+                    .total_cmp(
+                        &(a.score.unwrap() as f64
+                            * (min(a.popularity.unwrap(), 10000) as f64 / 10000.0)),
+                    )
+            })
             .map(|game_entry| GameDigest::from(game_entry))
             .take(50)
             .collect(),
     };
+
     db.fluent()
         .update()
         .in_col("espy")
