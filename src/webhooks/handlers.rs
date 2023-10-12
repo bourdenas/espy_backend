@@ -22,7 +22,7 @@ pub async fn add_game_webhook(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    if !igdb_game.is_pc_game() || !igdb_game.has_hype() {
+    if !igdb_game.is_pc_game() {
         return Ok(StatusCode::OK);
     }
 
@@ -41,7 +41,7 @@ pub async fn update_game_webhook(
     firestore: Arc<Mutex<FirestoreApi>>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    if !igdb_game.is_pc_game() || !igdb_game.has_hype() {
+    if !igdb_game.is_pc_game() {
         return Ok(StatusCode::OK);
     }
 
