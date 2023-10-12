@@ -46,6 +46,12 @@ impl From<reqwest::Error> for Status {
     }
 }
 
+impl From<firestore::errors::FirestoreError> for Status {
+    fn from(err: firestore::errors::FirestoreError) -> Self {
+        Self::new("firestore error", err)
+    }
+}
+
 impl Error for Status {}
 
 impl fmt::Display for Status {

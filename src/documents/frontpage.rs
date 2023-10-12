@@ -22,9 +22,9 @@ pub struct Frontpage {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub critical_hits: Vec<GameDigest>,
+    pub popular: Vec<GameDigest>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub popular: Vec<GameDigest>,
+    pub critically_acclaimed: Vec<GameDigest>,
 }
