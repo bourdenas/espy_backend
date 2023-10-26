@@ -22,6 +22,10 @@ pub struct GameDigest {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub popularity: Option<u64>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub rating: Option<f64>,
 
     #[serde(default)]
@@ -65,6 +69,7 @@ impl GameDigest {
                 Some(date) => Some(date),
                 None => game_entry.igdb_game.first_release_date,
             },
+            popularity: game_entry.popularity,
             rating: match game_entry.score {
                 Some(score) => Some(score as f64),
                 None => game_entry.igdb_game.aggregated_rating,
@@ -95,6 +100,7 @@ impl From<GameEntry> for GameDigest {
                 Some(date) => Some(date),
                 None => game_entry.igdb_game.first_release_date,
             },
+            popularity: game_entry.popularity,
             rating: match game_entry.score {
                 Some(score) => Some(score as f64),
                 None => game_entry.igdb_game.aggregated_rating,
