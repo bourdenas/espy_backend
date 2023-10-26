@@ -91,7 +91,7 @@ async fn update_game_entry(
 
     let mut firestore = firestore.lock().unwrap();
     firestore.validate();
-    firestore::games::write(&firestore, &game_entry)
+    firestore::games::write(&firestore, game_entry)
 }
 
 #[instrument(level = "trace", skip(external_game, firestore))]

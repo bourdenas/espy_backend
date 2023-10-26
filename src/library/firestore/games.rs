@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use crate::{api::FirestoreApi, documents::GameEntry, Status};
 use tracing::instrument;
 
@@ -15,7 +17,12 @@ pub fn read(firestore: &FirestoreApi, game_id: u64) -> Result<GameEntry, Status>
 
 /// Writes a GameEntry doc in Firestore.
 #[instrument(name = "games::write", level = "trace", skip(firestore, game_entry))]
-pub fn write(firestore: &FirestoreApi, game_entry: &GameEntry) -> Result<(), Status> {
+pub fn write(firestore: &FirestoreApi, game_entry: &mut GameEntry) -> Result<(), Status> {
+    game_entry.last_updated = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
     firestore.write("games", Some(&game_entry.id.to_string()), game_entry)?;
     Ok(())
 }

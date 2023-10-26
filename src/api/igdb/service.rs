@@ -336,7 +336,7 @@ impl IgdbApi {
             error!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
         }
 
-        if let Err(e) = firestore::games::write(&firestore.lock().unwrap(), &game_entry) {
+        if let Err(e) = firestore::games::write(&firestore.lock().unwrap(), &mut game_entry) {
             error!("Failed to save '{}' in Firestore: {e}", game_entry.name);
         }
         update_companies(Arc::clone(&firestore), &game_entry);
