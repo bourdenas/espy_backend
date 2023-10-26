@@ -50,9 +50,9 @@ impl SteamDataApi {
         };
         self.qps.wait();
         let steam_data = match SteamApi::get_app_details(steam_appid).await {
-            Ok(mut result) => {
-                result.score = score;
-                result
+            Ok(mut steam_data) => {
+                steam_data.score = score;
+                steam_data
             }
             Err(status) => {
                 counter.log_error(game_entry, &status);
