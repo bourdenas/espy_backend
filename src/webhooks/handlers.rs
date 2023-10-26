@@ -8,6 +8,7 @@ use crate::{
 use std::{
     convert::Infallible,
     sync::{Arc, Mutex},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tracing::{instrument, warn};
 use warp::http::StatusCode;
@@ -54,12 +55,28 @@ pub async fn update_game_webhook(
 
     match game_entry {
         Ok(mut game_entry) => match game_entry.igdb_game.diff(&igdb_game) {
-            diff if diff.empty() => event.log(None),
+            diff if diff.empty() => {
+                if game_entry.last_updated == 0
+                    || SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .checked_sub(Duration::from_secs(game_entry.last_updated))
+                        .unwrap()
+                        > Duration::from_secs(15 * DAYS)
+                {
+                    match update_steam_data(firestore, &mut game_entry, igdb_game).await {
+                        Ok(()) => event.log(Some(diff)),
+                        Err(status) => event.log_error(status),
+                    }
+                } else {
+                    event.log(None)
+                }
+            }
             diff if diff.needs_resolve() => match igdb.resolve(firestore, igdb_game).await {
                 Ok(_) => event.log(Some(diff)),
                 Err(status) => event.log_error(status),
             },
-            diff => match update_game_entry(firestore, &mut game_entry, igdb_game).await {
+            diff => match update_steam_data(firestore, &mut game_entry, igdb_game).await {
                 Ok(()) => event.log(Some(diff)),
                 Err(status) => event.log_error(status),
             },
@@ -74,7 +91,9 @@ pub async fn update_game_webhook(
     Ok(StatusCode::OK)
 }
 
-async fn update_game_entry(
+const DAYS: u64 = 24 * 60 * 60;
+
+async fn update_steam_data(
     firestore: Arc<Mutex<FirestoreApi>>,
     game_entry: &mut GameEntry,
     igdb_game: IgdbGame,
