@@ -111,7 +111,6 @@ async fn main() -> Result<(), Status> {
         last_updated: now,
         upcoming: upcoming
             .iter()
-            .take(50)
             .map(|game_entry| GameDigest::from(game_entry.clone()))
             .collect(),
         most_anticipated: upcoming
@@ -119,11 +118,10 @@ async fn main() -> Result<(), Status> {
             .filter(|entry| entry.popularity.is_some())
             .sorted_by(|a, b| Ord::cmp(&b.popularity.unwrap(), &a.popularity.unwrap()))
             .map(|game_entry| GameDigest::from(game_entry))
-            .take(50)
+            .take(100)
             .collect(),
         recent: recent
             .iter()
-            .take(50)
             .map(|game_entry| GameDigest::from(game_entry.clone()))
             .collect(),
         popular: recent
@@ -131,7 +129,7 @@ async fn main() -> Result<(), Status> {
             .filter(|entry| entry.popularity.is_some())
             .sorted_by(|a, b| Ord::cmp(&b.popularity.unwrap(), &a.popularity.unwrap()))
             .map(|game_entry| GameDigest::from(game_entry.clone()))
-            .take(50)
+            .take(100)
             .collect(),
         critically_acclaimed: recent
             .into_iter()
