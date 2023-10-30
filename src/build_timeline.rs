@@ -23,8 +23,8 @@ async fn main() -> Result<(), Status> {
     let opts: Opts = Opts::parse();
 
     match opts.prod_tracing {
-        false => Tracing::setup("build-frontpage-batch")?,
-        true => Tracing::setup_prod("build-frontpage-batch")?,
+        false => Tracing::setup("build-timeline")?,
+        true => Tracing::setup_prod("build-timeline")?,
     }
 
     let now = SystemTime::now()

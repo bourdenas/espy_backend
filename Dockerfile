@@ -7,6 +7,7 @@ COPY . .
 
 RUN cargo build --release --bin http_server
 RUN cargo build --release --bin webhook_handlers
+RUN cargo build --release --bin build_timeline
 
 # -----------------------------------------
 
@@ -33,3 +34,16 @@ COPY ./espy-library-firebase-adminsdk-sncpo-3da8ca7f57.json ./espy-library-fireb
 ENV PORT 8080
 
 CMD ["webhook_handlers", "--prod-tracing"]
+
+# -----------------------------------------
+
+FROM debian as timeline_image
+
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /espy_server/target/release/build_timeline /usr/local/bin/build_timeline
+COPY ./keys.json ./keys.json
+COPY ./espy-library-firebase-adminsdk-sncpo-3da8ca7f57.json ./espy-library-firebase-adminsdk-sncpo-3da8ca7f57.json
+
+ENV PORT 8080
+
+CMD ["build_timeline", "--prod-tracing"]

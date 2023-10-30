@@ -17,8 +17,8 @@ name = "webhook_registration"
 path = "src/webhook_registration.rs"
 
 [[bin]]
-name = "build_frontpage_batch"
-path = "src/build_frontpage_batch.rs"
+name = "build_timeline"
+path = "src/build_timeline.rs"
 
 
 # Command line utils
@@ -76,7 +76,7 @@ async-recursion = "1.0"
 async-trait = "0.1"
 chrono = "0.4.31"
 clap = { version = "4.4", features = ["derive"] }
-firestore = "0.35"
+firestore = "0.37"
 firestore-db-and-auth = "0.6"
 futures = "0.3"
 itertools = "0.11"
