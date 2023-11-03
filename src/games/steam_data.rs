@@ -88,8 +88,8 @@ impl SteamDataApi {
                 None => game_entry.score,
             },
         };
-        game_entry.popularity = match &steam_data.recommendations {
-            Some(recommendations) => Some(recommendations.total),
+        game_entry.popularity = match &steam_data.score {
+            Some(score) => Some(score.total_reviews),
             None => game_entry.popularity,
         };
         game_entry.steam_data = Some(steam_data);
