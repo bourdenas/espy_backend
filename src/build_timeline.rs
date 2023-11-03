@@ -58,6 +58,7 @@ async fn main() -> Result<(), Status> {
         .await?;
     let upcoming = upcoming.try_collect::<Vec<GameEntry>>().await?;
     info!("upcoming = {}", upcoming.len());
+
     let upcoming = upcoming
         .into_iter()
         .filter(|entry| match entry.category {
@@ -93,6 +94,7 @@ async fn main() -> Result<(), Status> {
         .await?;
     let recent = recent.try_collect::<Vec<GameEntry>>().await?;
     info!("recent = {}", recent.len());
+
     let recent = recent
         .into_iter()
         .filter(|entry| match entry.category {
@@ -103,6 +105,10 @@ async fn main() -> Result<(), Status> {
             | GameCategory::Remake
             | GameCategory::Remaster => true,
             _ => false,
+        })
+        .filter(|entry| match entry.popularity {
+            Some(value) => value >= POPULARITY_THRESHOLD,
+            None => false,
         })
         .collect_vec();
     info!("recent after filtering = {}", recent.len());
@@ -160,5 +166,10 @@ async fn main() -> Result<(), Status> {
         .execute()
         .await?;
 
+    let serialized = serde_json::to_string(&frontpage)?;
+    info!("create frontpage size: {}KB", serialized.len() / 1024);
+
     Ok(())
 }
+
+const POPULARITY_THRESHOLD: u64 = 100;
