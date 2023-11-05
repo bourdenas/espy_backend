@@ -70,6 +70,11 @@ async fn main() -> Result<(), Status> {
             | GameCategory::Remaster => true,
             _ => false,
         })
+        .filter(|entry| {
+            entry.popularity.unwrap_or_default() > 0
+                || !entry.developers.is_empty()
+                || !entry.publishers.is_empty()
+        })
         .collect_vec();
     info!("upcoming after filtering = {}", upcoming.len());
 
@@ -95,6 +100,10 @@ async fn main() -> Result<(), Status> {
     let recent = recent.try_collect::<Vec<GameEntry>>().await?;
     info!("recent = {}", recent.len());
 
+    // TODO: IGDB resolve recently released games (e.g. 2-3 days)
+    // TODO: Steam fetch last week's releases (e.g. 7 days)
+    // TODO: Update recent with new GameEntry versions.
+
     let recent = recent
         .into_iter()
         .filter(|entry| match entry.category {
@@ -107,7 +116,10 @@ async fn main() -> Result<(), Status> {
             _ => false,
         })
         .filter(|entry| match entry.popularity {
-            Some(value) => value >= POPULARITY_THRESHOLD,
+            Some(value) => match entry.category {
+                GameCategory::Main => value >= POPULARITY_THRESHOLD,
+                _ => value >= POPULARITY_THRESHOLD_DLC,
+            },
             None => false,
         })
         .collect_vec();
@@ -161,7 +173,7 @@ async fn main() -> Result<(), Status> {
     db.fluent()
         .update()
         .in_col("espy")
-        .document_id("frontpage")
+        .document_id("timeline")
         .object(&frontpage)
         .execute()
         .await?;
@@ -172,4 +184,5 @@ async fn main() -> Result<(), Status> {
     Ok(())
 }
 
-const POPULARITY_THRESHOLD: u64 = 100;
+const POPULARITY_THRESHOLD: u64 = 500;
+const POPULARITY_THRESHOLD_DLC: u64 = 100;
