@@ -1,6 +1,6 @@
 use clap::Parser;
 use espy_backend::{
-    documents::{Frontpage, GameCategory, GameDigest, GameEntry},
+    documents::{Frontpage, GameCategory, GameDigest, GameEntry, NotableCompanies},
     Status, Tracing,
 };
 use firestore::{path, FirestoreDb, FirestoreQueryDirection, FirestoreResult};
@@ -8,6 +8,7 @@ use futures::{stream::BoxStream, TryStreamExt};
 use itertools::Itertools;
 use std::{
     cmp::min,
+    collections::HashSet,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tracing::info;
@@ -59,6 +60,18 @@ async fn main() -> Result<(), Status> {
     let upcoming = upcoming.try_collect::<Vec<GameEntry>>().await?;
     info!("upcoming = {}", upcoming.len());
 
+    let notable: Option<NotableCompanies> = db
+        .fluent()
+        .select()
+        .by_id_in("espy")
+        .obj()
+        .one("notable")
+        .await?;
+    let notable = HashSet::<String>::from_iter(match notable {
+        Some(notable) => notable.companies.into_iter(),
+        None => vec![].into_iter(),
+    });
+
     let upcoming = upcoming
         .into_iter()
         .filter(|entry| match entry.category {
@@ -72,8 +85,14 @@ async fn main() -> Result<(), Status> {
         })
         .filter(|entry| {
             entry.popularity.unwrap_or_default() > 0
-                || !entry.developers.is_empty()
-                || !entry.publishers.is_empty()
+                || entry
+                    .developers
+                    .iter()
+                    .any(|dev| notable.contains(&dev.name))
+                || entry
+                    .publishers
+                    .iter()
+                    .any(|publ| notable.contains(&publ.name))
         })
         .collect_vec();
     info!("upcoming after filtering = {}", upcoming.len());
