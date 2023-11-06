@@ -16,9 +16,14 @@ path = "src/webhook_handlers.rs"
 name = "webhook_registration"
 path = "src/webhook_registration.rs"
 
+# Batch offline jobs
+[[bin]]
+name = "build_notable"
+path = "src/batch/build_notable.rs"
+
 [[bin]]
 name = "build_timeline"
-path = "src/build_timeline.rs"
+path = "src/batch/build_timeline.rs"
 
 
 # Command line utils
