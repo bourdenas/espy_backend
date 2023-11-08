@@ -46,9 +46,14 @@ impl From<reqwest::Error> for Status {
     }
 }
 
-impl From<firestore::errors::FirestoreError> for Status {
-    fn from(err: firestore::errors::FirestoreError) -> Self {
-        Self::new("firestore error", err)
+use firestore::errors::FirestoreError;
+impl From<FirestoreError> for Status {
+    fn from(err: FirestoreError) -> Self {
+        match err {
+            FirestoreError::DataNotFoundError(err) => Self::not_found(err.to_string()),
+            FirestoreError::InvalidParametersError(err) => Self::invalid_argument(err.to_string()),
+            err => Self::new("firestore error", err),
+        }
     }
 }
 

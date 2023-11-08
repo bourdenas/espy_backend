@@ -1,13 +1,13 @@
 use clap::Parser;
 use espy_backend::{
-    documents::{Frontpage, GameCategory, GameDigest, GameEntry, NotableCompanies},
+    documents::{GameCategory, GameDigest, GameEntry, Timeline},
+    library::firestore::timeline,
     Status, Tracing,
 };
 use firestore::{path, FirestoreDb, FirestoreQueryDirection, FirestoreResult};
 use futures::{stream::BoxStream, TryStreamExt};
 use itertools::Itertools;
 use std::{
-    cmp::min,
     collections::HashSet,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -41,6 +41,9 @@ async fn main() -> Result<(), Status> {
 
     let db = FirestoreDb::new("espy-library").await?;
 
+    let notable = timeline::read_notable(&db).await?;
+    let notable = HashSet::<String>::from_iter(notable.companies.into_iter());
+
     let upcoming: BoxStream<FirestoreResult<GameEntry>> = db
         .fluent()
         .select()
@@ -60,18 +63,6 @@ async fn main() -> Result<(), Status> {
     let upcoming = upcoming.try_collect::<Vec<GameEntry>>().await?;
     info!("upcoming = {}", upcoming.len());
 
-    let notable: Option<NotableCompanies> = db
-        .fluent()
-        .select()
-        .by_id_in("espy")
-        .obj()
-        .one("notable")
-        .await?;
-    let notable = HashSet::<String>::from_iter(match notable {
-        Some(notable) => notable.companies.into_iter(),
-        None => vec![].into_iter(),
-    });
-
     let upcoming = upcoming
         .into_iter()
         .filter(|entry| match entry.category {
@@ -84,7 +75,7 @@ async fn main() -> Result<(), Status> {
             _ => false,
         })
         .filter(|entry| {
-            entry.popularity.unwrap_or_default() > 0
+            entry.popularity.unwrap_or_default() > UPCOMING_POPULARITY_THRESHOLD
                 || entry
                     .developers
                     .iter()
@@ -136,72 +127,43 @@ async fn main() -> Result<(), Status> {
         })
         .filter(|entry| match entry.popularity {
             Some(value) => match entry.category {
-                GameCategory::Main => value >= POPULARITY_THRESHOLD,
-                _ => value >= POPULARITY_THRESHOLD_DLC,
+                GameCategory::Main => value >= RECENT_POPULARITY_THRESHOLD,
+                _ => value >= RECENT_POPULARITY_THRESHOLD_DLC,
             },
-            None => false,
+            None => {
+                entry
+                    .developers
+                    .iter()
+                    .any(|dev| notable.contains(&dev.name))
+                    || entry
+                        .publishers
+                        .iter()
+                        .any(|publ| notable.contains(&publ.name))
+            }
         })
         .collect_vec();
     info!("recent after filtering = {}", recent.len());
 
-    let frontpage = Frontpage {
+    let timeline = Timeline {
         last_updated: now,
         upcoming: upcoming
             .iter()
             .map(|game_entry| GameDigest::from(game_entry.clone()))
             .collect(),
-        most_anticipated: upcoming
-            .into_iter()
-            .filter(|entry| entry.popularity.is_some())
-            .sorted_by(|a, b| Ord::cmp(&b.popularity.unwrap(), &a.popularity.unwrap()))
-            .map(|game_entry| GameDigest::from(game_entry))
-            .take(100)
-            .collect(),
         recent: recent
             .iter()
             .map(|game_entry| GameDigest::from(game_entry.clone()))
             .collect(),
-        popular: recent
-            .iter()
-            .filter(|entry| entry.popularity.is_some())
-            .sorted_by(|a, b| Ord::cmp(&b.popularity.unwrap(), &a.popularity.unwrap()))
-            .map(|game_entry| GameDigest::from(game_entry.clone()))
-            .take(100)
-            .collect(),
-        critically_acclaimed: recent
-            .into_iter()
-            .filter(|entry| {
-                entry.score.is_some()
-                    && match entry.popularity {
-                        Some(popularity) => popularity > 1000,
-                        None => false,
-                    }
-            })
-            .sorted_by(|a, b| {
-                (b.score.unwrap() as f64 * (min(b.popularity.unwrap(), 10000) as f64 / 10000.0))
-                    .total_cmp(
-                        &(a.score.unwrap() as f64
-                            * (min(a.popularity.unwrap(), 10000) as f64 / 10000.0)),
-                    )
-            })
-            .map(|game_entry| GameDigest::from(game_entry))
-            .take(50)
-            .collect(),
     };
 
-    db.fluent()
-        .update()
-        .in_col("espy")
-        .document_id("timeline")
-        .object(&frontpage)
-        .execute()
-        .await?;
+    timeline::write(&db, &timeline).await?;
 
-    let serialized = serde_json::to_string(&frontpage)?;
+    let serialized = serde_json::to_string(&timeline)?;
     info!("create frontpage size: {}KB", serialized.len() / 1024);
 
     Ok(())
 }
 
-const POPULARITY_THRESHOLD: u64 = 500;
-const POPULARITY_THRESHOLD_DLC: u64 = 100;
+const UPCOMING_POPULARITY_THRESHOLD: u64 = 1;
+const RECENT_POPULARITY_THRESHOLD: u64 = 500;
+const RECENT_POPULARITY_THRESHOLD_DLC: u64 = 100;
