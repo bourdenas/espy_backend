@@ -9,13 +9,6 @@ struct Opts {
     #[clap(long, default_value = "keys.json")]
     key_store: String,
 
-    /// JSON file containing Firestore credentials for espy service.
-    #[clap(
-        long,
-        default_value = "espy-library-firebase-adminsdk-sncpo-3da8ca7f57.json"
-    )]
-    firestore_credentials: String,
-
     /// Collect only game entries that were updated in the last N days.
     #[clap(long, default_value = "60")]
     updated_since: u64,

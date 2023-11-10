@@ -11,13 +11,6 @@ struct Opts {
     /// Espy user name for managing a game library.
     #[clap(short, long, default_value = "")]
     user: String,
-
-    /// JSON file containing Firestore credentials for espy service.
-    #[clap(
-        long,
-        default_value = "espy-library-firebase-adminsdk-sncpo-3da8ca7f57.json"
-    )]
-    firestore_credentials: String,
 }
 
 /// Verifies that all game ids that exist in in /users/{id}/strorefront/{store}
