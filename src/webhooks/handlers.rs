@@ -7,7 +7,7 @@ use crate::{
 };
 use std::{
     convert::Infallible,
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tracing::{instrument, warn};
@@ -20,7 +20,7 @@ use super::event_logs::{
 #[instrument(level = "trace", skip(igdb_game, firestore, igdb))]
 pub async fn add_game_webhook(
     igdb_game: IgdbGame,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     if !igdb_game.is_pc_game() || !igdb_game.is_main_category() {
@@ -28,7 +28,7 @@ pub async fn add_game_webhook(
     }
 
     let event = AddGameEvent::new(igdb_game.id, igdb_game.name.clone());
-    match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
+    match igdb.resolve(firestore, igdb_game).await {
         Ok(_) => event.log(),
         Err(status) => event.log_error(status),
     }
@@ -39,7 +39,7 @@ pub async fn add_game_webhook(
 #[instrument(level = "trace", skip(igdb_game, firestore, igdb))]
 pub async fn update_game_webhook(
     igdb_game: IgdbGame,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     if !igdb_game.is_pc_game() || !igdb_game.is_main_category() {
@@ -47,11 +47,7 @@ pub async fn update_game_webhook(
     }
 
     let event = UpdateGameEvent::new(igdb_game.id, igdb_game.name.clone());
-    let game_entry = {
-        let mut firestore = firestore.lock().unwrap();
-        firestore.validate();
-        firestore::games::read(&firestore, igdb_game.id)
-    };
+    let game_entry = firestore::games::read(&firestore, igdb_game.id).await;
 
     match game_entry {
         Ok(mut game_entry) => match game_entry.igdb_game.diff(&igdb_game) {
@@ -94,7 +90,7 @@ pub async fn update_game_webhook(
 const DAYS: u64 = 24 * 60 * 60;
 
 async fn update_steam_data(
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     game_entry: &mut GameEntry,
     igdb_game: IgdbGame,
 ) -> Result<(), Status> {
@@ -108,25 +104,20 @@ async fn update_steam_data(
         warn!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
     }
 
-    let mut firestore = firestore.lock().unwrap();
-    firestore.validate();
-    firestore::games::write(&firestore, game_entry)
+    firestore::games::write(&firestore, game_entry).await
 }
 
 #[instrument(level = "trace", skip(external_game, firestore))]
 pub async fn external_games_webhook(
     external_game: IgdbExternalGame,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     if !(external_game.is_steam() || external_game.is_gog()) {
         return Ok(StatusCode::OK);
     }
 
     let external_game = ExternalGame::from(external_game);
-
-    let mut firestore = firestore.lock().unwrap();
-    firestore.validate();
-    let result = firestore::external_games::write(&firestore, &external_game);
+    let result = firestore::external_games::write(&firestore, &external_game).await;
     let event = ExternalGameEvent::new(external_game);
 
     match result {
@@ -140,11 +131,9 @@ pub async fn external_games_webhook(
 #[instrument(level = "trace", skip(genre, firestore))]
 pub async fn genres_webhook(
     genre: Genre,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let mut firestore = firestore.lock().unwrap();
-    firestore.validate();
-    let result = firestore::genres::write(&firestore, &genre);
+    let result = firestore::genres::write(&firestore, &genre).await;
     let event = GenresEvent::new(genre);
 
     match result {
@@ -158,11 +147,9 @@ pub async fn genres_webhook(
 #[instrument(level = "trace", skip(keyword, firestore))]
 pub async fn keywords_webhook(
     keyword: Keyword,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let mut firestore = firestore.lock().unwrap();
-    firestore.validate();
-    let result = firestore::keywords::write(&firestore, &keyword);
+    let result = firestore::keywords::write(&firestore, &keyword).await;
     let event = KeywordsEvent::new(keyword);
 
     match result {
