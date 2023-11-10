@@ -1,15 +1,10 @@
 use std::{
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use clap::Parser;
-use espy_backend::{
-    api::{self, FirestoreApi},
-    documents::GameEntry,
-    library::firestore,
-    util, Status, Tracing,
-};
+use espy_backend::{api, library::firestore, util, Tracing};
 use tracing::{error, info};
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
@@ -48,8 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     igdb.connect().await?;
     let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
 
-    let firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
+    let firestore = api::FirestoreApi::connect().await?;
 
     let updated_timestamp = SystemTime::now()
         .checked_sub(Duration::from_secs(24 * 60 * 60 * opts.updated_since))
@@ -60,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let mut k = opts.offset;
     let mut counter = 0;
-    let firestore = Arc::new(Mutex::new(firestore));
+    let firestore = Arc::new(firestore);
     for i in 0.. {
         let games = igdb_batch
             .collect_igdb_games(updated_timestamp, opts.offset + i * 500)
@@ -80,7 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         for igdb_game in games {
             info!("{k} Processing '{}'", igdb_game.name);
-            match read_from_firestore(Arc::clone(&firestore), igdb_game.id) {
+            match firestore::games::read(&firestore, igdb_game.id).await {
                 Ok(_) => {}
                 Err(_) => match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
                     Ok(game_entry) => {
@@ -100,13 +94,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     Ok(())
-}
-
-fn read_from_firestore(
-    firestore: Arc<Mutex<FirestoreApi>>,
-    game_id: u64,
-) -> Result<GameEntry, Status> {
-    let mut firestore = firestore.lock().unwrap();
-    firestore.validate();
-    firestore::games::read(&firestore, game_id)
 }

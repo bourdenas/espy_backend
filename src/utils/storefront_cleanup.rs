@@ -30,28 +30,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let opts: Opts = Opts::parse();
 
-    let firestore = FirestoreApi::from_credentials(opts.firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
+    let firestore = FirestoreApi::connect().await?;
 
-    let user_library = firestore::library::read(&firestore, &opts.user)?;
-    let failed = firestore::failed::read(&firestore, &opts.user)?.entries;
+    let user_library = firestore::library::read(&firestore, &opts.user).await?;
+    let failed = firestore::failed::read(&firestore, &opts.user)
+        .await?
+        .entries;
 
     storefront_cleanup(&firestore, &opts.user, &user_library, &failed, "gog")
+        .await
         .expect("Failed to cleanup GOG");
     storefront_cleanup(&firestore, &opts.user, &user_library, &failed, "steam")
+        .await
         .expect("Failed to cleanup Steam");
 
     Ok(())
 }
 
-fn storefront_cleanup(
+async fn storefront_cleanup(
     firestore: &FirestoreApi,
     user_id: &str,
     user_library: &Library,
     user_failed: &[StoreEntry],
     storefront_name: &str,
 ) -> Result<(), Status> {
-    let mut owned_games = firestore::storefront::read(&firestore, user_id, storefront_name)?;
+    let mut owned_games = firestore::storefront::read(&firestore, user_id, storefront_name).await?;
 
     let mut missing = vec![];
     for game_id in &owned_games {
@@ -75,7 +78,7 @@ fn storefront_cleanup(
         missing
     );
     owned_games.retain(|e| !missing.contains(&e));
-    firestore::storefront::write(firestore, user_id, storefront_name, owned_games)?;
+    firestore::storefront::write(firestore, user_id, storefront_name, owned_games).await?;
 
     Ok(())
 }

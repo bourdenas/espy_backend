@@ -52,8 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     igdb.connect().await?;
     let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
 
-    let mut firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
+    let firestore = api::FirestoreApi::connect().await?;
 
     let updated_timestamp = SystemTime::now()
         .checked_sub(Duration::from_secs(24 * 60 * 60 * opts.updated_since))
@@ -88,7 +87,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
 
         for igdb_company in companies {
-            firestore.validate();
             let mut company = Company {
                 id: igdb_company.id,
                 name: igdb_company.name,
@@ -109,7 +107,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         continue;
                     }
 
-                    match firestore::games::read(&firestore, *game) {
+                    match firestore::games::read(&firestore, *game).await {
                         Ok(game_entry) => {
                             let digest = GameDigest::short_digest(&game_entry);
                             games.insert(digest.id, digest.clone());
@@ -134,8 +132,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             }
 
             if !company.developed.is_empty() || !company.published.is_empty() {
-                firestore.validate();
-                if let Err(e) = firestore::companies::write(&firestore, &company) {
+                if let Err(e) = firestore::companies::write(&firestore, &company).await {
                     error!("Failed to save '{}' in Firestore: {e}", &company.name);
                 }
                 info!("#{} Saved company '{}' ({})", k, company.name, company.id);

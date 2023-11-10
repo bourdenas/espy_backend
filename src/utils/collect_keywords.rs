@@ -34,8 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     igdb.connect().await?;
     let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
 
-    let mut firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
+    let firestore = api::FirestoreApi::connect().await?;
 
     let mut k = opts.offset;
     for i in 0.. {
@@ -56,9 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
 
         for keyword in keywords {
-            firestore.validate();
-
-            if let Err(e) = firestore::keywords::write(&firestore, &keyword) {
+            if let Err(e) = firestore::keywords::write(&firestore, &keyword).await {
                 error!("Failed to save '{}' in Firestore: {e}", &keyword.name);
             }
             info!("#{k} Saved keyword '{}' ({})", keyword.name, keyword.id);

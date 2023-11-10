@@ -38,16 +38,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     igdb.connect().await?;
     let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
 
-    let mut firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
+    let firestore = api::FirestoreApi::connect().await?;
 
     let mut k = opts.offset;
     let genres = igdb_batch.collect_genres().await?;
 
     for genre in genres {
-        firestore.validate();
-
-        if let Err(e) = firestore::genres::write(&firestore, &genre) {
+        if let Err(e) = firestore::genres::write(&firestore, &genre).await {
             error!("Failed to save '{}' in Firestore: {e}", &genre.name);
         }
         info!("#{k} Saved genre '{}' ({})", genre.name, genre.id);

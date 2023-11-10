@@ -34,8 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     igdb.connect().await?;
     let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
 
-    let mut firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
+    let firestore = api::FirestoreApi::connect().await?;
 
     let mut k = opts.offset;
     for i in 0.. {
@@ -52,10 +51,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         );
 
         for external_game in external_games {
-            firestore.validate();
-
             let external_game = ExternalGame::from(external_game);
-            if let Err(e) = firestore::external_games::write(&firestore, &external_game) {
+            if let Err(e) = firestore::external_games::write(&firestore, &external_game).await {
                 error!(
                     "Failed to save '{}_{}' in Firestore: {e}",
                     &opts.store, external_game.store_id

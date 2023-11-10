@@ -55,8 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     igdb.connect().await?;
     let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
 
-    let mut firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
+    let firestore = api::FirestoreApi::connect().await?;
 
     let updated_timestamp = SystemTime::now()
         .checked_sub(Duration::from_secs(24 * 60 * 60 * opts.updated_since))
@@ -146,10 +145,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             }
 
             if !igdb_collection.games.is_empty() {
-                firestore.validate();
                 if let Err(e) = match opts.franchises {
-                    false => firestore::collections::write(&firestore, &igdb_collection),
-                    true => firestore::franchises::write(&firestore, &igdb_collection),
+                    false => firestore::collections::write(&firestore, &igdb_collection).await,
+                    true => firestore::franchises::write(&firestore, &igdb_collection).await,
                 } {
                     error!(
                         "Failed to save '{}' in Firestore: {e}",

@@ -31,13 +31,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let opts: Opts = Opts::parse();
 
-    let firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
+    let firestore = api::FirestoreApi::connect().await?;
 
     if let Some(id) = opts.id {
         match opts.delete {
             false => refresh_collection(firestore, id).await?,
-            true => library::firestore::collections::delete(&firestore, id)?,
+            true => library::firestore::collections::delete(&firestore, id).await?,
         }
     } else {
         refresh_collections(firestore).await?;
@@ -47,30 +46,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 }
 
 async fn refresh_collection(firestore: FirestoreApi, id: u64) -> Result<(), Status> {
-    let collection = library::firestore::collections::read(&firestore, id)?;
-    refresh(firestore, vec![collection])
+    let collection = library::firestore::collections::read(&firestore, id).await?;
+    refresh(firestore, vec![collection]).await
 }
 
 #[instrument(level = "trace", skip(firestore))]
 async fn refresh_collections(firestore: FirestoreApi) -> Result<(), Status> {
-    let collections = library::firestore::collections::list(&firestore)?;
-    refresh(firestore, collections)
+    let collections = library::firestore::collections::list(&firestore).await?;
+    refresh(firestore, collections).await
 }
 
-fn refresh(mut firestore: FirestoreApi, collections: Vec<Collection>) -> Result<(), Status> {
+async fn refresh(firestore: FirestoreApi, collections: Vec<Collection>) -> Result<(), Status> {
     info!("Updating {} collections...", collections.len());
 
     for collection in collections {
         info!("updating {}", &collection.slug);
-        firestore.validate();
 
-        let game_digest = collection
-            .games
-            .into_iter()
-            .map(|digest| library::firestore::games::read(&firestore, digest.id))
-            .filter_map(|e| e.ok())
-            .map(|game_entry| GameDigest::from(game_entry))
-            .collect();
+        let mut game_digest: Vec<GameDigest> = vec![];
+        for game in collection.games {
+            if let Ok(game_entry) = library::firestore::games::read(&firestore, game.id).await {
+                game_digest.push(GameDigest::from(game_entry))
+            }
+        }
+
         let collection = Collection {
             id: collection.id,
             name: collection.name,
@@ -78,7 +76,7 @@ fn refresh(mut firestore: FirestoreApi, collections: Vec<Collection>) -> Result<
             url: collection.url,
             games: game_digest,
         };
-        if let Err(e) = library::firestore::collections::write(&firestore, &collection) {
+        if let Err(e) = library::firestore::collections::write(&firestore, &collection).await {
             error!("{e}");
         }
     }
