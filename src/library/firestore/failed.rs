@@ -136,7 +136,8 @@ async fn write(
         .parent(&parent_path)
         .object(failed)
         .execute()
-        .await?
+        .await?;
+    Ok(())
 }
 
 const USERS: &str = "users";

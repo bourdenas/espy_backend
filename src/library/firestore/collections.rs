@@ -52,19 +52,21 @@ pub async fn write(firestore: &FirestoreApi, collection: &Collection) -> Result<
         .document_id(collection.id.to_string())
         .object(collection)
         .execute()
-        .await?
+        .await?;
+    Ok(())
 }
 
 #[instrument(name = "collections::delete", level = "trace", skip(firestore))]
 pub async fn delete(firestore: &FirestoreApi, doc_id: u64) -> Result<(), Status> {
-    Ok(firestore
+    firestore
         .db()
         .fluent()
         .delete()
         .from(COLLECTIONS)
         .document_id(doc_id.to_string())
         .execute()
-        .await?)
+        .await?;
+    Ok(())
 }
 
 const COLLECTIONS: &str = "collections";

@@ -31,7 +31,8 @@ pub async fn write(firestore: &FirestoreApi, genre: &Genre) -> Result<(), Status
         .document_id(genre.id.to_string())
         .object(genre)
         .execute()
-        .await?
+        .await?;
+    Ok(())
 }
 
 const GENRES: &str = "genres";

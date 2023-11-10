@@ -48,7 +48,8 @@ pub async fn write(
         .parent(&parent_path)
         .object(library)
         .execute()
-        .await?
+        .await?;
+    Ok(())
 }
 
 const USERS: &str = "users";

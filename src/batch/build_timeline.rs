@@ -1,19 +1,20 @@
+use std::{
+    collections::HashSet,
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+
 use clap::Parser;
 use espy_backend::{
-    api,
+    api::{self, FirestoreApi},
     documents::{GameCategory, GameDigest, GameEntry, Timeline},
     games::SteamDataApi,
     library::firestore::timeline,
     util, Status, Tracing,
 };
-use firestore::{path, FirestoreDb, FirestoreQueryDirection, FirestoreResult};
+use firestore::{path, FirestoreQueryDirection, FirestoreResult};
 use futures::{stream::BoxStream, TryStreamExt};
 use itertools::Itertools;
-use std::{
-    collections::HashSet,
-    sync::{Arc, Mutex},
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
 use tracing::{error, info};
 
 #[derive(Parser)]
@@ -53,12 +54,13 @@ async fn main() -> Result<(), Status> {
         .unwrap()
         .as_secs();
 
-    let db = FirestoreDb::new("espy-library").await?;
+    let firestore = FirestoreApi::connect().await?;
 
-    let notable = timeline::read_notable(&db).await?;
+    let notable = timeline::read_notable(&firestore).await?;
     let notable = HashSet::<String>::from_iter(notable.companies.into_iter());
 
-    let upcoming: BoxStream<FirestoreResult<GameEntry>> = db
+    let upcoming: BoxStream<FirestoreResult<GameEntry>> = firestore
+        .db()
         .fluent()
         .select()
         .from("games")
@@ -102,7 +104,8 @@ async fn main() -> Result<(), Status> {
         .collect_vec();
     info!("upcoming after filtering = {}", upcoming.len());
 
-    let recent: BoxStream<FirestoreResult<GameEntry>> = db
+    let recent: BoxStream<FirestoreResult<GameEntry>> = firestore
+        .db()
         .fluent()
         .select()
         .from("games")
@@ -141,10 +144,7 @@ async fn main() -> Result<(), Status> {
     let mut igdb = api::IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
     igdb.connect().await?;
 
-    let firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
-    let firestore = Arc::new(Mutex::new(firestore));
-
+    let firestore = Arc::new(firestore);
     for game in &mut recent {
         if game.release_date.unwrap_or_default() as u64 >= d1 {
             info!("Updating '{}'...", game.name);
@@ -209,7 +209,7 @@ async fn main() -> Result<(), Status> {
             .collect(),
     };
 
-    timeline::write(&db, &timeline).await?;
+    timeline::write(&firestore, &timeline).await?;
 
     let serialized = serde_json::to_string(&timeline)?;
     info!("create frontpage size: {}KB", serialized.len() / 1024);

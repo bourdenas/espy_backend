@@ -31,7 +31,8 @@ pub async fn write(firestore: &FirestoreApi, user_data: &UserData) -> Result<(),
         .document_id(&user_data.uid)
         .object(user_data)
         .execute()
-        .await?
+        .await?;
+    Ok(())
 }
 
 const USERS: &str = "users";

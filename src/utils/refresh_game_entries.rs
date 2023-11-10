@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use clap::Parser;
 use espy_backend::{api::FirestoreApi, *};
@@ -40,13 +40,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut igdb = api::IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
     igdb.connect().await?;
 
-    let firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
+    let firestore = api::FirestoreApi::connect().await?;
 
     if let Some(id) = opts.id {
         match opts.delete {
             false => refresh_game(firestore, id, igdb).await?,
-            true => library::firestore::games::delete(&firestore, id)?,
+            true => library::firestore::games::delete(&firestore, id).await?,
         }
     } else {
         refresh_entries(firestore, igdb, opts.from).await?;
@@ -56,7 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 }
 
 async fn refresh_game(firestore: FirestoreApi, id: u64, igdb: api::IgdbApi) -> Result<(), Status> {
-    let game = library::firestore::games::read(&firestore, id)?;
+    let game = library::firestore::games::read(&firestore, id).await?;
     refresh(firestore, vec![game], igdb).await
 }
 
@@ -66,7 +65,8 @@ async fn refresh_entries(
     igdb: api::IgdbApi,
     from: u64,
 ) -> Result<(), Status> {
-    let game_entries = library::firestore::games::list(&firestore)?
+    let game_entries = library::firestore::games::list(&firestore)
+        .await?
         .into_iter()
         .skip_while(|e| from != 0 && e.id != from)
         .collect();
@@ -81,7 +81,7 @@ async fn refresh(
     info!("Updating {} game entries...", game_entries.len());
     let mut k = 0;
 
-    let firestore = Arc::new(Mutex::new(firestore));
+    let firestore = Arc::new(firestore);
     for game_entry in game_entries {
         info!("#{k} Updating {} ({})", &game_entry.name, game_entry.id);
 

@@ -82,7 +82,8 @@ async fn write(
         .parent(&parent_path)
         .object(user_tags)
         .execute()
-        .await?
+        .await?;
+    Ok(())
 }
 
 const USERS: &str = "users";

@@ -37,7 +37,8 @@ pub async fn write(firestore: &FirestoreApi, franchise: &Collection) -> Result<(
         .document_id(franchise.id.to_string())
         .object(franchise)
         .execute()
-        .await?
+        .await?;
+    Ok(())
 }
 
 const FRANCHISES: &str = "franchises";

@@ -31,7 +31,8 @@ pub async fn write(firestore: &FirestoreApi, keyword: &Keyword) -> Result<(), St
         .document_id(keyword.id.to_string())
         .object(keyword)
         .execute()
-        .await?
+        .await?;
+    Ok(())
 }
 
 const KEYWORDS: &str = "keywords";

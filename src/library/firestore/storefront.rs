@@ -60,7 +60,8 @@ pub async fn write(
             owned_games,
         })
         .execute()
-        .await?
+        .await?;
+    Ok(())
 }
 
 /// Deletes a storefront record from user's library.
@@ -74,7 +75,7 @@ pub async fn delete(
 ) -> Result<(), Status> {
     let parent_path = firestore.db().parent_path(USERS, user_id)?;
 
-    Ok(firestore
+    firestore
         .db()
         .fluent()
         .delete()
@@ -82,7 +83,8 @@ pub async fn delete(
         .parent(&parent_path)
         .document_id(storefront)
         .execute()
-        .await?)
+        .await?;
+    Ok(())
 }
 
 const USERS: &str = "users";

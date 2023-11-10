@@ -146,7 +146,8 @@ async fn write(firestore: &FirestoreApi, user_id: &str, library: &Library) -> Re
         .parent(&parent_path)
         .object(library)
         .execute()
-        .await?
+        .await?;
+    Ok(())
 }
 
 const USERS: &str = "users";

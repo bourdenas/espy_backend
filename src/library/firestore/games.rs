@@ -53,19 +53,21 @@ pub async fn write(firestore: &FirestoreApi, game_entry: &mut GameEntry) -> Resu
         .document_id(game_entry.id.to_string())
         .object(game_entry)
         .execute()
-        .await?
+        .await?;
+    Ok(())
 }
 
 #[instrument(name = "games::delete", level = "trace", skip(firestore))]
 pub async fn delete(firestore: &FirestoreApi, doc_id: u64) -> Result<(), Status> {
-    Ok(firestore
+    firestore
         .db()
         .fluent()
         .delete()
         .from(GAMES)
         .document_id(doc_id.to_string())
         .execute()
-        .await?)
+        .await?;
+    Ok(())
 }
 
 const GAMES: &str = "games";
