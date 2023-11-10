@@ -1,22 +1,36 @@
 use clap::Parser;
 use espy_backend::{
+    api,
     documents::{GameCategory, GameDigest, GameEntry, Timeline},
+    games::SteamDataApi,
     library::firestore::timeline,
-    Status, Tracing,
+    util, Status, Tracing,
 };
 use firestore::{path, FirestoreDb, FirestoreQueryDirection, FirestoreResult};
 use futures::{stream::BoxStream, TryStreamExt};
 use itertools::Itertools;
 use std::{
     collections::HashSet,
+    sync::{Arc, Mutex},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use tracing::info;
+use tracing::{error, info};
 
 #[derive(Parser)]
 struct Opts {
     #[clap(long)]
     prod_tracing: bool,
+
+    /// JSON file that contains application keys for espy service.
+    #[clap(long, default_value = "keys.json")]
+    key_store: String,
+
+    /// JSON file containing Firestore credentials for espy service.
+    #[clap(
+        long,
+        default_value = "espy-library-firebase-adminsdk-sncpo-3da8ca7f57.json"
+    )]
+    firestore_credentials: String,
 }
 
 #[tokio::main]
@@ -107,12 +121,50 @@ async fn main() -> Result<(), Status> {
         .obj()
         .stream_query_with_errors()
         .await?;
-    let recent = recent.try_collect::<Vec<GameEntry>>().await?;
+    let mut recent = recent.try_collect::<Vec<GameEntry>>().await?;
     info!("recent = {}", recent.len());
 
-    // TODO: IGDB resolve recently released games (e.g. 2-3 days)
-    // TODO: Steam fetch last week's releases (e.g. 7 days)
-    // TODO: Update recent with new GameEntry versions.
+    let d1 = SystemTime::now()
+        .checked_sub(Duration::from_secs(1 * 24 * 60 * 60))
+        .unwrap()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let d5 = SystemTime::now()
+        .checked_sub(Duration::from_secs(5 * 24 * 60 * 60))
+        .unwrap()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let keys = util::keys::Keys::from_file(&opts.key_store).unwrap();
+    let mut igdb = api::IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
+    igdb.connect().await?;
+
+    let firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
+        .expect("FirestoreApi.from_credentials()");
+    let firestore = Arc::new(Mutex::new(firestore));
+
+    for game in &mut recent {
+        if game.release_date.unwrap_or_default() as u64 >= d1 {
+            info!("Updating '{}'...", game.name);
+            match igdb.get(game.id).await {
+                Ok(igdb_game) => match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
+                    Ok(update) => *game = update,
+                    Err(e) => error!("{e}"),
+                },
+                Err(e) => error!("{e}"),
+            }
+        } else if game.release_date.unwrap_or_default() as u64 >= d5 {
+            info!("Fetching Steam data for '{}'...", game.name);
+            let steam = SteamDataApi::new();
+            if let Err(e) = steam.retrieve_steam_data(game).await {
+                error!("Failed to retrieve SteamData for '{}' {e}", game.name);
+            }
+        } else {
+            break;
+        }
+    }
 
     let recent = recent
         .into_iter()
@@ -125,21 +177,22 @@ async fn main() -> Result<(), Status> {
             | GameCategory::Remaster => true,
             _ => false,
         })
-        .filter(|entry| match entry.popularity {
-            Some(value) => match entry.category {
-                GameCategory::Main => value >= RECENT_POPULARITY_THRESHOLD,
-                _ => value >= RECENT_POPULARITY_THRESHOLD_DLC,
-            },
-            None => {
-                entry
-                    .developers
+        .filter(|entry| {
+            entry
+                .developers
+                .iter()
+                .any(|dev| notable.contains(&dev.name))
+                || entry
+                    .publishers
                     .iter()
-                    .any(|dev| notable.contains(&dev.name))
-                    || entry
-                        .publishers
-                        .iter()
-                        .any(|publ| notable.contains(&publ.name))
-            }
+                    .any(|publ| notable.contains(&publ.name))
+                || match entry.popularity {
+                    Some(value) => match entry.category {
+                        GameCategory::Main => value >= RECENT_POPULARITY_THRESHOLD,
+                        _ => value >= RECENT_POPULARITY_THRESHOLD_DLC,
+                    },
+                    None => false,
+                }
         })
         .collect_vec();
     info!("recent after filtering = {}", recent.len());
