@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::{
     api::{FirestoreApi, IgdbApi},
@@ -22,7 +22,7 @@ impl Reconciler {
     /// versions that include expansions, DLCs, etc.
     #[instrument(level = "trace", skip(firestore, igdb, store_entry))]
     pub async fn get_digest_by_store_entry(
-        firestore: Arc<Mutex<FirestoreApi>>,
+        firestore: Arc<FirestoreApi>,
         igdb: &IgdbApi,
         store_entry: &StoreEntry,
     ) -> Result<Vec<GameDigest>, Status> {
@@ -44,14 +44,11 @@ impl Reconciler {
     /// that include expansions, DLCs, etc. or episodes that are part of series.
     #[instrument(level = "trace", skip(firestore, igdb))]
     pub async fn get_digest(
-        firestore: Arc<Mutex<FirestoreApi>>,
+        firestore: Arc<FirestoreApi>,
         igdb: &IgdbApi,
         game_id: u64,
     ) -> Result<Vec<GameDigest>, Status> {
-        let game_entry = {
-            let firestore = &firestore.lock().unwrap();
-            firestore::games::read(firestore, game_id)
-        };
+        let game_entry = firestore::games::read(&firestore, game_id).await;
         let digest = match game_entry {
             Ok(game_entry) => Ok(GameDigest::from(game_entry)),
             Err(_) => match igdb.get(game_id).await {
@@ -72,7 +69,7 @@ impl Reconciler {
     /// If the game is a bundle it returns all games included in it.
     #[async_recursion]
     pub async fn expand(
-        firestore: Arc<Mutex<FirestoreApi>>,
+        firestore: Arc<FirestoreApi>,
         igdb: &IgdbApi,
         digest: GameDigest,
     ) -> Result<Vec<GameDigest>, Status> {
@@ -117,7 +114,7 @@ impl Reconciler {
 /// `store_entry`.
 #[instrument(level = "trace", skip(firestore, igdb))]
 async fn match_by_external_id(
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: &IgdbApi,
     store_entry: &StoreEntry,
 ) -> Result<Option<GameDigest>, Status> {
@@ -126,22 +123,20 @@ async fn match_by_external_id(
     match store_entry.id.is_empty() {
         false => {
             let external_game = {
-                let firestore = &firestore.lock().unwrap();
                 match firestore::external_games::read(
-                    firestore,
+                    &firestore,
                     &store_entry.storefront_name,
                     &store_entry.id,
-                ) {
+                )
+                .await
+                {
                     Ok(external_game) => external_game,
                     Err(Status::NotFound(_)) => return Ok(None),
                     Err(e) => return Err(e),
                 }
             };
-            let game_entry = {
-                let firestore = &firestore.lock().unwrap();
-                firestore::games::read(firestore, external_game.igdb_id)
-            };
-            match game_entry {
+
+            match firestore::games::read(&firestore, external_game.igdb_id).await {
                 Ok(game_entry) => Ok(Some(GameDigest::from(game_entry))),
                 Err(Status::NotFound(_)) => {
                     let igdb_game = match igdb.get(external_game.igdb_id).await {
@@ -165,7 +160,7 @@ async fn match_by_external_id(
 /// Returns a `GameDigest` from IGDB matching the `title`.
 #[instrument(level = "trace", skip(firestore, igdb))]
 async fn match_by_title(
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: &IgdbApi,
     title: &str,
 ) -> Result<Option<GameDigest>, Status> {
@@ -173,18 +168,15 @@ async fn match_by_title(
 
     let candidates = igdb.search_by_title(title).await?;
     match candidates.into_iter().next() {
-        Some(igdb_game) => {
-            let game_entry = { firestore::games::read(&firestore.lock().unwrap(), igdb_game.id) };
-            match game_entry {
-                Ok(game_entry) => Ok(Some(GameDigest::from(game_entry))),
-                Err(Status::NotFound(_)) => match igdb.get_digest(firestore, igdb_game).await {
-                    Ok(digest) => Ok(Some(digest)),
-                    Err(Status::NotFound(_)) => Ok(None),
-                    Err(e) => Err(e),
-                },
+        Some(igdb_game) => match firestore::games::read(&firestore, igdb_game.id).await {
+            Ok(game_entry) => Ok(Some(GameDigest::from(game_entry))),
+            Err(Status::NotFound(_)) => match igdb.get_digest(firestore, igdb_game).await {
+                Ok(digest) => Ok(Some(digest)),
+                Err(Status::NotFound(_)) => Ok(None),
                 Err(e) => Err(e),
-            }
-        }
+            },
+            Err(e) => Err(e),
+        },
         None => Ok(None),
     }
 }

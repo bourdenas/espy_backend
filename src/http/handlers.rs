@@ -4,10 +4,7 @@ use crate::{
     library::{LibraryManager, User},
     util, Status,
 };
-use std::{
-    convert::Infallible,
-    sync::{Arc, Mutex},
-};
+use std::{convert::Infallible, sync::Arc};
 use tracing::{info, instrument, warn};
 use warp::http::StatusCode;
 
@@ -49,7 +46,7 @@ pub async fn post_search(
 #[instrument(level = "trace", skip(firestore, igdb))]
 pub async fn post_resolve(
     resolve: models::Resolve,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     let event = ResolveEvent::new(&resolve);
@@ -75,7 +72,7 @@ pub async fn post_resolve(
 pub async fn post_update(
     user_id: String,
     update: models::UpdateOp,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     let event = UpdateEvent::new(&update);
@@ -103,7 +100,7 @@ pub async fn post_update(
 pub async fn post_match(
     user_id: String,
     match_op: models::MatchOp,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     let event = MatchEvent::new(match_op.clone());
@@ -112,7 +109,10 @@ pub async fn post_match(
     match (match_op.game_entry, match_op.unmatch_entry) {
         // Match StoreEntry to GameEntry and add in Library.
         (Some(game_entry), None) => match manager.get_digest(igdb, game_entry.id).await {
-            Ok(digests) => match manager.create_library_entry(match_op.store_entry, digests) {
+            Ok(digests) => match manager
+                .create_library_entry(match_op.store_entry, digests)
+                .await
+            {
                 Ok(()) => {
                     event.log(&user_id);
                     Ok(StatusCode::OK)
@@ -174,7 +174,7 @@ pub async fn post_match(
 pub async fn post_wishlist(
     user_id: String,
     wishlist: models::WishlistOp,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     let event = WishlistEvent::new(wishlist.clone());
 
@@ -214,13 +214,13 @@ pub async fn post_wishlist(
 pub async fn post_unlink(
     user_id: String,
     unlink: models::Unlink,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     let event = UnlinkEvent::new(&unlink);
 
-    match User::new(Arc::clone(&firestore), &user_id) {
+    match User::fetch(Arc::clone(&firestore), &user_id).await {
         // Remove storefront credentials from UserData.
-        Ok(mut user) => match user.remove_storefront(&unlink.storefront_id) {
+        Ok(mut user) => match user.remove_storefront(&unlink.storefront_id).await {
             Ok(()) => {
                 // Remove storefront library entries.
                 let manager = LibraryManager::new(&user_id, firestore);
@@ -251,12 +251,12 @@ pub async fn post_unlink(
 pub async fn post_sync(
     user_id: String,
     api_keys: Arc<util::keys::Keys>,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
     let event = SyncEvent::new();
 
-    let store_entries = match User::new(Arc::clone(&firestore), &user_id) {
+    let store_entries = match User::fetch(Arc::clone(&firestore), &user_id).await {
         Ok(mut user) => match user.sync_accounts(&api_keys).await {
             Ok(entries) => entries,
             Err(status) => {
@@ -288,7 +288,7 @@ pub async fn post_sync(
 pub async fn post_upload(
     user_id: String,
     upload: models::Upload,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
     let event = UploadEvent::new();

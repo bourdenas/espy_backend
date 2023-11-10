@@ -3,10 +3,7 @@ use espy_backend::{
     api::{FirestoreApi, IgdbApi},
     util, webhooks, Status, Tracing,
 };
-use std::{
-    env,
-    sync::{Arc, Mutex},
-};
+use std::{env, sync::Arc};
 use tracing::info;
 use warp::{self, Filter};
 
@@ -45,7 +42,7 @@ async fn main() -> Result<(), Status> {
     let mut igdb = IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
     igdb.connect().await?;
 
-    let firestore = FirestoreApi::connect();
+    let firestore = FirestoreApi::connect().await?;
 
     // Let ENV VAR override flag.
     let port: u16 = match env::var("PORT") {

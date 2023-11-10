@@ -2,10 +2,7 @@ use crate::{
     api::{FirestoreApi, IgdbApi},
     util,
 };
-use std::{
-    convert::Infallible,
-    sync::{Arc, Mutex},
-};
+use std::{convert::Infallible, sync::Arc};
 use warp::{self, Filter};
 
 pub fn with_igdb(
@@ -15,8 +12,8 @@ pub fn with_igdb(
 }
 
 pub fn with_firestore(
-    firestore: Arc<Mutex<FirestoreApi>>,
-) -> impl Filter<Extract = (Arc<Mutex<FirestoreApi>>,), Error = Infallible> + Clone {
+    firestore: Arc<FirestoreApi>,
+) -> impl Filter<Extract = (Arc<FirestoreApi>,), Error = Infallible> + Clone {
     warp::any().map(move || Arc::clone(&firestore))
 }
 

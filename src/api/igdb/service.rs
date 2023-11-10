@@ -335,8 +335,8 @@ impl IgdbApi {
         if let Err(e) = firestore::games::write(&firestore, &mut game_entry).await {
             warn!("Failed to save '{}' in Firestore: {e}", game_entry.name);
         }
-        update_companies(Arc::clone(&firestore), &game_entry);
-        update_collections(Arc::clone(&firestore), &game_entry);
+        update_companies(Arc::clone(&firestore), &game_entry).await;
+        update_collections(Arc::clone(&firestore), &game_entry).await;
 
         Ok(game_entry)
     }
