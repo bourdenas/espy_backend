@@ -1,10 +1,13 @@
 use reqwest;
+use serde::{Deserialize, Serialize};
 use serde_json;
 use std::{error::Error, fmt};
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Default, Debug)]
 pub enum Status {
+    #[default]
     Ok,
+
     Internal(String),
     InvalidArgument(String),
     NotFound(String),

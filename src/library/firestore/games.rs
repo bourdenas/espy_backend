@@ -1,34 +1,71 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::{api::FirestoreApi, documents::GameEntry, Status};
+use futures::{stream::BoxStream, StreamExt};
 use tracing::instrument;
 
-/// Returns a list of all games stored on espy Firestore.
+use crate::{api::FirestoreApi, documents::GameEntry, Status};
+
 #[instrument(name = "games::list", level = "trace", skip(firestore))]
-pub fn list(firestore: &FirestoreApi) -> Result<Vec<GameEntry>, Status> {
-    firestore.list(&format!("games"))
+pub async fn list(firestore: &FirestoreApi) -> Result<Vec<GameEntry>, Status> {
+    let doc_stream: BoxStream<GameEntry> = firestore
+        .db()
+        .fluent()
+        .list()
+        .from(GAMES)
+        .obj()
+        .stream_all()
+        .await?;
+
+    Ok(doc_stream.collect().await)
 }
 
-/// Returns a GameEntry doc based on `game_id` from Firestore.
 #[instrument(name = "games::read", level = "trace", skip(firestore))]
-pub fn read(firestore: &FirestoreApi, game_id: u64) -> Result<GameEntry, Status> {
-    firestore.read::<GameEntry>("games", &game_id.to_string())
+pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<GameEntry, Status> {
+    let doc = firestore
+        .db()
+        .fluent()
+        .select()
+        .by_id_in(GAMES)
+        .obj()
+        .one(doc_id.to_string())
+        .await?;
+
+    match doc {
+        Some(doc) => Ok(doc),
+        None => Err(Status::not_found(format!(
+            "Firestore document '{GAMES}/{doc_id}' was not found"
+        ))),
+    }
 }
 
-/// Writes a GameEntry doc in Firestore.
 #[instrument(name = "games::write", level = "trace", skip(firestore, game_entry))]
-pub fn write(firestore: &FirestoreApi, game_entry: &mut GameEntry) -> Result<(), Status> {
+pub async fn write(firestore: &FirestoreApi, game_entry: &mut GameEntry) -> Result<(), Status> {
     game_entry.last_updated = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
 
-    firestore.write("games", Some(&game_entry.id.to_string()), game_entry)?;
-    Ok(())
+    firestore
+        .db()
+        .fluent()
+        .update()
+        .in_col(GAMES)
+        .document_id(game_entry.id.to_string())
+        .object(game_entry)
+        .execute()
+        .await?
 }
 
-/// Returns a GameEntry doc based on `game_id` from Firestore.
 #[instrument(name = "games::delete", level = "trace", skip(firestore))]
-pub fn delete(firestore: &FirestoreApi, game_id: u64) -> Result<(), Status> {
-    firestore.delete(&format!("games/{}", game_id.to_string()))
+pub async fn delete(firestore: &FirestoreApi, doc_id: u64) -> Result<(), Status> {
+    Ok(firestore
+        .db()
+        .fluent()
+        .delete()
+        .from(GAMES)
+        .document_id(doc_id.to_string())
+        .execute()
+        .await?)
 }
+
+const GAMES: &str = "games";

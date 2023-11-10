@@ -5,43 +5,20 @@ use crate::{
 };
 use tracing::instrument;
 
-#[instrument(name = "failed::read", level = "trace", skip(firestore, user_id))]
-pub fn read(firestore: &FirestoreApi, user_id: &str) -> Result<FailedEntries, Status> {
-    match firestore.read(&format!("users/{user_id}/games"), "failed") {
-        Ok(failed) => Ok(failed),
-        Err(Status::NotFound(_)) => Ok(FailedEntries::default()),
-        Err(e) => Err(e),
-    }
-}
-
-#[instrument(
-    name = "failed::write",
-    level = "trace",
-    skip(firestore, user_id, failed)
-)]
-pub fn write(
-    firestore: &FirestoreApi,
-    user_id: &str,
-    failed: &FailedEntries,
-) -> Result<(), Status> {
-    firestore.write(&format!("users/{user_id}/games"), Some("failed"), failed)?;
-    Ok(())
-}
-
 #[instrument(
     name = "failed::add_entry",
     level = "trace",
     skip(firestore, user_id, store_entry),
     fields(store_entry_id = %store_entry.id),
 )]
-pub fn add_entry(
+pub async fn add_entry(
     firestore: &FirestoreApi,
     user_id: &str,
     store_entry: StoreEntry,
 ) -> Result<(), Status> {
-    let mut failed = read(firestore, user_id)?;
+    let mut failed = read(firestore, user_id).await?;
     if add(store_entry, &mut failed) {
-        write(firestore, user_id, &failed)?;
+        write(firestore, user_id, &failed).await?;
     }
     Ok(())
 }
@@ -52,14 +29,14 @@ pub fn add_entry(
     skip(firestore, user_id, store_entry),
     fields(store_entry_id = %store_entry.id),
 )]
-pub fn remove_entry(
+pub async fn remove_entry(
     firestore: &FirestoreApi,
     user_id: &str,
     store_entry: &StoreEntry,
 ) -> Result<(), Status> {
-    let mut failed = read(firestore, user_id)?;
+    let mut failed = read(firestore, user_id).await?;
     if remove(store_entry, &mut failed) {
-        return write(firestore, user_id, &failed);
+        write(firestore, user_id, &failed).await?;
     }
     Ok(())
 }
@@ -69,14 +46,14 @@ pub fn remove_entry(
     level = "trace",
     skip(firestore, user_id)
 )]
-pub fn remove_storefront(
+pub async fn remove_storefront(
     firestore: &FirestoreApi,
     user_id: &str,
     storefront_id: &str,
 ) -> Result<(), Status> {
-    let mut failed = read(firestore, user_id)?;
+    let mut failed = read(firestore, user_id).await?;
     remove_store_entries(storefront_id, &mut failed);
-    write(firestore, user_id, &failed)
+    write(firestore, user_id, &failed).await
 }
 
 /// Adds `StoreEntry` in the failed to match entries.
@@ -114,6 +91,57 @@ fn remove_store_entries(storefront_id: &str, failed: &mut FailedEntries) {
         .entries
         .retain(|store_entry| store_entry.storefront_name != storefront_id);
 }
+
+// TODO: This should become private and move storefront cleanup logic inside this module.
+#[instrument(name = "failed::read", level = "trace", skip(firestore, user_id))]
+pub async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<FailedEntries, Status> {
+    let parent_path = firestore.db().parent_path(USERS, user_id)?;
+
+    let doc = firestore
+        .db()
+        .fluent()
+        .select()
+        .by_id_in(GAMES)
+        .parent(&parent_path)
+        .obj()
+        .one(FAILED_DOC)
+        .await?;
+
+    match doc {
+        Some(doc) => Ok(doc),
+        None => Err(Status::not_found(format!(
+            "Firestore document '{USERS}/{user_id}/{GAMES}/{FAILED_DOC}' was not found"
+        ))),
+    }
+}
+
+#[instrument(
+    name = "failed::write",
+    level = "trace",
+    skip(firestore, user_id, failed)
+)]
+async fn write(
+    firestore: &FirestoreApi,
+    user_id: &str,
+    failed: &FailedEntries,
+) -> Result<(), Status> {
+    let parent_path = firestore.db().parent_path(USERS, user_id)?;
+
+    firestore
+        .db()
+        .fluent()
+        .update()
+        .in_col(GAMES)
+        .document_id(FAILED_DOC)
+        .parent(&parent_path)
+        .object(failed)
+        .execute()
+        .await?
+}
+
+const USERS: &str = "users";
+const GAMES: &str = "games";
+const FAILED_DOC: &str = "failed";
 
 #[cfg(test)]
 mod tests {

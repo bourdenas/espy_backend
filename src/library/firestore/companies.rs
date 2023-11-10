@@ -1,35 +1,70 @@
 use crate::{api::FirestoreApi, documents::Company, Status};
+use futures::{stream::BoxStream, StreamExt};
 use tracing::instrument;
 
-/// Returns a list of all Company docs stored on Firestore.
 #[instrument(name = "companies::list", level = "trace", skip(firestore))]
-pub fn list(firestore: &FirestoreApi) -> Result<Vec<Company>, Status> {
-    firestore.list(&format!("companies"))
+pub async fn list(firestore: &FirestoreApi) -> Result<Vec<Company>, Status> {
+    let doc_stream: BoxStream<Company> = firestore
+        .db()
+        .fluent()
+        .list()
+        .from(COMPANIES)
+        .obj()
+        .stream_all()
+        .await?;
+
+    Ok(doc_stream.collect().await)
 }
 
-/// Returns an IgdbCompany doc based on its `id` from Firestore.
 #[instrument(name = "companies::read", level = "trace", skip(firestore))]
-pub fn read(firestore: &FirestoreApi, id: u64) -> Result<Company, Status> {
-    firestore.read::<Company>("companies", &id.to_string())
+pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<Company, Status> {
+    let doc = firestore
+        .db()
+        .fluent()
+        .select()
+        .by_id_in(COMPANIES)
+        .obj()
+        .one(doc_id.to_string())
+        .await?;
+
+    match doc {
+        Some(doc) => Ok(doc),
+        None => Err(Status::not_found(format!(
+            "Firestore document '{COMPANIES}/{doc_id}' was not found"
+        ))),
+    }
 }
 
-/// Writes an IgdbCompany doc in Firestore.
 #[instrument(
     name = "companies::write",
     level = "trace",
     skip(firestore, company)
     fields(
-        company_id = %company.id,
         company = %company.slug,
     )
 )]
-pub fn write(firestore: &FirestoreApi, company: &Company) -> Result<(), Status> {
-    firestore.write("companies", Some(&company.id.to_string()), company)?;
-    Ok(())
+pub async fn write(firestore: &FirestoreApi, company: &Company) -> Result<(), Status> {
+    firestore
+        .db()
+        .fluent()
+        .update()
+        .in_col(COMPANIES)
+        .document_id(company.id.to_string())
+        .object(company)
+        .execute()
+        .await?
 }
 
-/// Deletes an IgdbCompany doc from Firestore.
 #[instrument(name = "companies::delete", level = "trace", skip(firestore))]
-pub fn delete(firestore: &FirestoreApi, id: u64) -> Result<(), Status> {
-    firestore.delete(&format!("companies/{}", &id.to_string()))
+pub async fn delete(firestore: &FirestoreApi, doc_id: u64) -> Result<(), Status> {
+    Ok(firestore
+        .db()
+        .fluent()
+        .delete()
+        .from(COMPANIES)
+        .document_id(doc_id.to_string())
+        .execute()
+        .await?)
 }
+
+const COMPANIES: &str = "companies";
