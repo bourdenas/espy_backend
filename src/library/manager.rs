@@ -64,26 +64,25 @@ impl LibraryManager {
                 }
             }
 
-            // // Batch user library updates because writes on larges libraries
-            // // become costly.
-            // let time_passed = SystemTime::now().duration_since(last_updated).unwrap();
-            // if time_passed.as_secs() > 3 {
-            //     last_updated = SystemTime::now();
-            //     // let entries = resolved_entries.drain(..).collect();
-            //     let firestore = Arc::clone(&self.firestore);
-            //     let user_id = self.user_id.clone();
-            //     tokio::spawn(
-            //         async move {
-            //             if let Err(e) = Self::upload_entries(firestore, &user_id, entries).await {
-            //                 error!("{e}");
-            //             }
-            //         }
-            //         .instrument(trace_span!("spawn_library_update")),
-            //     );
-            // }
+            // Batch user library updates because writes on larges libraries
+            // become costly.
+            let time_passed = SystemTime::now().duration_since(last_updated).unwrap();
+            if time_passed.as_secs() > 3 {
+                last_updated = SystemTime::now();
+                let entries = resolved_entries.drain(..).collect();
+                let user_id = self.user_id.clone();
+                tokio::spawn(
+                    async move {
+                        if let Err(e) = Self::upload_entries(firestore, &user_id, entries).await {
+                            error!("{e}");
+                        }
+                    }
+                    .instrument(trace_span!("spawn_library_update")),
+                );
+            }
         }
 
-        // Self::upload_entries(firestore, &self.user_id, resolved_entries).await?;
+        Self::upload_entries(firestore, &self.user_id, resolved_entries).await?;
 
         Ok(report)
     }
@@ -99,17 +98,14 @@ impl LibraryManager {
             .map(|(_, store_entry)| store_entry.clone())
             .collect();
 
+        let game_ids = entries
+            .iter()
+            .map(|(digests, _)| digests.iter().map(|digest| digest.id))
+            .flatten()
+            .collect::<Vec<_>>();
+
         // Adds all resolved entries in the library.
-        firestore::wishlist::remove_entries(
-            &firestore,
-            user_id,
-            &entries
-                .iter()
-                .map(|(digests, _)| digests.iter().map(|digest| digest.id))
-                .flatten()
-                .collect::<Vec<_>>(),
-        )
-        .await?;
+        firestore::wishlist::remove_entries(&firestore, user_id, &game_ids).await?;
         firestore::library::add_entries(&firestore, user_id, entries).await?;
         firestore::storefront::add_entries(&firestore, user_id, store_entries).await
     }
