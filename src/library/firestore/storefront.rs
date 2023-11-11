@@ -13,7 +13,7 @@ pub async fn read(
 ) -> Result<Vec<String>, Status> {
     let parent_path = firestore.db().parent_path(USERS, user_id)?;
 
-    let doc = firestore
+    let doc: Option<Storefront> = firestore
         .db()
         .fluent()
         .select()
@@ -24,7 +24,7 @@ pub async fn read(
         .await?;
 
     match doc {
-        Some(doc) => Ok(doc),
+        Some(doc) => Ok(doc.owned_games),
         None => Err(Status::not_found(format!(
             "Firestore document '{USERS}/{user_id}/{STOREFRONTS}/{storefront}' was not found"
         ))),
