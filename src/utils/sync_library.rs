@@ -37,7 +37,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut user = library::User::fetch(Arc::clone(&firestore), &opts.user).await?;
     let store_entries = user.sync_accounts(&keys).await?;
 
-    let manager = library::LibraryManager::new(&opts.user, firestore);
-    manager.recon_store_entries(store_entries, igdb).await?;
+    let manager = library::LibraryManager::new(&opts.user);
+    manager
+        .recon_store_entries(firestore, igdb, store_entries)
+        .await?;
     Ok(())
 }
