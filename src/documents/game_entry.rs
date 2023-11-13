@@ -26,11 +26,15 @@ pub struct GameEntry {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub popularity: Option<u64>,
+    pub score: Option<u64>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub score: Option<u64>,
+    pub thumbs: Option<u64>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub popularity: Option<u64>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -113,13 +117,17 @@ impl From<IgdbGame> for GameEntry {
             status: GameStatus::from(igdb_game.status),
 
             release_date: igdb_game.first_release_date,
-            popularity: Some(
-                igdb_game.follows.unwrap_or_default() + igdb_game.hypes.unwrap_or_default(),
-            ),
             score: match igdb_game.aggregated_rating {
                 Some(rating) => Some(rating.round() as u64),
                 None => None,
             },
+            thumbs: match igdb_game.total_rating {
+                Some(rating) => Some(rating.round() as u64),
+                None => None,
+            },
+            popularity: Some(
+                igdb_game.follows.unwrap_or_default() + igdb_game.hypes.unwrap_or_default(),
+            ),
 
             parent: match igdb_game.parent_game {
                 Some(id) => Some(GameDigest {

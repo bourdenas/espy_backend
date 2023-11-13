@@ -81,12 +81,13 @@ impl SteamDataApi {
             },
             None => game_entry.release_date,
         };
-        game_entry.score = match &steam_data.score {
+        game_entry.score = match &steam_data.metacritic {
+            Some(metacrtic) => Some(metacrtic.score),
+            None => game_entry.score,
+        };
+        game_entry.thumbs = match &steam_data.score {
             Some(score) => Some(score.review_score),
-            None => match &steam_data.metacritic {
-                Some(metacrtic) => Some(metacrtic.score),
-                None => game_entry.score,
-            },
+            None => game_entry.thumbs,
         };
         game_entry.popularity = match &steam_data.score {
             Some(score) => Some(score.total_reviews),

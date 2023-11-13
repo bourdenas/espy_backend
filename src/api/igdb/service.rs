@@ -109,6 +109,10 @@ impl IgdbApi {
     /// This returns a short GameDigest that only resolves the game cover image.
     /// Only PC games are retrieved through this API.
     #[instrument(level = "trace", skip(self))]
+    #[deprecated(
+        since = "0.1.1",
+        note = "This function no longer creates a valid GameDigest."
+    )]
     pub async fn get_short_digest(&self, id: u64) -> Result<GameDigest, Status> {
         let connection = self.connection()?;
 
@@ -130,7 +134,7 @@ impl IgdbApi {
                         id: igdb_game.id,
                         name: igdb_game.name,
                         release_date: igdb_game.first_release_date,
-                        rating: igdb_game.aggregated_rating,
+                        score: None,
                         category: match igdb_game.version_parent {
                             Some(_) => GameCategory::Version,
                             None => GameCategory::from(igdb_game.category),
