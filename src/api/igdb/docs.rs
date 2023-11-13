@@ -179,6 +179,7 @@ impl IgdbGame {
 
             first_release_date: self.first_release_date != other.first_release_date,
             aggregated_rating: self.aggregated_rating != other.aggregated_rating,
+            total_rating: self.total_rating != other.total_rating,
 
             follows: self.follows != other.follows,
             hypes: self.hypes != other.hypes,
@@ -342,6 +343,8 @@ pub struct IgdbGameDiff {
     pub first_release_date: bool,
     #[serde(default, skip_serializing_if = "is_default")]
     pub aggregated_rating: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub total_rating: bool,
 
     #[serde(default, skip_serializing_if = "is_default")]
     pub follows: bool,
