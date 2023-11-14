@@ -109,9 +109,7 @@ pub async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<FailedEntri
 
     match doc {
         Some(doc) => Ok(doc),
-        None => Err(Status::not_found(format!(
-            "Firestore document '{USERS}/{user_id}/{GAMES}/{FAILED_DOC}' was not found"
-        ))),
+        None => Ok(FailedEntries { entries: vec![] }),
     }
 }
 

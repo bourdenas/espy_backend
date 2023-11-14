@@ -21,9 +21,7 @@ pub async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<Library, St
 
     match doc {
         Some(doc) => Ok(doc),
-        None => Err(Status::not_found(format!(
-            "Firestore document '{USERS}/{user_id}/{GAMES}/{LIBRARY_DOC}' was not found"
-        ))),
+        None => Ok(Library { entries: vec![] }),
     }
 }
 

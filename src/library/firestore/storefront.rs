@@ -25,9 +25,7 @@ pub async fn read(
 
     match doc {
         Some(doc) => Ok(doc.owned_games),
-        None => Err(Status::not_found(format!(
-            "Firestore document '{USERS}/{user_id}/{STOREFRONTS}/{storefront}' was not found"
-        ))),
+        None => Ok(vec![]),
     }
 }
 

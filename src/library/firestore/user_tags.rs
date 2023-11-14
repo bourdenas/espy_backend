@@ -55,9 +55,7 @@ async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<UserTags, Statu
 
     match doc {
         Some(doc) => Ok(doc),
-        None => Err(Status::not_found(format!(
-            "Firestore document '{USERS}/{user_id}/{USER_DATA}/{TAGS_DOC}' was not found"
-        ))),
+        None => Ok(UserTags { classes: vec![] }),
     }
 }
 
