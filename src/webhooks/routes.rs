@@ -1,7 +1,4 @@
-use std::{
-    convert::Infallible,
-    sync::{Arc, Mutex},
-};
+use std::{convert::Infallible, sync::Arc};
 use tracing::warn;
 use warp::{self, Filter};
 
@@ -15,7 +12,7 @@ use super::handlers;
 /// Returns a Filter with all available routes.
 pub fn routes(
     igdb: Arc<IgdbApi>,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     post_add_game(Arc::clone(&firestore), Arc::clone(&igdb))
         .or(post_update_game(Arc::clone(&firestore), Arc::clone(&igdb)))
@@ -30,7 +27,7 @@ pub fn routes(
 
 /// POST /add_game
 fn post_add_game(
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("add_game")
@@ -43,7 +40,7 @@ fn post_add_game(
 
 /// POST /update_game
 fn post_update_game(
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("update_game")
@@ -56,7 +53,7 @@ fn post_update_game(
 
 /// POST /external_games
 fn post_external_game(
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("external_games")
         .and(warp::post())
@@ -67,7 +64,7 @@ fn post_external_game(
 
 /// POST /genres
 fn post_genres(
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("genres")
         .and(warp::post())
@@ -78,7 +75,7 @@ fn post_genres(
 
 /// POST /keywords
 fn post_keywords(
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("keywords")
         .and(warp::post())
@@ -99,7 +96,7 @@ pub fn with_igdb(
 }
 
 pub fn with_firestore(
-    firestore: Arc<Mutex<FirestoreApi>>,
-) -> impl Filter<Extract = (Arc<Mutex<FirestoreApi>>,), Error = Infallible> + Clone {
+    firestore: Arc<FirestoreApi>,
+) -> impl Filter<Extract = (Arc<FirestoreApi>,), Error = Infallible> + Clone {
     warp::any().map(move || Arc::clone(&firestore))
 }

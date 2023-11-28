@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, sync::Arc};
 
 use clap::Parser;
 use espy_backend::{
@@ -21,13 +18,6 @@ struct Opts {
     #[clap(long, default_value = "keys.json")]
     key_store: String,
 
-    /// JSON file containing Firestore credentials for espy service.
-    #[clap(
-        long,
-        default_value = "espy-library-firebase-adminsdk-sncpo-3da8ca7f57.json"
-    )]
-    firestore_credentials: String,
-
     /// Export in a text file the library (for inspection) instead of refreshing it.
     #[clap(long)]
     export: bool,
@@ -42,19 +32,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Tracing::setup("utils/refresh_library_entries")?;
 
     let opts: Opts = Opts::parse();
-    let firestore = FirestoreApi::from_credentials(opts.firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
+    let firestore = FirestoreApi::connect().await?;
 
     let keys = util::keys::Keys::from_file(&opts.key_store).unwrap();
     let mut igdb = IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
     igdb.connect().await?;
 
     if opts.export {
-        let library = library::firestore::library::read(&firestore, &opts.user)?;
+        let library = library::firestore::library::read(&firestore, &opts.user).await?;
         let text = export_library(library);
         println!("{text}");
     } else if opts.summary {
-        let library = library::firestore::library::read(&firestore, &opts.user)?;
+        let library = library::firestore::library::read(&firestore, &opts.user).await?;
         let text = summary_library(library);
         println!("{text}");
     } else {
@@ -70,19 +59,15 @@ async fn refresh_library_entries(
     igdb: IgdbApi,
     user_id: &str,
 ) -> Result<(), Status> {
-    let legacy_library = library::firestore::library::read(&firestore, user_id)?;
+    let legacy_library = library::firestore::library::read(&firestore, user_id).await?;
     info!("updating {} titles...", legacy_library.entries.len());
 
-    let firestore = Arc::new(Mutex::new(firestore));
+    let firestore = Arc::new(firestore);
 
     let mut game_entries: HashMap<u64, LibraryEntry> = HashMap::new();
     let mut k = 0;
     for entry in legacy_library.entries {
-        let game_entry = {
-            let mut firestore = firestore.lock().unwrap();
-            firestore.validate();
-            library::firestore::games::read(&firestore, entry.id)
-        };
+        let game_entry = library::firestore::games::read(&firestore, entry.id).await;
 
         let game_entry = match game_entry {
             Ok(game_entry) => {
@@ -137,7 +122,7 @@ async fn refresh_library_entries(
             .collect(),
     };
 
-    library::firestore::library::write(&firestore.lock().unwrap(), user_id, &library)?;
+    library::firestore::library::write(&firestore, user_id, &library).await?;
     let serialized = serde_json::to_string(&library)?;
     info!("updated library size: {}KB", serialized.len() / 1024);
 

@@ -1,15 +1,10 @@
 use std::{
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use clap::Parser;
-use espy_backend::{
-    api::{self, FirestoreApi},
-    documents::GameEntry,
-    library::firestore,
-    util, Status, Tracing,
-};
+use espy_backend::{api, library::firestore, util, Tracing};
 use tracing::{error, info};
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
@@ -18,13 +13,6 @@ struct Opts {
     /// JSON file that contains application keys for espy service.
     #[clap(long, default_value = "keys.json")]
     key_store: String,
-
-    /// JSON file containing Firestore credentials for espy service.
-    #[clap(
-        long,
-        default_value = "espy-library-firebase-adminsdk-sncpo-3da8ca7f57.json"
-    )]
-    firestore_credentials: String,
 
     /// Collect only game entries that were updated in the last N days.
     #[clap(long, default_value = "60")]
@@ -48,8 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     igdb.connect().await?;
     let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
 
-    let firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
+    let firestore = api::FirestoreApi::connect().await?;
 
     let updated_timestamp = SystemTime::now()
         .checked_sub(Duration::from_secs(24 * 60 * 60 * opts.updated_since))
@@ -60,7 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let mut k = opts.offset;
     let mut counter = 0;
-    let firestore = Arc::new(Mutex::new(firestore));
+    let firestore = Arc::new(firestore);
     for i in 0.. {
         let games = igdb_batch
             .collect_igdb_games(updated_timestamp, opts.offset + i * 500)
@@ -80,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         for igdb_game in games {
             info!("{k} Processing '{}'", igdb_game.name);
-            match read_from_firestore(Arc::clone(&firestore), igdb_game.id) {
+            match firestore::games::read(&firestore, igdb_game.id).await {
                 Ok(_) => {}
                 Err(_) => match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
                     Ok(game_entry) => {
@@ -100,13 +87,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     Ok(())
-}
-
-fn read_from_firestore(
-    firestore: Arc<Mutex<FirestoreApi>>,
-    game_id: u64,
-) -> Result<GameEntry, Status> {
-    let mut firestore = firestore.lock().unwrap();
-    firestore.validate();
-    firestore::games::read(&firestore, game_id)
 }

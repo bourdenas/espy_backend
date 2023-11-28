@@ -2,7 +2,7 @@ use crate::{
     api::{FirestoreApi, IgdbApi},
     util,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tracing::warn;
 use warp::{self, Filter};
 
@@ -12,7 +12,7 @@ use super::{handlers, models, resources::*};
 pub fn routes(
     keys: Arc<util::keys::Keys>,
     igdb: Arc<IgdbApi>,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     home()
         .or(post_search(Arc::clone(&igdb)))
@@ -48,7 +48,7 @@ fn post_search(
 
 /// POST /resolve
 fn post_resolve(
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("resolve")
@@ -61,7 +61,7 @@ fn post_resolve(
 
 /// POST /library/{user_id}/match
 fn post_match(
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("library" / String / "match")
@@ -74,7 +74,7 @@ fn post_match(
 
 /// POST /library/{user_id}/update
 fn post_update(
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("library" / String / "update")
@@ -87,7 +87,7 @@ fn post_update(
 
 /// POST /library/{user_id}/wishlist
 fn post_wishlist(
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("library" / String / "wishlist")
         .and(warp::post())
@@ -98,7 +98,7 @@ fn post_wishlist(
 
 /// POST /library/{user_id}/unlink
 fn post_unlink(
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("library" / String / "unlink")
         .and(warp::post())
@@ -110,7 +110,7 @@ fn post_unlink(
 /// POST /library/{user_id}/sync
 fn post_sync(
     keys: Arc<util::keys::Keys>,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("library" / String / "sync")
@@ -123,7 +123,7 @@ fn post_sync(
 
 /// POST /library/{user_id}/upload
 fn post_upload(
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("library" / String / "upload")

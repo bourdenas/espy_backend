@@ -1,14 +1,16 @@
-use firestore::FirestoreDb;
 use tracing::instrument;
 
 use crate::{
+    api::FirestoreApi,
     documents::{NotableCompanies, Timeline},
     Status,
 };
 
-#[instrument(name = "timeline::write", level = "trace", skip(db))]
-pub async fn write(db: &FirestoreDb, timeline: &Timeline) -> Result<(), Status> {
-    db.fluent()
+#[instrument(name = "timeline::write", level = "trace", skip(firestore))]
+pub async fn write(firestore: &FirestoreApi, timeline: &Timeline) -> Result<(), Status> {
+    firestore
+        .db()
+        .fluent()
         .update()
         .in_col("espy")
         .document_id("timeline")
@@ -18,9 +20,10 @@ pub async fn write(db: &FirestoreDb, timeline: &Timeline) -> Result<(), Status> 
     Ok(())
 }
 
-#[instrument(name = "timeline::read_notable", level = "trace", skip(db))]
-pub async fn read_notable(db: &FirestoreDb) -> Result<NotableCompanies, Status> {
-    Ok(db
+#[instrument(name = "timeline::read_notable", level = "trace", skip(firestore))]
+pub async fn read_notable(firestore: &FirestoreApi) -> Result<NotableCompanies, Status> {
+    Ok(firestore
+        .db()
         .fluent()
         .select()
         .by_id_in("espy")

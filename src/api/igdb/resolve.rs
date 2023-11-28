@@ -8,7 +8,7 @@ use crate::{
     Status,
 };
 use async_recursion::async_recursion;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tracing::instrument;
 
 use super::{
@@ -77,7 +77,7 @@ pub async fn get_short_digest(connection: &IgdbConnection, id: u64) -> Result<Ga
 )]
 pub async fn resolve_game_digest(
     connection: Arc<IgdbConnection>,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb_game: IgdbGame,
 ) -> Result<GameEntry, Status> {
     let mut game_entry = GameEntry::from(igdb_game);
@@ -88,18 +88,14 @@ pub async fn resolve_game_digest(
     }
 
     if !igdb_game.genres.is_empty() {
-        game_entry.genres =
-            get_genres(&connection, Arc::clone(&firestore), &igdb_game.genres).await?;
+        game_entry.genres = get_genres(&connection, &firestore, &igdb_game.genres).await?;
     }
     if !igdb_game.keywords.is_empty() {
-        game_entry.keywords =
-            get_keywords(&connection, Arc::clone(&firestore), &igdb_game.keywords).await?;
+        game_entry.keywords = get_keywords(&connection, &firestore, &igdb_game.keywords).await?;
     }
 
     if let Some(collection) = igdb_game.collection {
-        if let Some(collection) =
-            get_collection(&connection, Arc::clone(&firestore), collection).await?
-        {
+        if let Some(collection) = get_collection(&connection, &firestore, collection).await? {
             game_entry.collections = vec![collection];
         }
     }
@@ -117,16 +113,12 @@ pub async fn resolve_game_digest(
         franchises.dedup();
         game_entry
             .franchises
-            .extend(get_franchises(&connection, Arc::clone(&firestore), &franchises).await?);
+            .extend(get_franchises(&connection, &firestore, &franchises).await?);
     }
 
     if !igdb_game.involved_companies.is_empty() {
-        let companies = get_involved_companies(
-            &connection,
-            Arc::clone(&firestore),
-            &igdb_game.involved_companies,
-        )
-        .await?;
+        let companies =
+            get_involved_companies(&connection, &firestore, &igdb_game.involved_companies).await?;
         game_entry.developers = companies
             .iter()
             .filter(|company| match company.role {
@@ -258,13 +250,13 @@ pub async fn get_cover(connection: &IgdbConnection, id: u64) -> Result<Option<Im
 #[instrument(level = "trace", skip(connection, firestore))]
 async fn get_genres(
     connection: &IgdbConnection,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: &FirestoreApi,
     ids: &[u64],
 ) -> Result<Vec<String>, Status> {
     let mut genres = vec![];
     let mut missing = vec![];
     for id in ids {
-        match firestore::genres::read(&firestore.lock().unwrap(), *id) {
+        match firestore::genres::read(firestore, *id).await {
             Ok(genre) => genres.push(genre.name),
             Err(_) => missing.push(id),
         }
@@ -297,13 +289,13 @@ async fn get_genres(
 #[instrument(level = "trace", skip(connection, firestore))]
 async fn get_keywords(
     connection: &IgdbConnection,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: &FirestoreApi,
     ids: &[u64],
 ) -> Result<Vec<String>, Status> {
     let mut keywords = vec![];
     let mut missing = vec![];
     for id in ids {
-        match firestore::keywords::read(&firestore.lock().unwrap(), *id) {
+        match firestore::keywords::read(firestore, *id).await {
             Ok(kw) => keywords.push(kw.name),
             Err(_) => missing.push(id),
         }
@@ -390,10 +382,10 @@ async fn get_websites(
 #[instrument(level = "trace", skip(connection, firestore))]
 async fn get_collection(
     connection: &IgdbConnection,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: &FirestoreApi,
     id: u64,
 ) -> Result<Option<CollectionDigest>, Status> {
-    let collection = { firestore::collections::read(&firestore.lock().unwrap(), id) };
+    let collection = firestore::collections::read(firestore, id).await;
     match collection {
         Ok(collection) => Ok(Some(CollectionDigest {
             id: collection.id,
@@ -426,13 +418,13 @@ async fn get_collection(
 #[instrument(level = "trace", skip(connection, firestore))]
 async fn get_franchises(
     connection: &IgdbConnection,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: &FirestoreApi,
     ids: &[u64],
 ) -> Result<Vec<CollectionDigest>, Status> {
     let mut franchises = vec![];
     let mut missing = vec![];
     for id in ids {
-        match firestore::franchises::read(&firestore.lock().unwrap(), *id) {
+        match firestore::franchises::read(firestore, *id).await {
             Ok(franchise) => franchises.push(CollectionDigest {
                 id: franchise.id,
                 name: franchise.name,
@@ -491,7 +483,7 @@ fn get_role(involved_company: &IgdbInvolvedCompany) -> CompanyRole {
 #[instrument(level = "trace", skip(connection, firestore))]
 async fn get_involved_companies(
     connection: &IgdbConnection,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: &FirestoreApi,
     ids: &[u64],
 ) -> Result<Vec<CompanyDigest>, Status> {
     // Collect all involved companies for a game entry.
@@ -513,7 +505,7 @@ async fn get_involved_companies(
 
     for involved_company in &involved_companies {
         if let Some(id) = involved_company.company {
-            match firestore::companies::read(&firestore.lock().unwrap(), id) {
+            match firestore::companies::read(firestore, id).await {
                 Ok(igdb_company) => companies.push(CompanyDigest {
                     id: igdb_company.id,
                     name: igdb_company.name,

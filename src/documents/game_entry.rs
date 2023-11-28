@@ -1,3 +1,5 @@
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
 use serde::{Deserialize, Serialize};
 
 use crate::api::IgdbGame;
@@ -26,11 +28,15 @@ pub struct GameEntry {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub popularity: Option<u64>,
+    pub score: Option<u64>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub score: Option<u64>,
+    pub thumbs: Option<u64>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub popularity: Option<u64>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -100,6 +106,16 @@ pub struct GameEntry {
     pub steam_data: Option<SteamData>,
 }
 
+fn is_released(release_date: Option<i64>) -> bool {
+    match release_date {
+        Some(release_date) => {
+            let release = UNIX_EPOCH + Duration::from_secs(release_date as u64);
+            release < SystemTime::now()
+        }
+        None => false,
+    }
+}
+
 impl From<IgdbGame> for GameEntry {
     fn from(igdb_game: IgdbGame) -> Self {
         GameEntry {
@@ -113,12 +129,21 @@ impl From<IgdbGame> for GameEntry {
             status: GameStatus::from(igdb_game.status),
 
             release_date: igdb_game.first_release_date,
-            popularity: Some(
-                igdb_game.follows.unwrap_or_default() + igdb_game.hypes.unwrap_or_default(),
-            ),
             score: match igdb_game.aggregated_rating {
                 Some(rating) => Some(rating.round() as u64),
                 None => None,
+            },
+            thumbs: match igdb_game.total_rating {
+                Some(rating) => Some(rating.round() as u64),
+                None => None,
+            },
+            popularity: match is_released(igdb_game.first_release_date) {
+                // Use IGDB popularity only for unreleased titles. Otherwise,
+                // Steam should be used as source.
+                false => Some(
+                    igdb_game.follows.unwrap_or_default() + igdb_game.hypes.unwrap_or_default(),
+                ),
+                true => None,
             },
 
             parent: match igdb_game.parent_game {

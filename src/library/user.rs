@@ -3,14 +3,14 @@ use crate::{
     documents::{StoreEntry, UserData},
     traits, util, Status,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tracing::{error, info, instrument, warn};
 
 use super::firestore;
 
 pub struct User {
     data: UserData,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
 }
 
 impl User {
@@ -18,26 +18,26 @@ impl User {
     /// collection. Creates a new User entry in Firestore if user does not
     /// already exist.
     #[instrument(level = "trace", skip(firestore))]
-    pub fn new(firestore: Arc<Mutex<FirestoreApi>>, user_id: &str) -> Result<Self, Status> {
-        load_user(user_id, firestore)
+    pub async fn fetch(firestore: Arc<FirestoreApi>, user_id: &str) -> Result<Self, Status> {
+        load_user(user_id, firestore).await
     }
 
     /// Remove user credentials from a storefront.
     #[instrument(level = "trace", skip(self))]
-    pub fn remove_storefront(&mut self, storefront_id: &str) -> Result<(), Status> {
+    pub async fn remove_storefront(&mut self, storefront_id: &str) -> Result<(), Status> {
         match storefront_id {
             "gog" => {
                 if let Some(keys) = &mut self.data.keys {
                     keys.gog_auth_code.clear();
                     keys.gog_token = None;
-                    self.save()?;
+                    firestore::user_data::write(&self.firestore, &self.data).await?;
                 }
                 Ok(())
             }
             "steam" => {
                 if let Some(keys) = &mut self.data.keys {
                     keys.steam_user_id.clear();
-                    self.save()?;
+                    firestore::user_data::write(&self.firestore, &self.data).await?;
                 }
                 Ok(())
             }
@@ -82,11 +82,7 @@ impl User {
         api: &T,
     ) -> Result<Vec<StoreEntry>, Status> {
         let store_entries = api.get_owned_games().await?;
-        firestore::storefront::diff_entries(
-            &self.firestore.lock().unwrap(),
-            &self.data.uid,
-            store_entries,
-        )
+        firestore::storefront::diff_entries(&self.firestore, &self.data.uid, store_entries).await
     }
 
     /// Returns a valid GOG token if available.
@@ -119,7 +115,7 @@ impl User {
         }
 
         if self.data.keys.as_ref().unwrap().gog_token.is_some() {
-            if let Err(e) = self.save() {
+            if let Err(e) = firestore::user_data::write(&self.firestore, &self.data).await {
                 error!("Failed to save user data: {e}");
             }
         }
@@ -134,45 +130,30 @@ impl User {
             None => None,
         }
     }
-
-    fn save(&self) -> Result<(), Status> {
-        save_user_data(&self.data, &self.firestore.lock().unwrap())?;
-        Ok(())
-    }
 }
 
 #[instrument(level = "trace", skip(user_id, firestore))]
-fn load_user(user_id: &str, firestore: Arc<Mutex<FirestoreApi>>) -> Result<User, Status> {
-    if let Ok(data) = load_user_data(user_id, Arc::clone(&firestore)) {
-        return Ok(User { data, firestore });
+async fn load_user(user_id: &str, firestore: Arc<FirestoreApi>) -> Result<User, Status> {
+    match firestore::user_data::read(&firestore, user_id).await {
+        Ok(data) => Ok(User { data, firestore }),
+        Err(Status::NotFound(_)) => {
+            info!("Creating new user '{user_id}'");
+            let user = User {
+                data: UserData {
+                    uid: String::from(user_id),
+                    ..Default::default()
+                },
+                firestore: Arc::clone(&firestore),
+            };
+
+            match firestore::user_data::write(&firestore, &user.data).await {
+                Ok(_) => Ok(user),
+                Err(e) => Err(Status::new(
+                    &format!("Failed to create user '{user_id}'"),
+                    e,
+                )),
+            }
+        }
+        Err(e) => Err(e),
     }
-
-    info!("Creating new user '{user_id}'");
-    let user = User {
-        data: UserData {
-            uid: String::from(user_id),
-            ..Default::default()
-        },
-        firestore: Arc::clone(&firestore),
-    };
-
-    match save_user_data(&user.data, &firestore.lock().unwrap()) {
-        Ok(_) => Ok(user),
-        Err(e) => Err(Status::new(
-            &format!("Failed to create user '{user_id}'"),
-            e,
-        )),
-    }
-}
-
-fn load_user_data(user_id: &str, firestore: Arc<Mutex<FirestoreApi>>) -> Result<UserData, Status> {
-    Ok(firestore
-        .lock()
-        .unwrap()
-        .read::<UserData>("users", user_id)?)
-}
-
-#[instrument(level = "trace", skip(user_data, firestore))]
-fn save_user_data(user_data: &UserData, firestore: &FirestoreApi) -> Result<String, Status> {
-    firestore.write("users", Some(&user_data.uid), user_data)
 }

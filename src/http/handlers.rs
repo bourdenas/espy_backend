@@ -4,10 +4,7 @@ use crate::{
     library::{LibraryManager, User},
     util, Status,
 };
-use std::{
-    convert::Infallible,
-    sync::{Arc, Mutex},
-};
+use std::{convert::Infallible, sync::Arc};
 use tracing::{info, instrument, warn};
 use warp::http::StatusCode;
 
@@ -49,7 +46,7 @@ pub async fn post_search(
 #[instrument(level = "trace", skip(firestore, igdb))]
 pub async fn post_resolve(
     resolve: models::Resolve,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     let event = ResolveEvent::new(&resolve);
@@ -75,13 +72,13 @@ pub async fn post_resolve(
 pub async fn post_update(
     user_id: String,
     update: models::UpdateOp,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     let event = UpdateEvent::new(&update);
 
-    let manager = LibraryManager::new(&user_id, firestore);
-    match manager.update_game(igdb, update.game_id).await {
+    let manager = LibraryManager::new(&user_id);
+    match manager.update_game(firestore, igdb, update.game_id).await {
         Ok(()) => {
             event.log(&user_id);
             Ok(StatusCode::OK)
@@ -103,34 +100,42 @@ pub async fn post_update(
 pub async fn post_match(
     user_id: String,
     match_op: models::MatchOp,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     let event = MatchEvent::new(match_op.clone());
 
-    let manager = LibraryManager::new(&user_id, firestore);
+    let manager = LibraryManager::new(&user_id);
     match (match_op.game_entry, match_op.unmatch_entry) {
         // Match StoreEntry to GameEntry and add in Library.
-        (Some(game_entry), None) => match manager.get_digest(igdb, game_entry.id).await {
-            Ok(digests) => match manager.create_library_entry(match_op.store_entry, digests) {
-                Ok(()) => {
-                    event.log(&user_id);
-                    Ok(StatusCode::OK)
-                }
+        (Some(game_entry), None) => {
+            match manager
+                .get_digest(Arc::clone(&firestore), igdb, game_entry.id)
+                .await
+            {
+                Ok(digests) => match manager
+                    .create_library_entry(firestore, match_op.store_entry, digests)
+                    .await
+                {
+                    Ok(()) => {
+                        event.log(&user_id);
+                        Ok(StatusCode::OK)
+                    }
+                    Err(status) => {
+                        event.log_error(&user_id, status);
+                        Ok(StatusCode::INTERNAL_SERVER_ERROR)
+                    }
+                },
                 Err(status) => {
                     event.log_error(&user_id, status);
-                    Ok(StatusCode::INTERNAL_SERVER_ERROR)
+                    Ok(StatusCode::NOT_FOUND)
                 }
-            },
-            Err(status) => {
-                event.log_error(&user_id, status);
-                Ok(StatusCode::NOT_FOUND)
             }
-        },
+        }
         // Remove StoreEntry from Library.
         (None, Some(_library_entry)) => {
             match manager
-                .unmatch_game(match_op.store_entry, match_op.delete_unmatched)
+                .unmatch_game(firestore, match_op.store_entry, match_op.delete_unmatched)
                 .await
             {
                 Ok(()) => {
@@ -146,7 +151,7 @@ pub async fn post_match(
         // Match StoreEntry with a different GameEntry.
         (Some(game_entry), Some(_library_entry)) => {
             match manager
-                .rematch_game(igdb, match_op.store_entry, game_entry.id)
+                .rematch_game(firestore, igdb, match_op.store_entry, game_entry.id)
                 .await
             {
                 Ok(()) => {
@@ -174,13 +179,13 @@ pub async fn post_match(
 pub async fn post_wishlist(
     user_id: String,
     wishlist: models::WishlistOp,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     let event = WishlistEvent::new(wishlist.clone());
 
-    let manager = LibraryManager::new(&user_id, firestore);
+    let manager = LibraryManager::new(&user_id);
     match (wishlist.add_game, wishlist.remove_game) {
-        (Some(library_entry), _) => match manager.add_to_wishlist(library_entry).await {
+        (Some(library_entry), _) => match manager.add_to_wishlist(firestore, library_entry).await {
             Ok(()) => {
                 event.log(&user_id);
                 Ok(StatusCode::OK)
@@ -190,7 +195,7 @@ pub async fn post_wishlist(
                 Ok(StatusCode::INTERNAL_SERVER_ERROR)
             }
         },
-        (_, Some(game_id)) => match manager.remove_from_wishlist(game_id).await {
+        (_, Some(game_id)) => match manager.remove_from_wishlist(firestore, game_id).await {
             Ok(()) => {
                 event.log(&user_id);
                 Ok(StatusCode::OK)
@@ -214,17 +219,20 @@ pub async fn post_wishlist(
 pub async fn post_unlink(
     user_id: String,
     unlink: models::Unlink,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     let event = UnlinkEvent::new(&unlink);
 
-    match User::new(Arc::clone(&firestore), &user_id) {
+    match User::fetch(Arc::clone(&firestore), &user_id).await {
         // Remove storefront credentials from UserData.
-        Ok(mut user) => match user.remove_storefront(&unlink.storefront_id) {
+        Ok(mut user) => match user.remove_storefront(&unlink.storefront_id).await {
             Ok(()) => {
                 // Remove storefront library entries.
-                let manager = LibraryManager::new(&user_id, firestore);
-                match manager.remove_storefront(&unlink.storefront_id).await {
+                let manager = LibraryManager::new(&user_id);
+                match manager
+                    .remove_storefront(firestore, &unlink.storefront_id)
+                    .await
+                {
                     Ok(()) => {
                         event.log(&user_id);
                         Ok(StatusCode::OK)
@@ -251,12 +259,12 @@ pub async fn post_unlink(
 pub async fn post_sync(
     user_id: String,
     api_keys: Arc<util::keys::Keys>,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
     let event = SyncEvent::new();
 
-    let store_entries = match User::new(Arc::clone(&firestore), &user_id) {
+    let store_entries = match User::fetch(Arc::clone(&firestore), &user_id).await {
         Ok(mut user) => match user.sync_accounts(&api_keys).await {
             Ok(entries) => entries,
             Err(status) => {
@@ -270,8 +278,11 @@ pub async fn post_sync(
         }
     };
 
-    let manager = LibraryManager::new(&user_id, firestore);
-    let report = match manager.recon_store_entries(store_entries, igdb).await {
+    let manager = LibraryManager::new(&user_id);
+    let report = match manager
+        .recon_store_entries(firestore, igdb, store_entries)
+        .await
+    {
         Ok(report) => report,
         Err(status) => {
             event.log_error(&user_id, status);
@@ -288,13 +299,16 @@ pub async fn post_sync(
 pub async fn post_upload(
     user_id: String,
     upload: models::Upload,
-    firestore: Arc<Mutex<FirestoreApi>>,
+    firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
     let event = UploadEvent::new();
 
-    let manager = LibraryManager::new(&user_id, firestore);
-    let report = match manager.recon_store_entries(upload.entries, igdb).await {
+    let manager = LibraryManager::new(&user_id);
+    let report = match manager
+        .recon_store_entries(firestore, igdb, upload.entries)
+        .await
+    {
         Ok(report) => report,
         Err(status) => {
             event.log_error(&user_id, status);

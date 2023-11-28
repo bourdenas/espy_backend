@@ -3,14 +3,25 @@ use crate::{
     documents::{GameDigest, Library, LibraryEntry, StoreEntry},
     Status,
 };
-use tracing::{instrument, warn};
+use tracing::instrument;
 
 #[instrument(name = "library::read", level = "trace", skip(firestore, user_id))]
-pub fn read(firestore: &FirestoreApi, user_id: &str) -> Result<Library, Status> {
-    match firestore.read(&format!("users/{user_id}/games"), "library") {
-        Ok(library) => Ok(library),
-        Err(Status::NotFound(_)) => Ok(Library::default()),
-        Err(e) => Err(e),
+pub async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<Library, Status> {
+    let parent_path = firestore.db().parent_path(USERS, user_id)?;
+
+    let doc = firestore
+        .db()
+        .fluent()
+        .select()
+        .by_id_in(GAMES)
+        .parent(&parent_path)
+        .obj()
+        .one(LIBRARY_DOC)
+        .await?;
+
+    match doc {
+        Some(doc) => Ok(doc),
+        None => Ok(Library { entries: vec![] }),
     }
 }
 
@@ -19,28 +30,47 @@ pub fn read(firestore: &FirestoreApi, user_id: &str) -> Result<Library, Status> 
     level = "trace",
     skip(firestore, user_id, library)
 )]
-pub fn write(firestore: &FirestoreApi, user_id: &str, library: &Library) -> Result<(), Status> {
-    firestore.write(&format!("users/{user_id}/games"), Some(&"library"), library)?;
+pub async fn write(
+    firestore: &FirestoreApi,
+    user_id: &str,
+    library: &Library,
+) -> Result<(), Status> {
+    let parent_path = firestore.db().parent_path(USERS, user_id)?;
+
+    firestore
+        .db()
+        .fluent()
+        .update()
+        .in_col(GAMES)
+        .document_id(LIBRARY_DOC)
+        .parent(&parent_path)
+        .object(library)
+        .execute()
+        .await?;
     Ok(())
 }
+
+const USERS: &str = "users";
+const GAMES: &str = "games";
+const LIBRARY_DOC: &str = "library";
 
 #[instrument(
     name = "library::add_entry",
     level = "trace",
     skip(firestore, user_id, digests)
 )]
-pub fn add_entry(
+pub async fn add_entry(
     firestore: &FirestoreApi,
     user_id: &str,
     store_entry: StoreEntry,
     digests: Vec<GameDigest>,
 ) -> Result<(), Status> {
-    let mut library = read(firestore, user_id)?;
+    let mut library = read(firestore, user_id).await?;
 
     for digest in digests {
         add(digest, store_entry.clone(), &mut library);
     }
-    write(firestore, user_id, &library)
+    write(firestore, user_id, &library).await
 }
 
 /// NOTE: This is an odd interface to expose that has to do with particularities
@@ -54,19 +84,19 @@ pub fn add_entry(
         entries_len = %entries.len(),
     ),
 )]
-pub fn add_entries(
+pub async fn add_entries(
     firestore: &FirestoreApi,
     user_id: &str,
     entries: Vec<(Vec<GameDigest>, StoreEntry)>,
 ) -> Result<(), Status> {
-    let mut library = read(firestore, user_id)?;
+    let mut library = read(firestore, user_id).await?;
 
     for (digests, store_entry) in entries {
         for digest in digests {
             add(digest, store_entry.clone(), &mut library);
         }
     }
-    write(firestore, user_id, &library)
+    write(firestore, user_id, &library).await
 }
 
 #[instrument(
@@ -74,14 +104,14 @@ pub fn add_entries(
     level = "trace",
     skip(firestore, user_id)
 )]
-pub fn remove_entry(
+pub async fn remove_entry(
     firestore: &FirestoreApi,
     user_id: &str,
     store_entry: &StoreEntry,
 ) -> Result<(), Status> {
-    let mut library = read(firestore, user_id)?;
+    let mut library = read(firestore, user_id).await?;
     if remove(store_entry, &mut library) {
-        write(firestore, user_id, &library)?;
+        write(firestore, user_id, &library).await?;
     }
     Ok(())
 }
@@ -91,13 +121,13 @@ pub fn remove_entry(
     level = "trace",
     skip(firestore, user_id, digests)
 )]
-pub fn update_entry(
+pub async fn update_entry(
     firestore: &FirestoreApi,
     user_id: &str,
     game_id: u64,
     digests: Vec<GameDigest>,
 ) -> Result<(), Status> {
-    let mut library = read(firestore, user_id)?;
+    let mut library = read(firestore, user_id).await?;
 
     for digest in digests {
         match library.entries.iter_mut().find(|e| e.id == digest.id) {
@@ -110,7 +140,7 @@ pub fn update_entry(
         }
     }
 
-    write(firestore, user_id, &library)
+    write(firestore, user_id, &library).await
 }
 
 #[instrument(
@@ -118,14 +148,14 @@ pub fn update_entry(
     level = "trace",
     skip(firestore, user_id)
 )]
-pub fn remove_storefront(
+pub async fn remove_storefront(
     firestore: &FirestoreApi,
     user_id: &str,
     storefront_id: &str,
 ) -> Result<(), Status> {
-    let mut library = read(firestore, user_id)?;
+    let mut library = read(firestore, user_id).await?;
     remove_store_entries(storefront_id, &mut library);
-    write(firestore, user_id, &library)
+    write(firestore, user_id, &library).await
 }
 
 /// Adds `LibraryEntry` in the library.

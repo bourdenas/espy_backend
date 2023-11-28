@@ -9,5 +9,6 @@ pub mod keywords;
 pub mod library;
 pub mod storefront;
 pub mod timeline;
+pub mod user_data;
 pub mod user_tags;
 pub mod wishlist;

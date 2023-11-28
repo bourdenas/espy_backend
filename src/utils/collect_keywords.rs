@@ -9,13 +9,6 @@ struct Opts {
     #[clap(long, default_value = "keys.json")]
     key_store: String,
 
-    /// JSON file containing Firestore credentials for espy service.
-    #[clap(
-        long,
-        default_value = "espy-library-firebase-adminsdk-sncpo-3da8ca7f57.json"
-    )]
-    firestore_credentials: String,
-
     #[clap(long, default_value = "0")]
     offset: u64,
 
@@ -34,8 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     igdb.connect().await?;
     let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
 
-    let mut firestore = api::FirestoreApi::from_credentials(opts.firestore_credentials)
-        .expect("FirestoreApi.from_credentials()");
+    let firestore = api::FirestoreApi::connect().await?;
 
     let mut k = opts.offset;
     for i in 0.. {
@@ -56,9 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
 
         for keyword in keywords {
-            firestore.validate();
-
-            if let Err(e) = firestore::keywords::write(&firestore, &keyword) {
+            if let Err(e) = firestore::keywords::write(&firestore, &keyword).await {
                 error!("Failed to save '{}' in Firestore: {e}", &keyword.name);
             }
             info!("#{k} Saved keyword '{}' ({})", keyword.name, keyword.id);

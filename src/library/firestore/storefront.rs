@@ -4,66 +4,100 @@ use tracing::instrument;
 
 /// Returns all store game ids owned by user from specified storefront.
 ///
-/// Reads `users/{user}/storefronts/{storefront_name}` document in Firestore.
+/// Reads `users/{user_id}/storefronts/{storefront_name}` document in Firestore.
 #[instrument(name = "storefront::read", level = "trace", skip(firestore, user_id))]
-pub fn read(
+pub async fn read(
     firestore: &FirestoreApi,
     user_id: &str,
     storefront: &str,
 ) -> Result<Vec<String>, Status> {
-    match firestore.read::<Storefront>(&format!("users/{user_id}/storefronts"), storefront) {
-        Ok(storefront) => Ok(storefront.owned_games),
-        Err(Status::NotFound(_)) => Ok(vec![]),
-        Err(e) => Err(e),
+    let parent_path = firestore.db().parent_path(USERS, user_id)?;
+
+    let doc: Option<Storefront> = firestore
+        .db()
+        .fluent()
+        .select()
+        .by_id_in(STOREFRONTS)
+        .parent(&parent_path)
+        .obj()
+        .one(storefront)
+        .await?;
+
+    match doc {
+        Some(doc) => Ok(doc.owned_games),
+        None => Ok(vec![]),
     }
 }
 
 /// Writes all store game ids owned by user from specified storefront.
 ///
-/// Writes `users/{user}/storefronts/{storefront_name}` document in
+/// Writes `users/{user_id}/storefronts/{storefront_name}` document in
 /// Firestore.
 #[instrument(
     name = "storefront::write",
     level = "trace",
     skip(firestore, user_id, owned_games)
 )]
-pub fn write(
+pub async fn write(
     firestore: &FirestoreApi,
     user_id: &str,
     storefront: &str,
     owned_games: Vec<String>,
 ) -> Result<(), Status> {
-    match firestore.write(
-        &format!("users/{user_id}/storefronts"),
-        Some(storefront),
-        &Storefront {
+    let parent_path = firestore.db().parent_path(USERS, user_id)?;
+
+    firestore
+        .db()
+        .fluent()
+        .update()
+        .in_col(STOREFRONTS)
+        .document_id(storefront)
+        .parent(&parent_path)
+        .object(&Storefront {
             name: storefront.to_owned(),
             owned_games,
-        },
-    ) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(Status::new("LibraryManager.write_storefront_ids: ", e)),
-    }
+        })
+        .execute()
+        .await?;
+    Ok(())
 }
 
 /// Deletes a storefront record from user's library.
 ///
-/// Deletes `users/{user}/storefronts/{storefront}` document in Firestore.
+/// Deletes `users/{user_id}/storefronts/{storefront}` document in Firestore.
 #[instrument(name = "storefront::delete", level = "trace", skip(firestore, user_id))]
-pub fn delete(firestore: &FirestoreApi, user_id: &str, storefront: &str) -> Result<(), Status> {
-    firestore.delete(&format!("users/{user_id}/storefronts/{storefront}"))
+pub async fn delete(
+    firestore: &FirestoreApi,
+    user_id: &str,
+    storefront: &str,
+) -> Result<(), Status> {
+    let parent_path = firestore.db().parent_path(USERS, user_id)?;
+
+    firestore
+        .db()
+        .fluent()
+        .delete()
+        .from(STOREFRONTS)
+        .parent(&parent_path)
+        .document_id(storefront)
+        .execute()
+        .await?;
+    Ok(())
 }
+
+const USERS: &str = "users";
+const STOREFRONTS: &str = "storefronts";
 
 /// Returns input StoreEntries that are not already contained in user's
 /// Storefront document.
 ///
-/// Reads `users/{user}/storefronts/{storefront_name}` document in Firestore.
+/// Reads `users/{user_id}/storefronts/{storefront_name}` document in Firestore.
 #[instrument(
     name = "storefront::diff_entries",
     level = "trace",
     skip(firestore, user_id)
 )]
-pub fn diff_entries(
+pub async fn diff_entries(
     firestore: &FirestoreApi,
     user_id: &str,
     mut store_entries: Vec<StoreEntry>,
@@ -74,7 +108,7 @@ pub fn diff_entries(
     };
 
     let game_ids =
-        HashSet::<String>::from_iter(read(firestore, user_id, storefront_name)?.into_iter());
+        HashSet::<String>::from_iter(read(firestore, user_id, storefront_name).await?.into_iter());
     store_entries.retain(|entry| !game_ids.contains(&entry.id));
 
     Ok(store_entries)
@@ -82,25 +116,25 @@ pub fn diff_entries(
 
 /// Add StoreEntry ids to the user's Storefront document.
 ///
-/// Reads/writes `users/{user}/storefronts/{storefront_name}` document in
+/// Reads/writes `users/{user_id}/storefronts/{storefront_name}` document in
 /// Firestore.
 #[instrument(
     name = "storefront::add_entries",
     level = "trace",
     skip(firestore, user_id)
 )]
-pub fn add_entries(
+pub async fn add_entries(
     firestore: &FirestoreApi,
     user_id: &str,
     store_entries: Vec<StoreEntry>,
 ) -> Result<(), Status> {
     for (name, store_entries) in group_by(store_entries) {
-        let mut owned_entries = read(firestore, user_id, &name)?;
+        let mut owned_entries = read(firestore, user_id, &name).await?;
         for entry in &store_entries {
             owned_entries.push(entry.id.to_owned());
         }
 
-        write(firestore, user_id, &name, owned_entries)?
+        write(firestore, user_id, &name, owned_entries).await?
     }
 
     Ok(())
@@ -124,19 +158,19 @@ fn group_by(store_entries: Vec<StoreEntry>) -> HashMap<String, Vec<StoreEntry>> 
 
 /// Add StoreEntry id to the user's Storefront document.
 ///
-/// Reads/writes `users/{user}/storefronts/{storefront_name}` document in
+/// Reads/writes `users/{user_id}/storefronts/{storefront_name}` document in
 /// Firestore.
 #[instrument(
     name = "storefront::add_entry",
     level = "trace",
     skip(firestore, user_id)
 )]
-pub fn add_entry(
+pub async fn add_entry(
     firestore: &FirestoreApi,
     user_id: &str,
     store_entry: StoreEntry,
 ) -> Result<(), Status> {
-    let mut owned_entries = read(firestore, user_id, &store_entry.storefront_name)?;
+    let mut owned_entries = read(firestore, user_id, &store_entry.storefront_name).await?;
     owned_entries.push(store_entry.id.to_owned());
 
     write(
@@ -145,18 +179,20 @@ pub fn add_entry(
         &store_entry.storefront_name,
         owned_entries,
     )
+    .await
 }
+
 /// Remove a StoreEntry from its Storefront.
 ///
 /// Reads/writes `users/{user}/storefronts/{storefront_name}` document in
 /// Firestore.
 #[instrument(name = "storefront::remove", level = "trace", skip(firestore, user_id))]
-pub fn remove(
+pub async fn remove(
     firestore: &FirestoreApi,
     user_id: &str,
     store_entry: &StoreEntry,
 ) -> Result<(), Status> {
-    let mut owned_entries = read(firestore, user_id, &store_entry.storefront_name)?;
+    let mut owned_entries = read(firestore, user_id, &store_entry.storefront_name).await?;
     owned_entries.retain(|id| *id != store_entry.id);
 
     write(
@@ -165,4 +201,5 @@ pub fn remove(
         &store_entry.storefront_name,
         owned_entries,
     )
+    .await
 }
