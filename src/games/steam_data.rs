@@ -1,6 +1,6 @@
 use crate::{
     api::SteamApi,
-    documents::{self, GameEntry},
+    documents::{self, GameEntry, Rating},
     logging::SteamFetchCounter,
     util::rate_limiter::RateLimiter,
     Status,
@@ -81,20 +81,37 @@ impl SteamDataApi {
             },
             None => game_entry.release_date,
         };
-        game_entry.score = match &steam_data.metacritic {
-            Some(metacrtic) => Some(metacrtic.score),
-            None => game_entry.score,
-        };
-        game_entry.thumbs = match &steam_data.score {
-            Some(score) => Some(score.review_score),
-            None => game_entry.thumbs,
-        };
-        game_entry.popularity = match &steam_data.score {
-            Some(score) => match score.total_reviews {
-                0 => game_entry.popularity,
-                _ => Some(score.total_reviews),
+        game_entry.rating = Rating {
+            score: match &steam_data.score {
+                Some(score) => match score.review_score_desc.as_str() {
+                    "Overwhelmingly Positive" => Some(9),
+                    "Very Positive" => Some(8),
+                    "Positive" => Some(7),
+                    "Mostly Positive" => Some(6),
+                    "Mixed" => Some(5),
+                    "Mostly Negative" => Some(4),
+                    "Negative" => Some(3),
+                    "Very Negative" => Some(2),
+                    "Overwhelmingly Negative" => Some(1),
+                    _ => None,
+                },
+                None => None,
             },
-            None => game_entry.popularity,
+            thumbs: match &steam_data.score {
+                Some(score) => Some(score.review_score),
+                None => game_entry.rating.thumbs,
+            },
+            popularity: match &steam_data.score {
+                Some(score) => match score.total_reviews {
+                    0 => game_entry.rating.popularity,
+                    _ => Some(score.total_reviews),
+                },
+                None => game_entry.rating.popularity,
+            },
+            metacritic: match &steam_data.metacritic {
+                Some(metacrtic) => Some(metacrtic.score),
+                None => game_entry.rating.metacritic,
+            },
         };
         game_entry.steam_data = Some(steam_data);
 

@@ -2,7 +2,7 @@ use crate::{
     api::FirestoreApi,
     documents::{
         Collection, CollectionType, Company, CompanyRole, GameCategory, GameDigest, GameEntry,
-        Image, StoreEntry,
+        Image, Rating, StoreEntry,
     },
     games::SteamDataApi,
     library::firestore,
@@ -134,7 +134,7 @@ impl IgdbApi {
                         id: igdb_game.id,
                         name: igdb_game.name,
                         release_date: igdb_game.first_release_date,
-                        score: None,
+                        rating: Rating::default(),
                         category: match igdb_game.version_parent {
                             Some(_) => GameCategory::Version,
                             None => GameCategory::from(igdb_game.category),

@@ -84,7 +84,7 @@ async fn main() -> Result<(), Status> {
             _ => false,
         })
         .filter(|entry| {
-            entry.popularity.unwrap_or_default() > UPCOMING_POPULARITY_THRESHOLD
+            entry.rating.popularity.unwrap_or_default() > UPCOMING_POPULARITY_THRESHOLD
                 || entry
                     .developers
                     .iter()
@@ -179,7 +179,7 @@ async fn main() -> Result<(), Status> {
                     .publishers
                     .iter()
                     .any(|publ| notable.contains(&publ.name))
-                || match entry.popularity {
+                || match entry.rating.popularity {
                     Some(value) => match entry.category {
                         GameCategory::Main => value >= RECENT_POPULARITY_THRESHOLD,
                         _ => value >= RECENT_POPULARITY_THRESHOLD_DLC,

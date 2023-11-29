@@ -27,6 +27,95 @@ pub struct GameEntry {
     pub release_date: Option<i64>,
 
     #[serde(default)]
+    pub rating: Rating,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cover: Option<Image>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub genres: Vec<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub keywords: Vec<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub collections: Vec<CollectionDigest>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub franchises: Vec<CollectionDigest>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub developers: Vec<CompanyDigest>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub publishers: Vec<CompanyDigest>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<GameDigest>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub expansions: Vec<GameDigest>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub dlcs: Vec<GameDigest>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub remakes: Vec<GameDigest>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub remasters: Vec<GameDigest>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub screenshots: Vec<Image>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub artwork: Vec<Image>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub websites: Vec<Website>,
+
+    #[serde(default)]
+    pub igdb_game: IgdbGame,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub steam_data: Option<SteamData>,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct GameEntryLegacy {
+    pub id: u64,
+    pub name: String,
+
+    #[serde(default)]
+    pub category: GameCategory,
+
+    #[serde(default)]
+    pub status: GameStatus,
+
+    #[serde(default)]
+    pub last_updated: u64,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub release_date: Option<i64>,
+
+    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub score: Option<u64>,
 
@@ -129,21 +218,26 @@ impl From<IgdbGame> for GameEntry {
             status: GameStatus::from(igdb_game.status),
 
             release_date: igdb_game.first_release_date,
-            score: match igdb_game.aggregated_rating {
-                Some(rating) => Some(rating.round() as u64),
-                None => None,
-            },
-            thumbs: match igdb_game.total_rating {
-                Some(rating) => Some(rating.round() as u64),
-                None => None,
-            },
-            popularity: match is_released(igdb_game.first_release_date) {
-                // Use IGDB popularity only for unreleased titles. Otherwise,
-                // Steam should be used as source.
-                false => Some(
-                    igdb_game.follows.unwrap_or_default() + igdb_game.hypes.unwrap_or_default(),
-                ),
-                true => None,
+            rating: Rating {
+                score: None,
+                thumbs: match igdb_game.total_rating {
+                    // Use IGDB rating only for unreleased titles. Otherwise,
+                    // Steam should be used as source.
+                    Some(rating) => Some(rating.round() as u64),
+                    None => None,
+                },
+                popularity: match is_released(igdb_game.first_release_date) {
+                    // Use IGDB popularity only for unreleased titles. Otherwise,
+                    // Steam should be used as source.
+                    false => Some(
+                        igdb_game.follows.unwrap_or_default() + igdb_game.hypes.unwrap_or_default(),
+                    ),
+                    true => None,
+                },
+                metacritic: match igdb_game.aggregated_rating {
+                    Some(rating) => Some(rating.round() as u64),
+                    None => None,
+                },
             },
 
             parent: match igdb_game.parent_game {
@@ -247,7 +341,7 @@ impl From<u64> for GameStatus {
 
 impl Default for GameStatus {
     fn default() -> Self {
-        GameStatus::Released
+        GameStatus::Unknown
     }
 }
 
@@ -255,6 +349,29 @@ impl std::fmt::Display for GameStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct Rating {
+    // 1-9 score based on Steam rating.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub score: Option<u64>,
+
+    // Thumbs up percentage from Steam.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thumbs: Option<u64>,
+
+    // Popularity measured as total reviews on Steam.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub popularity: Option<u64>,
+
+    // Metacritic score sourced either from Steam or IGDB.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metacritic: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]

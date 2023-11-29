@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-use super::{GameCategory, GameEntry};
+use super::{GameCategory, GameEntry, Rating};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct GameDigest {
@@ -21,16 +21,7 @@ pub struct GameDigest {
     pub release_date: Option<i64>,
 
     #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub score: Option<u64>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub thumbs: Option<u64>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub popularity: Option<u64>,
+    pub rating: Rating,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -73,21 +64,7 @@ impl GameDigest {
                 Some(date) => Some(date),
                 None => game_entry.igdb_game.first_release_date,
             },
-            score: match game_entry.score {
-                Some(score) => Some(score),
-                None => match game_entry.igdb_game.aggregated_rating {
-                    Some(rating) => Some(rating.round() as u64),
-                    None => None,
-                },
-            },
-            thumbs: match game_entry.thumbs {
-                Some(thumbs) => Some(thumbs),
-                None => match game_entry.igdb_game.total_rating {
-                    Some(rating) => Some(rating.round() as u64),
-                    None => None,
-                },
-            },
-            popularity: game_entry.popularity,
+            rating: game_entry.rating.clone(),
 
             parent_id: match &game_entry.parent {
                 Some(parent) => Some(parent.id),
@@ -114,21 +91,7 @@ impl From<GameEntry> for GameDigest {
                 Some(date) => Some(date),
                 None => game_entry.igdb_game.first_release_date,
             },
-            score: match game_entry.score {
-                Some(score) => Some(score),
-                None => match game_entry.igdb_game.aggregated_rating {
-                    Some(rating) => Some(rating.round() as u64),
-                    None => None,
-                },
-            },
-            thumbs: match game_entry.thumbs {
-                Some(thumbs) => Some(thumbs),
-                None => match game_entry.igdb_game.total_rating {
-                    Some(rating) => Some(rating.round() as u64),
-                    None => None,
-                },
-            },
-            popularity: game_entry.popularity,
+            rating: game_entry.rating.clone(),
 
             parent_id: match game_entry.parent {
                 Some(parent) => Some(parent.id),
