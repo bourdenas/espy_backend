@@ -322,7 +322,7 @@ impl IgdbApi {
                     return Err(status);
                 }
             };
-        match resolve_game_info(connection, &mut game_entry).await {
+        match resolve_game_info(connection, Arc::clone(&firestore), &mut game_entry).await {
             Ok(()) => {}
             Err(status) => {
                 counter.log_error(&status);

@@ -90,9 +90,6 @@ pub async fn resolve_game_digest(
     if !igdb_game.genres.is_empty() {
         game_entry.genres = get_genres(&connection, &firestore, &igdb_game.genres).await?;
     }
-    if !igdb_game.keywords.is_empty() {
-        game_entry.keywords = get_keywords(&connection, &firestore, &igdb_game.keywords).await?;
-    }
 
     if let Some(collection) = igdb_game.collection {
         if let Some(collection) = get_collection(&connection, &firestore, collection).await? {
@@ -144,7 +141,7 @@ pub async fn resolve_game_digest(
 #[async_recursion]
 #[instrument(
     level = "trace",
-    skip(connection, game_entry),
+    skip(connection, firestore, game_entry),
     fields(
         game_id = %game_entry.id,
         game_name = %game_entry.name,
@@ -152,9 +149,14 @@ pub async fn resolve_game_digest(
 )]
 pub async fn resolve_game_info(
     connection: Arc<IgdbConnection>,
+    firestore: Arc<FirestoreApi>,
     game_entry: &mut GameEntry,
 ) -> Result<(), Status> {
     let igdb_game = &game_entry.igdb_game;
+
+    if !igdb_game.keywords.is_empty() {
+        game_entry.keywords = get_keywords(&connection, &firestore, &igdb_game.keywords).await?;
+    }
 
     if !igdb_game.screenshots.is_empty() {
         if let Ok(screenshots) = get_screenshots(&connection, &igdb_game.screenshots).await {
