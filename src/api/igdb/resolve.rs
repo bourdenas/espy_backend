@@ -87,10 +87,6 @@ pub async fn resolve_game_digest(
         game_entry.cover = get_cover(&connection, cover).await?;
     }
 
-    if !igdb_game.genres.is_empty() {
-        game_entry.genres = get_genres(&connection, &firestore, &igdb_game.genres).await?;
-    }
-
     if let Some(collection) = igdb_game.collection {
         if let Some(collection) = get_collection(&connection, &firestore, collection).await? {
             game_entry.collections = vec![collection];
@@ -132,6 +128,11 @@ pub async fn resolve_game_digest(
                 _ => false,
             })
             .collect();
+    }
+
+    if !igdb_game.genres.is_empty() {
+        let igdb_genres = get_genres(&connection, &firestore, &igdb_game.genres).await?;
+        game_entry.add_genres(&igdb_genres);
     }
 
     Ok(game_entry)

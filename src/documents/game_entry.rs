@@ -35,7 +35,7 @@ pub struct GameEntry {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub genres: Vec<String>,
+    pub genres: Vec<EspyGenre>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -202,6 +202,18 @@ fn is_released(release_date: Option<i64>) -> bool {
             release < SystemTime::now()
         }
         None => false,
+    }
+}
+
+impl GameEntry {
+    pub fn add_genres(&mut self, igdb_genres: &Vec<String>) {
+        self.genres = igdb_genres
+            .iter()
+            .filter_map(|igdb_genre| match GENRES.get(&igdb_genre) {
+                Some(genre) => Some(*genre),
+                None => None,
+            })
+            .collect();
     }
 }
 
@@ -459,3 +471,37 @@ impl Default for WebsiteAuthority {
         WebsiteAuthority::Null
     }
 }
+
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+pub enum EspyGenre {
+    Adventure,
+    Arcade,
+    Online,
+    Platformer,
+    RPG,
+    Shooter,
+    Simulator,
+    Strategy,
+}
+
+use phf::phf_map;
+
+static GENRES: phf::Map<&'static str, EspyGenre> = phf_map! {
+    "Point-and-click" => EspyGenre::Adventure,
+    "Adventure" => EspyGenre::Adventure,
+    "Pinball" => EspyGenre::Arcade,
+    "Arcade" => EspyGenre::Arcade,
+    "Fighting" => EspyGenre::Arcade,
+    "Card & Board Game" => EspyGenre::Arcade,
+    "MOBA" => EspyGenre::Online,
+    "Platform" => EspyGenre::Platformer,
+    "Role-playing (RPG)" => EspyGenre::RPG,
+    "Shooter" => EspyGenre::Shooter,
+    "Racing" => EspyGenre::Simulator,
+    "Simulator" => EspyGenre::Simulator,
+    "Sport" => EspyGenre::Simulator,
+    "Real Time Strategy (RTS)" => EspyGenre::Strategy,
+    "Strategy" => EspyGenre::Strategy,
+    "Turn-based strategy (TBS)" => EspyGenre::Strategy,
+    "Tactical" => EspyGenre::Strategy,
+};

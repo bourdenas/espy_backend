@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-use super::{GameCategory, GameEntry, Rating};
+use super::{EspyGenre, GameCategory, GameEntry, Rating};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct GameDigest {
@@ -45,7 +45,7 @@ pub struct GameDigest {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub genres: Vec<String>,
+    pub genres: Vec<EspyGenre>,
 }
 
 impl GameDigest {
@@ -98,6 +98,8 @@ impl From<GameEntry> for GameDigest {
                 None => None,
             },
 
+            genres: game_entry.genres,
+
             collections: game_entry
                 .collections
                 .into_iter()
@@ -129,40 +131,6 @@ impl From<GameEntry> for GameDigest {
                 .collect::<HashSet<_>>()
                 .into_iter()
                 .collect(),
-
-            genres: extract_genres(&game_entry.genres),
         }
     }
 }
-
-fn extract_genres(igdb_genres: &Vec<String>) -> Vec<String> {
-    igdb_genres
-        .iter()
-        .filter_map(|igdb_genre| match GENRES.get(&igdb_genre) {
-            Some(genre) => Some((*genre).to_owned()),
-            None => None,
-        })
-        .collect()
-}
-
-use phf::phf_map;
-
-static GENRES: phf::Map<&'static str, &'static str> = phf_map! {
-    "Point-and-click" => "Adventure",
-    "Adventure" => "Adventure",
-    "Pinball" => "Arcade",
-    "Arcade" => "Arcade",
-    "Fighting" => "Arcade",
-    "Card & Board Game" => "Arcade",
-    "MOBA" => "Online",
-    "Platform" => "Platformer",
-    "Role-playing (RPG)" => "RPG",
-    "Shooter" => "Shooter",
-    "Racing" => "Simulator",
-    "Simulator" => "Simulator",
-    "Sport" => "Simulator",
-    "Real Time Strategy (RTS)" => "Strategy",
-    "Strategy" => "Strategy",
-    "Turn-based strategy (TBS)" => "Strategy",
-    "Tactical" => "Strategy",
-};
