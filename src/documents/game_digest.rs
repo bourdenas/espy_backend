@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-use super::{EspyGenre, GameCategory, GameEntry, Rating};
+use super::{EspyGenre, GameCategory, GameEntry, Scores};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct GameDigest {
@@ -21,7 +21,7 @@ pub struct GameDigest {
     pub release_date: Option<i64>,
 
     #[serde(default)]
-    pub rating: Rating,
+    pub scores: Scores,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -45,7 +45,7 @@ pub struct GameDigest {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub genres: Vec<EspyGenre>,
+    pub espy_genres: Vec<EspyGenre>,
 }
 
 impl From<GameEntry> for GameDigest {
@@ -64,14 +64,14 @@ impl From<GameEntry> for GameDigest {
                 Some(date) => Some(date),
                 None => game_entry.igdb_game.first_release_date,
             },
-            rating: game_entry.rating.clone(),
+            scores: game_entry.scores.clone(),
 
             parent_id: match game_entry.parent {
                 Some(parent) => Some(parent.id),
                 None => None,
             },
 
-            genres: game_entry.genres,
+            espy_genres: game_entry.espy_genres,
 
             collections: game_entry
                 .collections

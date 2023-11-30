@@ -591,13 +591,13 @@ async fn update_companies(firestore: &FirestoreApi, game_entry: &GameEntry) {
                     ..Default::default()
                 },
                 Err(status) => {
-                    warn!("{status}");
+                    warn!("Failed to read company={}: {status}", company.id);
                     continue;
                 }
             };
 
             if let Err(status) = firestore::companies::write(&firestore, &company).await {
-                warn!("{status}")
+                warn!("Failed to write company={}: {status}", company.id)
             }
         }
     }
@@ -627,13 +627,13 @@ async fn update_collections(firestore: &FirestoreApi, game_entry: &GameEntry) {
                     }
                 }
                 Err(status) => {
-                    warn!("{status}");
+                    warn!("Failed to read collection={}: {status}", collection.id);
                     continue;
                 }
             };
 
             if let Err(status) = write_collection(&firestore, collection_type, &collection).await {
-                warn!("{status}")
+                warn!("Failed to write collection={}: {status}", collection.id);
             }
         }
     }

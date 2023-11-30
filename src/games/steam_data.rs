@@ -1,6 +1,6 @@
 use crate::{
     api::SteamApi,
-    documents::{GameEntry, Rating},
+    documents::{GameEntry, Scores},
     logging::SteamFetchCounter,
     util::rate_limiter::RateLimiter,
     Status,
@@ -75,8 +75,8 @@ impl SteamDataApi {
             },
             None => game_entry.release_date,
         };
-        game_entry.rating = Rating {
-            score: match &steam_data.score {
+        game_entry.scores = Scores {
+            tier: match &steam_data.score {
                 Some(score) => match score.review_score_desc.as_str() {
                     "Overwhelmingly Positive" => Some(9),
                     "Very Positive" => Some(8),
@@ -93,18 +93,18 @@ impl SteamDataApi {
             },
             thumbs: match &steam_data.score {
                 Some(score) => Some(score.review_score),
-                None => game_entry.rating.thumbs,
+                None => game_entry.scores.thumbs,
             },
             popularity: match &steam_data.score {
                 Some(score) => match score.total_reviews {
-                    0 => game_entry.rating.popularity,
+                    0 => game_entry.scores.popularity,
                     _ => Some(score.total_reviews),
                 },
-                None => game_entry.rating.popularity,
+                None => game_entry.scores.popularity,
             },
             metacritic: match &steam_data.metacritic {
                 Some(metacrtic) => Some(metacrtic.score),
-                None => game_entry.rating.metacritic,
+                None => game_entry.scores.metacritic,
             },
         };
         game_entry.steam_data = Some(steam_data);

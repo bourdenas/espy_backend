@@ -27,7 +27,7 @@ pub struct GameEntry {
     pub release_date: Option<i64>,
 
     #[serde(default)]
-    pub rating: Rating,
+    pub scores: Scores,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -35,7 +35,7 @@ pub struct GameEntry {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub genres: Vec<EspyGenre>,
+    pub espy_genres: Vec<EspyGenre>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -207,7 +207,7 @@ fn is_released(release_date: Option<i64>) -> bool {
 
 impl GameEntry {
     pub fn resolve_genres(&mut self) {
-        self.genres = self
+        self.espy_genres = self
             .igdb_game
             .genres
             .iter()
@@ -247,8 +247,8 @@ impl From<IgdbGame> for GameEntry {
             status: GameStatus::from(igdb_game.status),
 
             release_date: igdb_game.first_release_date,
-            rating: Rating {
-                score: None,
+            scores: Scores {
+                tier: None,
                 thumbs: match igdb_game.total_rating {
                     // Use IGDB rating only for unreleased titles. Otherwise,
                     // Steam should be used as source.
@@ -381,11 +381,11 @@ impl std::fmt::Display for GameStatus {
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct Rating {
-    // 1-9 score based on Steam rating.
+pub struct Scores {
+    // 1-9 tier based on Steam score description.
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub score: Option<u64>,
+    pub tier: Option<u64>,
 
     // Thumbs up percentage from Steam.
     #[serde(default)]
