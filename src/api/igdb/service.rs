@@ -3,7 +3,6 @@ use crate::{
     documents::{
         Collection, CollectionType, Company, CompanyRole, GameDigest, GameEntry, Image, StoreEntry,
     },
-    games::SteamDataApi,
     library::firestore,
     logging::{IgdbCounters, IgdbResolveCounter},
     util::rate_limiter::RateLimiter,
@@ -230,10 +229,9 @@ impl IgdbApi {
         igdb_game: IgdbGame,
     ) -> Result<GameDigest, Status> {
         let connection = self.connection()?;
-        match resolve_game_digest(&connection, firestore, igdb_game).await {
-            Ok(game_entry) => Ok(GameDigest::from(game_entry)),
-            Err(e) => Err(e),
-        }
+        Ok(GameDigest::from(
+            resolve_game_digest(&connection, firestore, igdb_game).await?,
+        ))
     }
 
     #[instrument(
@@ -266,18 +264,14 @@ impl IgdbApi {
                 return Err(status);
             }
         }
-        counter.log(&game_entry);
-
-        let steam = SteamDataApi::new();
-        if let Err(e) = steam.retrieve_steam_data(&mut game_entry).await {
-            warn!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
-        }
 
         if let Err(e) = firestore::games::write(&firestore, &mut game_entry).await {
             warn!("Failed to save '{}' in Firestore: {e}", game_entry.name);
         }
         update_companies(Arc::clone(&firestore), &game_entry).await;
         update_collections(Arc::clone(&firestore), &game_entry).await;
+
+        counter.log(&game_entry);
 
         Ok(game_entry)
     }
@@ -350,8 +344,7 @@ async fn update_companies(firestore: Arc<FirestoreApi>, game_entry: &GameEntry) 
     }
 }
 
-/// Make sure that any collections / franchieses in the game are updated to
-/// include it.
+/// Make sure that any collections / franchises in the game are updated to include it.
 async fn update_collections(firestore: Arc<FirestoreApi>, game_entry: &GameEntry) {
     for (collections, collection_type) in [
         (&game_entry.collections, CollectionType::Collection),

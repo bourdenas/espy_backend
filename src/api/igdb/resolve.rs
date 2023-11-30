@@ -4,11 +4,12 @@ use crate::{
         CollectionDigest, CollectionType, CompanyDigest, CompanyRole, GameDigest, GameEntry, Image,
         Website, WebsiteAuthority,
     },
+    games::SteamDataApi,
     library::firestore,
     Status,
 };
 use async_recursion::async_recursion;
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 use super::{
     backend::post,
@@ -81,6 +82,11 @@ pub async fn resolve_game_digest(
     }
 
     game_entry.resolve_genres();
+
+    let steam = SteamDataApi::new();
+    if let Err(e) = steam.retrieve_steam_data(&mut game_entry).await {
+        warn!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
+    }
 
     Ok(game_entry)
 }
