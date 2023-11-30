@@ -9,11 +9,7 @@ use crate::{
     Status,
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 use tracing::{instrument, trace_span, warn, Instrument};
 
 use super::{backend::post, docs, ranking, resolve::*, IgdbConnection, IgdbGame};
@@ -268,6 +264,7 @@ impl IgdbApi {
         if let Err(e) = firestore::games::write(&firestore, &mut game_entry).await {
             warn!("Failed to save '{}' in Firestore: {e}", game_entry.name);
         }
+        // TODO: this needs to move to digest
         update_companies(Arc::clone(&firestore), &game_entry).await;
         update_collections(Arc::clone(&firestore), &game_entry).await;
 
@@ -279,67 +276,48 @@ impl IgdbApi {
 
 /// Make sure that any companies involved in the game are updated to include it.
 async fn update_companies(firestore: Arc<FirestoreApi>, game_entry: &GameEntry) {
-    let involved_companies: Vec<_> = vec![&game_entry.developers, &game_entry.publishers]
-        .into_iter()
-        .flatten()
-        .map(|company| company)
-        .collect();
-
-    let mut companies: HashMap<u64, Company> = HashMap::new();
-    for involved_company in &involved_companies {
-        let company = match firestore::companies::read(&firestore, involved_company.id).await {
-            Ok(company) => Some(company),
-            Err(Status::NotFound(_)) => Some(Company {
-                id: involved_company.id,
-                name: involved_company.name.clone(),
-                slug: involved_company.slug.clone(),
-                ..Default::default()
-            }),
-            Err(e) => {
-                warn!("{e}");
-                None
-            }
-        };
-        if let Some(company) = company {
-            companies.insert(company.id, company);
-        }
-    }
-
-    let mut write_back = HashSet::new();
-    for involved_company in involved_companies {
-        if let Some(company) = companies.get_mut(&involved_company.id) {
-            match involved_company.role {
-                CompanyRole::Developer => {
-                    if company
-                        .developed
-                        .iter()
-                        .all(|game| game.id != game_entry.id)
-                    {
-                        // Game was missing from Company.
-                        company.developed.push(GameDigest::from(game_entry.clone()));
-                        write_back.insert(company.id);
-                    }
+    for (companies, company_role) in [
+        (&game_entry.developers, CompanyRole::Developer),
+        (&game_entry.publishers, CompanyRole::Publisher),
+    ] {
+        for company in companies {
+            let company = match firestore::companies::read(&firestore, company.id).await {
+                // Update game in company.
+                Ok(mut company) => {
+                    update_digest(
+                        match company_role {
+                            CompanyRole::Developer => &mut company.developed,
+                            CompanyRole::Publisher => &mut company.published,
+                            _ => panic!("Unexpected company role"),
+                        },
+                        GameDigest::from(game_entry.clone()),
+                    );
+                    company
                 }
-                CompanyRole::Publisher => {
-                    if company
-                        .published
-                        .iter()
-                        .all(|game| game.id != game_entry.id)
-                    {
-                        // Game was missing from Company.
-                        company.published.push(GameDigest::from(game_entry.clone()));
-                        write_back.insert(company.id);
-                    }
+                // Company was missing.
+                Err(Status::NotFound(_)) => Company {
+                    id: company.id,
+                    name: company.name.clone(),
+                    slug: company.slug.clone(),
+                    developed: match company_role {
+                        CompanyRole::Developer => vec![GameDigest::from(game_entry.clone())],
+                        _ => vec![],
+                    },
+                    published: match company_role {
+                        CompanyRole::Publisher => vec![GameDigest::from(game_entry.clone())],
+                        _ => vec![],
+                    },
+                    ..Default::default()
+                },
+                Err(status) => {
+                    warn!("{status}");
+                    continue;
                 }
-                _ => {}
-            }
-        }
-    }
+            };
 
-    for id in write_back {
-        if let Err(e) = firestore::companies::write(&firestore, &companies.get(&id).unwrap()).await
-        {
-            warn!("{e}")
+            if let Err(status) = firestore::companies::write(&firestore, &company).await {
+                warn!("{status}")
+            }
         }
     }
 }
@@ -354,17 +332,7 @@ async fn update_collections(firestore: Arc<FirestoreApi>, game_entry: &GameEntry
             let collection = match read_collection(&firestore, collection_type, collection.id).await
             {
                 Ok(mut collection) => {
-                    match collection
-                        .games
-                        .iter_mut()
-                        .find(|game| game.id == game_entry.id)
-                    {
-                        // Update game in collection.
-                        Some(game) => *game = GameDigest::from(game_entry.clone()),
-                        // Game was missing from the collection.
-                        None => collection.games.push(GameDigest::from(game_entry.clone())),
-                    }
-
+                    update_digest(&mut collection.games, GameDigest::from(game_entry.clone()));
                     collection
                 }
                 Err(Status::NotFound(_)) => {
@@ -387,6 +355,15 @@ async fn update_collections(firestore: Arc<FirestoreApi>, game_entry: &GameEntry
                 warn!("{status}")
             }
         }
+    }
+}
+
+fn update_digest(digests: &mut Vec<GameDigest>, digest: GameDigest) {
+    match digests.iter_mut().find(|game| game.id == digest.id) {
+        // Update game in collection.
+        Some(game) => *game = digest,
+        // Game was missing from the collection.
+        None => digests.push(digest),
     }
 }
 
