@@ -1,8 +1,7 @@
 use crate::{
     api::FirestoreApi,
     documents::{
-        Collection, CollectionType, Company, CompanyRole, GameCategory, GameDigest, GameEntry,
-        Image, Rating, StoreEntry,
+        Collection, CollectionType, Company, CompanyRole, GameDigest, GameEntry, Image, StoreEntry,
     },
     games::SteamDataApi,
     library::firestore,
@@ -18,13 +17,7 @@ use std::{
 };
 use tracing::{instrument, trace_span, warn, Instrument};
 
-use super::{
-    backend::post,
-    docs::{self, IgdbGameShort},
-    ranking,
-    resolve::*,
-    IgdbConnection, IgdbGame,
-};
+use super::{backend::post, docs, ranking, resolve::*, IgdbConnection, IgdbGame};
 
 #[derive(Clone)]
 pub struct IgdbApi {
@@ -141,59 +134,6 @@ impl IgdbApi {
             title,
             self.search(title).await?,
         ))
-    }
-
-    /// Returns a GameDigest based on its IGDB `id`.
-    ///
-    /// This returns a short GameDigest that only resolves the game cover image.
-    /// Only PC games are retrieved through this API.
-    #[instrument(level = "trace", skip(self))]
-    #[deprecated(
-        since = "0.1.1",
-        note = "This function no longer creates a valid GameDigest."
-    )]
-    pub async fn get_short_digest(&self, id: u64) -> Result<GameDigest, Status> {
-        let connection = self.connection()?;
-
-        let result: Vec<IgdbGameShort> = post(
-            &connection,
-            GAMES_ENDPOINT,
-            &format!("fields id, name, first_release_date, aggregated_rating, category, version_parent, platforms, cover.image_id; where id={id};"),
-        )
-        .await?;
-
-        match result.into_iter().next() {
-            Some(igdb_game) => {
-                match igdb_game.platforms.contains(&6)
-                    || igdb_game.platforms.contains(&13)
-                    || igdb_game.platforms.contains(&14)
-                    || igdb_game.platforms.is_empty()
-                {
-                    true => Ok(GameDigest {
-                        id: igdb_game.id,
-                        name: igdb_game.name,
-                        release_date: igdb_game.first_release_date,
-                        rating: Rating::default(),
-                        category: match igdb_game.version_parent {
-                            Some(_) => GameCategory::Version,
-                            None => GameCategory::from(igdb_game.category),
-                        },
-                        cover: match igdb_game.cover {
-                            Some(cover) => Some(cover.image_id),
-                            None => None,
-                        },
-                        ..Default::default()
-                    }),
-                    false => Err(Status::not_found(format!(
-                        "IgdbGame '{}' is not a PC game.",
-                        igdb_game.name,
-                    ))),
-                }
-            }
-            None => Err(Status::not_found(format!(
-                "IgdbGame with id={id} was not found."
-            ))),
-        }
     }
 
     /// Returns candidate GameEntries by searching IGDB based on game title.
@@ -382,9 +322,7 @@ async fn update_companies(firestore: Arc<FirestoreApi>, game_entry: &GameEntry) 
                         .all(|game| game.id != game_entry.id)
                     {
                         // Game was missing from Company.
-                        company
-                            .developed
-                            .push(GameDigest::short_digest(&game_entry));
+                        company.developed.push(GameDigest::from(game_entry.clone()));
                         write_back.insert(company.id);
                     }
                 }
@@ -395,9 +333,7 @@ async fn update_companies(firestore: Arc<FirestoreApi>, game_entry: &GameEntry) 
                         .all(|game| game.id != game_entry.id)
                     {
                         // Game was missing from Company.
-                        company
-                            .published
-                            .push(GameDigest::short_digest(&game_entry));
+                        company.published.push(GameDigest::from(game_entry.clone()));
                         write_back.insert(company.id);
                     }
                 }
@@ -432,7 +368,7 @@ async fn update_collections(firestore: Arc<FirestoreApi>, game_entry: &GameEntry
                         Some(_) => continue,
                         None => {
                             // Game was missing from Collection.
-                            collection.games.push(GameDigest::short_digest(&game_entry));
+                            collection.games.push(GameDigest::from(game_entry.clone()));
                             if let Err(e) =
                                 write_collection(&firestore, collection_type, &collection).await
                             {
@@ -447,7 +383,7 @@ async fn update_collections(firestore: Arc<FirestoreApi>, game_entry: &GameEntry
                         id: collection.id,
                         name: collection.name.clone(),
                         slug: collection.slug.clone(),
-                        games: vec![GameDigest::short_digest(&game_entry)],
+                        games: vec![GameDigest::from(game_entry.clone())],
                         ..Default::default()
                     };
                     if let Err(e) = write_collection(&firestore, collection_type, &collection).await

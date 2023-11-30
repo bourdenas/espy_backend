@@ -48,33 +48,6 @@ pub struct GameDigest {
     pub genres: Vec<EspyGenre>,
 }
 
-impl GameDigest {
-    pub fn short_digest(game_entry: &GameEntry) -> Self {
-        GameDigest {
-            id: game_entry.id,
-            name: game_entry.name.clone(),
-            category: game_entry.category,
-
-            cover: match &game_entry.cover {
-                Some(cover) => Some(cover.image_id.clone()),
-                None => None,
-            },
-
-            release_date: match game_entry.release_date {
-                Some(date) => Some(date),
-                None => game_entry.igdb_game.first_release_date,
-            },
-            rating: game_entry.rating.clone(),
-
-            parent_id: match &game_entry.parent {
-                Some(parent) => Some(parent.id),
-                None => None,
-            },
-            ..Default::default()
-        }
-    }
-}
-
 impl From<GameEntry> for GameDigest {
     fn from(game_entry: GameEntry) -> Self {
         GameDigest {
