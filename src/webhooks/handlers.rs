@@ -99,8 +99,19 @@ async fn update_steam_data(
     game_entry.status = GameStatus::from(igdb_game.status);
     game_entry.igdb_game = igdb_game;
 
+    let steam_appid = match game_entry.get_steam_appid() {
+        Some(id) => id,
+        None => match firestore::external_games::get_steam_id(&firestore, game_entry.id).await {
+            Ok(id) => id,
+            Err(status) => {
+                warn!("{status}");
+                return Ok(());
+            }
+        },
+    };
+
     let steam = SteamDataApi::new();
-    if let Err(e) = steam.retrieve_steam_data(game_entry).await {
+    if let Err(e) = steam.retrieve_steam_data(&steam_appid, game_entry).await {
         warn!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
     }
 

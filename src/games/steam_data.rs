@@ -1,13 +1,13 @@
 use crate::{
     api::SteamApi,
-    documents::{self, GameEntry, Rating},
+    documents::{GameEntry, Rating},
     logging::SteamFetchCounter,
     util::rate_limiter::RateLimiter,
     Status,
 };
 use chrono::NaiveDateTime;
 use std::time::Duration;
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 pub struct SteamDataApi {
     qps: RateLimiter,
@@ -25,20 +25,12 @@ impl SteamDataApi {
         skip(self, game_entry),
         fields(game_entry = %game_entry.name),
     )]
-    pub async fn retrieve_steam_data(&self, game_entry: &mut GameEntry) -> Result<(), Status> {
+    pub async fn retrieve_steam_data(
+        &self,
+        steam_appid: &str,
+        game_entry: &mut GameEntry,
+    ) -> Result<(), Status> {
         let counter = SteamFetchCounter::new();
-
-        let steam_appid = match get_steam_appid(game_entry) {
-            Some(id) => id,
-            None => {
-                counter.log_warning(
-                    "missing_id",
-                    &game_entry,
-                    &Status::not_found("missing steam id"),
-                );
-                return Ok(());
-            }
-        };
 
         self.qps.wait();
         let score = match SteamApi::get_app_score(steam_appid).await {
@@ -59,6 +51,8 @@ impl SteamDataApi {
                 return Err(status);
             }
         };
+
+        warn!("steam_data={:?}", steam_data);
 
         game_entry.release_date = match &steam_data.release_date {
             // TODO: Make parsing more resilient to location formatting.
@@ -118,20 +112,4 @@ impl SteamDataApi {
         counter.log(&game_entry);
         Ok(())
     }
-}
-
-fn get_steam_appid(game_entry: &GameEntry) -> Option<u64> {
-    game_entry
-        .websites
-        .iter()
-        .find_map(|website| match website.authority {
-            documents::WebsiteAuthority::Steam => website
-                .url
-                .split("/")
-                .collect::<Vec<_>>()
-                .iter()
-                .rev()
-                .find_map(|s| s.parse().ok()),
-            _ => None,
-        })
 }

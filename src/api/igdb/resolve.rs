@@ -85,9 +85,14 @@ pub async fn resolve_game_digest(
 
     game_entry.resolve_genres();
 
-    let steam = SteamDataApi::new();
-    if let Err(e) = steam.retrieve_steam_data(&mut game_entry).await {
-        warn!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
+    match firestore::external_games::get_steam_id(firestore, game_entry.id).await {
+        Ok(steam_id) => {
+            let steam = SteamDataApi::new();
+            if let Err(e) = steam.retrieve_steam_data(&steam_id, &mut game_entry).await {
+                warn!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
+            }
+        }
+        Err(status) => warn!("{status}"),
     }
 
     // TODO: Remove these updates from the critical path.

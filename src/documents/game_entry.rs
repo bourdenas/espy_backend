@@ -217,6 +217,21 @@ impl GameEntry {
             })
             .collect();
     }
+
+    pub fn get_steam_appid(&self) -> Option<String> {
+        self.websites
+            .iter()
+            .find_map(|website| match website.authority {
+                WebsiteAuthority::Steam => website
+                    .url
+                    .split("/")
+                    .collect::<Vec<_>>()
+                    .iter()
+                    .rev()
+                    .find_map(|s| Some(s.to_string())),
+                _ => None,
+            })
+    }
 }
 
 impl From<IgdbGame> for GameEntry {
