@@ -130,10 +130,7 @@ pub async fn resolve_game_digest(
             .collect();
     }
 
-    if !igdb_game.genres.is_empty() {
-        let igdb_genres = get_genres(&connection, &firestore, &igdb_game.genres).await?;
-        game_entry.add_genres(&igdb_genres);
-    }
+    game_entry.resolve_genres();
 
     Ok(game_entry)
 }

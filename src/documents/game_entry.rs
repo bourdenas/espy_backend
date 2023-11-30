@@ -206,6 +206,18 @@ fn is_released(release_date: Option<i64>) -> bool {
 }
 
 impl GameEntry {
+    pub fn resolve_genres(&mut self) {
+        self.genres = self
+            .igdb_game
+            .genres
+            .iter()
+            .filter_map(|igdb_genre_id| match GENRES_BY_ID.get(&igdb_genre_id) {
+                Some(genre) => Some(*genre),
+                None => None,
+            })
+            .collect();
+    }
+
     pub fn add_genres(&mut self, igdb_genres: &Vec<String>) {
         self.genres = igdb_genres
             .iter()
@@ -482,9 +494,32 @@ pub enum EspyGenre {
     Shooter,
     Simulator,
     Strategy,
+    Indie,
 }
 
 use phf::phf_map;
+
+static GENRES_BY_ID: phf::Map<u64, EspyGenre> = phf_map! {
+    2u64 => EspyGenre::Adventure,
+    4u64 => EspyGenre::Arcade,
+    5u64 => EspyGenre::Shooter,
+    8u64 => EspyGenre::Platformer,
+    10u64 => EspyGenre::Simulator,
+    11u64 => EspyGenre::Strategy,
+    12u64 => EspyGenre::RPG,
+    13u64 => EspyGenre::Simulator,
+    14u64 => EspyGenre::Simulator,
+    15u64 => EspyGenre::Strategy,
+    16u64 => EspyGenre::Strategy,
+    24u64 => EspyGenre::Strategy,
+    25u64 => EspyGenre::Arcade,
+    30u64 => EspyGenre::Arcade,
+    31u64 => EspyGenre::Adventure,
+    32u64 => EspyGenre::Indie,
+    33u64 => EspyGenre::Arcade,
+    35u64 => EspyGenre::Arcade,
+    36u64 => EspyGenre::Online,
+};
 
 static GENRES: phf::Map<&'static str, EspyGenre> = phf_map! {
     "Point-and-click" => EspyGenre::Adventure,
