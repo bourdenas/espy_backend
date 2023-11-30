@@ -344,47 +344,47 @@ async fn update_companies(firestore: Arc<FirestoreApi>, game_entry: &GameEntry) 
     }
 }
 
-/// Make sure that any collections / franchises in the game are updated to include it.
+/// Update collections / franchises in the game with a fresh digest.
 async fn update_collections(firestore: Arc<FirestoreApi>, game_entry: &GameEntry) {
     for (collections, collection_type) in [
         (&game_entry.collections, CollectionType::Collection),
         (&game_entry.franchises, CollectionType::Franchise),
     ] {
         for collection in collections {
-            match read_collection(&firestore, collection_type, collection.id).await {
+            let collection = match read_collection(&firestore, collection_type, collection.id).await
+            {
                 Ok(mut collection) => {
                     match collection
                         .games
-                        .iter()
+                        .iter_mut()
                         .find(|game| game.id == game_entry.id)
                     {
-                        Some(_) => continue,
-                        None => {
-                            // Game was missing from Collection.
-                            collection.games.push(GameDigest::from(game_entry.clone()));
-                            if let Err(e) =
-                                write_collection(&firestore, collection_type, &collection).await
-                            {
-                                warn!("{e}")
-                            }
-                        }
+                        // Update game in collection.
+                        Some(game) => *game = GameDigest::from(game_entry.clone()),
+                        // Game was missing from the collection.
+                        None => collection.games.push(GameDigest::from(game_entry.clone())),
                     }
+
+                    collection
                 }
                 Err(Status::NotFound(_)) => {
-                    // Collection was missing entirely.
-                    let collection = Collection {
+                    // Collection was missing.
+                    Collection {
                         id: collection.id,
                         name: collection.name.clone(),
                         slug: collection.slug.clone(),
                         games: vec![GameDigest::from(game_entry.clone())],
                         ..Default::default()
-                    };
-                    if let Err(e) = write_collection(&firestore, collection_type, &collection).await
-                    {
-                        warn!("{e}")
                     }
                 }
-                Err(e) => warn!("{e}"),
+                Err(status) => {
+                    warn!("{status}");
+                    continue;
+                }
+            };
+
+            if let Err(status) = write_collection(&firestore, collection_type, &collection).await {
+                warn!("{status}")
             }
         }
     }
