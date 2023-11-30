@@ -1,8 +1,6 @@
 use crate::{
     api::FirestoreApi,
-    documents::{
-        Collection, CollectionType, Company, CompanyRole, GameDigest, GameEntry, Image, StoreEntry,
-    },
+    documents::{GameDigest, GameEntry, Image, StoreEntry},
     library::firestore,
     logging::{IgdbCounters, IgdbResolveCounter},
     util::rate_limiter::RateLimiter,
@@ -264,130 +262,10 @@ impl IgdbApi {
         if let Err(e) = firestore::games::write(&firestore, &mut game_entry).await {
             warn!("Failed to save '{}' in Firestore: {e}", game_entry.name);
         }
-        // TODO: this needs to move to digest
-        update_companies(Arc::clone(&firestore), &game_entry).await;
-        update_collections(Arc::clone(&firestore), &game_entry).await;
 
         counter.log(&game_entry);
 
         Ok(game_entry)
-    }
-}
-
-/// Make sure that any companies involved in the game are updated to include it.
-async fn update_companies(firestore: Arc<FirestoreApi>, game_entry: &GameEntry) {
-    for (companies, company_role) in [
-        (&game_entry.developers, CompanyRole::Developer),
-        (&game_entry.publishers, CompanyRole::Publisher),
-    ] {
-        for company in companies {
-            let company = match firestore::companies::read(&firestore, company.id).await {
-                // Update game in company.
-                Ok(mut company) => {
-                    update_digest(
-                        match company_role {
-                            CompanyRole::Developer => &mut company.developed,
-                            CompanyRole::Publisher => &mut company.published,
-                            _ => panic!("Unexpected company role"),
-                        },
-                        GameDigest::from(game_entry.clone()),
-                    );
-                    company
-                }
-                // Company was missing.
-                Err(Status::NotFound(_)) => Company {
-                    id: company.id,
-                    name: company.name.clone(),
-                    slug: company.slug.clone(),
-                    developed: match company_role {
-                        CompanyRole::Developer => vec![GameDigest::from(game_entry.clone())],
-                        _ => vec![],
-                    },
-                    published: match company_role {
-                        CompanyRole::Publisher => vec![GameDigest::from(game_entry.clone())],
-                        _ => vec![],
-                    },
-                    ..Default::default()
-                },
-                Err(status) => {
-                    warn!("{status}");
-                    continue;
-                }
-            };
-
-            if let Err(status) = firestore::companies::write(&firestore, &company).await {
-                warn!("{status}")
-            }
-        }
-    }
-}
-
-/// Update collections / franchises in the game with a fresh digest.
-async fn update_collections(firestore: Arc<FirestoreApi>, game_entry: &GameEntry) {
-    for (collections, collection_type) in [
-        (&game_entry.collections, CollectionType::Collection),
-        (&game_entry.franchises, CollectionType::Franchise),
-    ] {
-        for collection in collections {
-            let collection = match read_collection(&firestore, collection_type, collection.id).await
-            {
-                Ok(mut collection) => {
-                    update_digest(&mut collection.games, GameDigest::from(game_entry.clone()));
-                    collection
-                }
-                Err(Status::NotFound(_)) => {
-                    // Collection was missing.
-                    Collection {
-                        id: collection.id,
-                        name: collection.name.clone(),
-                        slug: collection.slug.clone(),
-                        games: vec![GameDigest::from(game_entry.clone())],
-                        ..Default::default()
-                    }
-                }
-                Err(status) => {
-                    warn!("{status}");
-                    continue;
-                }
-            };
-
-            if let Err(status) = write_collection(&firestore, collection_type, &collection).await {
-                warn!("{status}")
-            }
-        }
-    }
-}
-
-fn update_digest(digests: &mut Vec<GameDigest>, digest: GameDigest) {
-    match digests.iter_mut().find(|game| game.id == digest.id) {
-        // Update game in collection.
-        Some(game) => *game = digest,
-        // Game was missing from the collection.
-        None => digests.push(digest),
-    }
-}
-
-async fn read_collection(
-    firestore: &FirestoreApi,
-    collection_type: CollectionType,
-    id: u64,
-) -> Result<Collection, Status> {
-    match collection_type {
-        CollectionType::Collection => firestore::collections::read(&firestore, id).await,
-        CollectionType::Franchise => firestore::franchises::read(&firestore, id).await,
-        CollectionType::Null => Err(Status::invalid_argument("invalid collection type")),
-    }
-}
-
-async fn write_collection(
-    firestore: &FirestoreApi,
-    collection_type: CollectionType,
-    collection: &Collection,
-) -> Result<(), Status> {
-    match collection_type {
-        CollectionType::Collection => firestore::collections::write(&firestore, &collection).await,
-        CollectionType::Franchise => firestore::franchises::write(&firestore, &collection).await,
-        CollectionType::Null => Err(Status::invalid_argument("invalid collection type")),
     }
 }
 
