@@ -80,10 +80,7 @@ impl IgdbApi {
         }
     }
 
-    /// Returns a GameEntry based on its IGDB `id`.
-    ///
-    /// The returned GameEntry is a shallow lookup. Reference ids are not
-    /// followed up and thus it is not fully resolved.
+    /// Returns an IgdbGame based on its `id`.
     #[instrument(level = "trace", skip(self))]
     pub async fn get(&self, id: u64) -> Result<IgdbGame, Status> {
         let connection = self.connection()?;
@@ -100,6 +97,50 @@ impl IgdbApi {
                 "IgdbGame with id={id} was not found."
             ))),
         }
+    }
+
+    /// Returns an IgdbGame based on external id info in IGDB.
+    #[instrument(level = "trace", skip(self))]
+    pub async fn get_by_store_entry(&self, store_entry: &StoreEntry) -> Result<IgdbGame, Status> {
+        let category: u8 = match store_entry.storefront_name.as_ref() {
+            "steam" => 1,
+            "gog" => 5,
+            // "egs" => 26,
+            "egs" => return Err(Status::invalid_argument("'egs' store is not supported")),
+            store => {
+                return Err(Status::invalid_argument(format!(
+                    "'{store}' store is not supported"
+                )))
+            }
+        };
+
+        let connection = self.connection()?;
+        let result: Vec<docs::IgdbExternalGame> = post(
+            &connection,
+            EXTERNAL_GAMES_ENDPOINT,
+            &format!(
+                "fields *; where uid = \"{}\" & category = {category};",
+                store_entry.id
+            ),
+        )
+        .await?;
+
+        match result.into_iter().next() {
+            Some(external_game) => Ok(self.get(external_game.game).await?),
+            None => Err(Status::not_found(format!(
+                "was not able to find a match for {:?}",
+                store_entry
+            ))),
+        }
+    }
+
+    /// Returns IgdbGames that match the `title` by searching in IGDB.
+    #[instrument(level = "trace", skip(self))]
+    pub async fn search_by_title(&self, title: &str) -> Result<Vec<IgdbGame>, Status> {
+        Ok(ranking::sorted_by_relevance(
+            title,
+            self.search(title).await?,
+        ))
     }
 
     /// Returns a GameDigest based on its IGDB `id`.
@@ -153,74 +194,6 @@ impl IgdbApi {
                 "IgdbGame with id={id} was not found."
             ))),
         }
-    }
-
-    #[instrument(level = "trace", skip(self))]
-    pub async fn get_cover(&self, id: u64) -> Result<Option<Image>, Status> {
-        let connection = self.connection()?;
-        get_cover(&connection, id).await
-    }
-
-    /// Returns a GameDigest for an IgdbGame.
-    ///
-    /// This returns a full GameDigest that resolves all its fields.
-    #[instrument(level = "trace", skip(self, firestore))]
-    pub async fn get_digest(
-        &self,
-        firestore: Arc<FirestoreApi>,
-        igdb_game: IgdbGame,
-    ) -> Result<GameDigest, Status> {
-        let connection = self.connection()?;
-        match resolve_game_digest(&connection, &firestore, igdb_game).await {
-            Ok(game_entry) => Ok(GameDigest::from(game_entry)),
-            Err(e) => Err(e),
-        }
-    }
-
-    /// Returns a GameEntry based on external id info in IGDB.
-    ///
-    /// The returned GameEntry is a shallow lookup. Reference ids are not
-    /// followed up and thus it is not fully resolved.
-    #[instrument(level = "trace", skip(self))]
-    pub async fn get_by_store_entry(
-        &self,
-        store_entry: &StoreEntry,
-    ) -> Result<Option<GameEntry>, Status> {
-        let category: u8 = match store_entry.storefront_name.as_ref() {
-            "steam" => 1,
-            "gog" => 5,
-            // "egs" => 26,
-            "egs" => return Ok(None),
-            _ => return Ok(None),
-        };
-
-        let connection = self.connection()?;
-        let result: Vec<docs::IgdbExternalGame> = post(
-            &connection,
-            EXTERNAL_GAMES_ENDPOINT,
-            &format!(
-                "fields *; where uid = \"{}\" & category = {category};",
-                store_entry.id
-            ),
-        )
-        .await?;
-
-        match result.into_iter().next() {
-            Some(external_game) => Ok(Some(GameEntry::from(self.get(external_game.game).await?))),
-            None => Ok(None),
-        }
-    }
-
-    /// Returns candidate GameEntries by searching IGDB based on game title.
-    ///
-    /// The returned GameEntries are shallow lookups. Reference ids are not
-    /// followed up and thus they are not fully resolved.
-    #[instrument(level = "trace", skip(self))]
-    pub async fn search_by_title(&self, title: &str) -> Result<Vec<IgdbGame>, Status> {
-        Ok(ranking::sorted_by_relevance(
-            title,
-            self.search(title).await?,
-        ))
     }
 
     /// Returns candidate GameEntries by searching IGDB based on game title.
@@ -285,6 +258,13 @@ impl IgdbApi {
     }
 
     #[instrument(level = "trace", skip(self))]
+    pub async fn get_cover(&self, id: u64) -> Result<Option<Image>, Status> {
+        let connection = self.connection()?;
+        get_cover(&connection, id).await
+    }
+
+    /// Returns IgdbGames included in the bundle of `bundle_id`.
+    #[instrument(level = "trace", skip(self))]
     pub async fn expand_bundle(&self, bundle_id: u64) -> Result<Vec<IgdbGame>, Status> {
         let connection = self.connection()?;
         post::<Vec<IgdbGame>>(
@@ -295,9 +275,30 @@ impl IgdbApi {
         .await
     }
 
+    /// Returns a GameDigest for an IgdbGame.
     #[instrument(
         level = "trace",
-        skip(self, firestore, igdb_game)
+        skip(self, firestore),
+        fields(
+            game_id = %igdb_game.id,
+            title = %igdb_game.name
+        )
+    )]
+    pub async fn resolve_digest(
+        &self,
+        firestore: &FirestoreApi,
+        igdb_game: IgdbGame,
+    ) -> Result<GameDigest, Status> {
+        let connection = self.connection()?;
+        match resolve_game_digest(&connection, firestore, igdb_game).await {
+            Ok(game_entry) => Ok(GameDigest::from(game_entry)),
+            Err(e) => Err(e),
+        }
+    }
+
+    #[instrument(
+        level = "trace",
+        skip(self, firestore, igdb_game),
         fields(
             game_id = %igdb_game.id,
             title = %igdb_game.name
