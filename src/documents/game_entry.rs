@@ -217,16 +217,6 @@ impl GameEntry {
             })
             .collect();
     }
-
-    pub fn add_genres(&mut self, igdb_genres: &Vec<String>) {
-        self.genres = igdb_genres
-            .iter()
-            .filter_map(|igdb_genre| match GENRES.get(&igdb_genre) {
-                Some(genre) => Some(*genre),
-                None => None,
-            })
-            .collect();
-    }
 }
 
 impl From<IgdbGame> for GameEntry {
@@ -521,22 +511,72 @@ static GENRES_BY_ID: phf::Map<u64, EspyGenre> = phf_map! {
     36u64 => EspyGenre::Online,
 };
 
-static GENRES: phf::Map<&'static str, EspyGenre> = phf_map! {
-    "Point-and-click" => EspyGenre::Adventure,
-    "Adventure" => EspyGenre::Adventure,
-    "Pinball" => EspyGenre::Arcade,
-    "Arcade" => EspyGenre::Arcade,
-    "Fighting" => EspyGenre::Arcade,
-    "Card & Board Game" => EspyGenre::Arcade,
-    "MOBA" => EspyGenre::Online,
-    "Platform" => EspyGenre::Platformer,
-    "Role-playing (RPG)" => EspyGenre::RPG,
-    "Shooter" => EspyGenre::Shooter,
-    "Racing" => EspyGenre::Simulator,
-    "Simulator" => EspyGenre::Simulator,
-    "Sport" => EspyGenre::Simulator,
-    "Real Time Strategy (RTS)" => EspyGenre::Strategy,
-    "Strategy" => EspyGenre::Strategy,
-    "Turn-based strategy (TBS)" => EspyGenre::Strategy,
-    "Tactical" => EspyGenre::Strategy,
-};
+pub enum EspySubGenre {
+    //  Adventure
+    PointAndClick,
+    Action,
+    IsometricAction,
+    IsometricAdventure,
+    FirstPersonAdventure,
+    NarrativeAdventure,
+    PuzzleAdventure,
+
+    // RPG
+    CRpg,
+    IsometricRpg,
+    TurnBasedRpg,
+    RTwPRpg,
+    FirstPersonRpg,
+    ActionRpg,
+    HackAndSlash,
+    JRpg,
+
+    // Strategy
+    TurnBasedStrategy,
+    RealTimeStrategy,
+    TurnBasedTactics,
+    RealTimeTactics,
+    IsometricTactics,
+    GrandStrategy,
+    XXXX,
+
+    // Arcade
+    Fighting,
+    Pinball,
+    BeatemUp,
+    Puzzle,
+    TowerDefense,
+    EndlessRunner,
+    CardBoardGame,
+
+    // Online
+    MMORPG,
+    Moba,
+    BattleRoyale,
+    Coop,
+    PvP,
+
+    // Platformer
+    SideScroller,
+    Metroidvania,
+    ThreeDPlatformer,
+    ShooterPlatformer,
+    PuzzlePlatformer,
+
+    // Shooter
+    FirstPersonShooter,
+    TopDownShooter,
+    ThirdPersonShooter,
+    SpaceShooter,
+    StealthShooter,
+    FirstPersonMelee,
+
+    // Simulator
+    CityBuilder,
+    GodGame,
+    Racing,
+    Sport,
+    FlightSimulator,
+    Management,
+    Survival,
+}
