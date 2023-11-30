@@ -22,9 +22,7 @@ use super::{
     backend::post,
     docs::{self, IgdbGameShort},
     ranking,
-    resolve::{
-        get_cover, resolve_game_digest, resolve_game_info, EXTERNAL_GAMES_ENDPOINT, GAMES_ENDPOINT,
-    },
+    resolve::*,
     IgdbConnection, IgdbGame,
 };
 
@@ -172,7 +170,8 @@ impl IgdbApi {
         firestore: Arc<FirestoreApi>,
         igdb_game: IgdbGame,
     ) -> Result<GameDigest, Status> {
-        match resolve_game_digest(self.connection()?, firestore, igdb_game).await {
+        let connection = self.connection()?;
+        match resolve_game_digest(&connection, &firestore, igdb_game).await {
             Ok(game_entry) => Ok(GameDigest::from(game_entry)),
             Err(e) => Err(e),
         }
@@ -312,17 +311,14 @@ impl IgdbApi {
         let connection = self.connection()?;
 
         let counter = IgdbResolveCounter::new();
-        let mut game_entry =
-            match resolve_game_digest(Arc::clone(&connection), Arc::clone(&firestore), igdb_game)
-                .await
-            {
-                Ok(entry) => entry,
-                Err(status) => {
-                    counter.log_error(&status);
-                    return Err(status);
-                }
-            };
-        match resolve_game_info(connection, Arc::clone(&firestore), &mut game_entry).await {
+        let mut game_entry = match resolve_game_digest(&connection, &firestore, igdb_game).await {
+            Ok(entry) => entry,
+            Err(status) => {
+                counter.log_error(&status);
+                return Err(status);
+            }
+        };
+        match resolve_game_info(&connection, &firestore, &mut game_entry).await {
             Ok(()) => {}
             Err(status) => {
                 counter.log_error(&status);

@@ -8,7 +8,6 @@ use crate::{
     Status,
 };
 use async_recursion::async_recursion;
-use std::sync::Arc;
 use tracing::instrument;
 
 use super::{
@@ -16,55 +15,6 @@ use super::{
     docs::{self, IgdbInvolvedCompany},
     IgdbConnection, IgdbGame,
 };
-
-/// Returns an IgdbGame doc from IGDB for given game `id`.
-///
-/// Does not perform any lookups on tables beyond Game.
-#[instrument(level = "trace", skip(connection))]
-pub async fn get_game(connection: &IgdbConnection, id: u64) -> Result<IgdbGame, Status> {
-    let result: Vec<IgdbGame> = post(
-        connection,
-        GAMES_ENDPOINT,
-        &format!("fields *; where id={id};"),
-    )
-    .await?;
-
-    match result.into_iter().next() {
-        Some(igdb_game) => Ok(igdb_game),
-        None => Err(Status::not_found(format!(
-            "Failed to retrieve game with id={id}"
-        ))),
-    }
-}
-
-/// Returns a GameEntry from IGDB that can build a short GameDigest doc.
-///
-/// A short GameDigest resolves only the game cover.
-#[instrument(level = "trace", skip(connection))]
-pub async fn get_short_digest(connection: &IgdbConnection, id: u64) -> Result<GameDigest, Status> {
-    let result: Vec<IgdbGame> = post(
-        &connection,
-        GAMES_ENDPOINT,
-        &format!("fields *; where id={id};"),
-    )
-    .await?;
-
-    match result.into_iter().next() {
-        Some(igdb_game) => {
-            let cover = match igdb_game.cover {
-                Some(cover_id) => get_cover(&connection, cover_id).await?,
-                None => None,
-            };
-
-            let mut game_entry = GameEntry::from(igdb_game);
-            game_entry.cover = cover;
-            Ok(GameDigest::from(game_entry))
-        }
-        None => Err(Status::not_found(format!(
-            "IgdbGame with id={id} was not found."
-        ))),
-    }
-}
 
 /// Returns a GameEntry from IGDB that can build the GameDigest doc.
 #[instrument(
@@ -76,19 +26,19 @@ pub async fn get_short_digest(connection: &IgdbConnection, id: u64) -> Result<Ga
     )
 )]
 pub async fn resolve_game_digest(
-    connection: Arc<IgdbConnection>,
-    firestore: Arc<FirestoreApi>,
+    connection: &IgdbConnection,
+    firestore: &FirestoreApi,
     igdb_game: IgdbGame,
 ) -> Result<GameEntry, Status> {
     let mut game_entry = GameEntry::from(igdb_game);
     let igdb_game = &game_entry.igdb_game;
 
     if let Some(cover) = igdb_game.cover {
-        game_entry.cover = get_cover(&connection, cover).await?;
+        game_entry.cover = get_cover(connection, cover).await?;
     }
 
     if let Some(collection) = igdb_game.collection {
-        if let Some(collection) = get_collection(&connection, &firestore, collection).await? {
+        if let Some(collection) = get_collection(connection, firestore, collection).await? {
             game_entry.collections = vec![collection];
         }
     }
@@ -106,12 +56,12 @@ pub async fn resolve_game_digest(
         franchises.dedup();
         game_entry
             .franchises
-            .extend(get_franchises(&connection, &firestore, &franchises).await?);
+            .extend(get_franchises(connection, firestore, &franchises).await?);
     }
 
     if !igdb_game.involved_companies.is_empty() {
         let companies =
-            get_involved_companies(&connection, &firestore, &igdb_game.involved_companies).await?;
+            get_involved_companies(connection, firestore, &igdb_game.involved_companies).await?;
         game_entry.developers = companies
             .iter()
             .filter(|company| match company.role {
@@ -146,28 +96,28 @@ pub async fn resolve_game_digest(
     )
 )]
 pub async fn resolve_game_info(
-    connection: Arc<IgdbConnection>,
-    firestore: Arc<FirestoreApi>,
+    connection: &IgdbConnection,
+    firestore: &FirestoreApi,
     game_entry: &mut GameEntry,
 ) -> Result<(), Status> {
     let igdb_game = &game_entry.igdb_game;
 
     if !igdb_game.keywords.is_empty() {
-        game_entry.keywords = get_keywords(&connection, &firestore, &igdb_game.keywords).await?;
+        game_entry.keywords = get_keywords(connection, firestore, &igdb_game.keywords).await?;
     }
 
     if !igdb_game.screenshots.is_empty() {
-        if let Ok(screenshots) = get_screenshots(&connection, &igdb_game.screenshots).await {
+        if let Ok(screenshots) = get_screenshots(connection, &igdb_game.screenshots).await {
             game_entry.screenshots = screenshots;
         }
     }
     if !igdb_game.artworks.is_empty() {
-        if let Ok(artwork) = get_artwork(&connection, &igdb_game.artworks).await {
+        if let Ok(artwork) = get_artwork(connection, &igdb_game.artworks).await {
             game_entry.artwork = artwork;
         }
     }
     if igdb_game.websites.len() > 0 {
-        if let Ok(websites) = get_websites(&connection, &igdb_game.websites).await {
+        if let Ok(websites) = get_websites(connection, &igdb_game.websites).await {
             game_entry.websites.extend(
                 websites
                     .into_iter()
@@ -200,32 +150,32 @@ pub async fn resolve_game_info(
     };
 
     if let Some(id) = parent_id {
-        if let Ok(game) = get_short_digest(&connection, id).await {
+        if let Ok(game) = get_digest(connection, firestore, id).await {
             game_entry.parent = Some(game);
         };
     }
     for id in igdb_game.expansions.iter() {
-        if let Ok(game) = get_short_digest(&connection, *id).await {
+        if let Ok(game) = get_digest(connection, firestore, *id).await {
             game_entry.expansions.push(game);
         };
     }
     for id in igdb_game.standalone_expansions.iter() {
-        if let Ok(game) = get_short_digest(&connection, *id).await {
+        if let Ok(game) = get_digest(connection, firestore, *id).await {
             game_entry.expansions.push(game);
         };
     }
     for id in igdb_game.dlcs.iter() {
-        if let Ok(game) = get_short_digest(&connection, *id).await {
+        if let Ok(game) = get_digest(connection, firestore, *id).await {
             game_entry.dlcs.push(game);
         };
     }
     for id in igdb_game.remakes.iter() {
-        if let Ok(game) = get_short_digest(&connection, *id).await {
+        if let Ok(game) = get_digest(connection, firestore, *id).await {
             game_entry.remakes.push(game);
         };
     }
     for id in igdb_game.remasters.iter() {
-        if let Ok(game) = get_short_digest(&connection, *id).await {
+        if let Ok(game) = get_digest(connection, firestore, *id).await {
             game_entry.remasters.push(game);
         };
     }
@@ -244,6 +194,43 @@ pub async fn get_cover(connection: &IgdbConnection, id: u64) -> Result<Option<Im
     .await?;
 
     Ok(result.into_iter().next())
+}
+
+#[instrument(level = "trace", skip(connection, firestore))]
+async fn get_digest(
+    connection: &IgdbConnection,
+    firestore: &FirestoreApi,
+    id: u64,
+) -> Result<GameDigest, Status> {
+    match firestore::games::read(firestore, id).await {
+        Ok(game_entry) => return Ok(GameDigest::from(game_entry)),
+        Err(_) => {}
+    }
+
+    let igdb_game = get_game(connection, id).await?;
+    Ok(GameDigest::from(
+        resolve_game_digest(connection, firestore, igdb_game).await?,
+    ))
+}
+
+/// Returns an IgdbGame doc from IGDB for given game `id`.
+///
+/// Does not perform any lookups on tables beyond Game.
+#[instrument(level = "trace", skip(connection))]
+async fn get_game(connection: &IgdbConnection, id: u64) -> Result<IgdbGame, Status> {
+    let result: Vec<IgdbGame> = post(
+        connection,
+        GAMES_ENDPOINT,
+        &format!("fields *; where id={id};"),
+    )
+    .await?;
+
+    match result.into_iter().next() {
+        Some(igdb_game) => Ok(igdb_game),
+        None => Err(Status::not_found(format!(
+            "Failed to retrieve game with id={id}"
+        ))),
+    }
 }
 
 /// Returns game genres based on id from the igdb/genres endpoint.
