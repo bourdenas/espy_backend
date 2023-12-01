@@ -123,7 +123,8 @@ pub async fn resolve_game_info(
         game_entry.keywords = get_keywords(firestore, &igdb_game.keywords).await?;
     }
 
-    if !igdb_game.screenshots.is_empty() {
+    // Skip screenshots if they already exist from steam data.
+    if !igdb_game.screenshots.is_empty() && game_entry.steam_data.is_none() {
         if let Ok(screenshots) = get_screenshots(connection, &igdb_game.screenshots).await {
             game_entry.screenshots = screenshots;
         }
@@ -133,6 +134,7 @@ pub async fn resolve_game_info(
             game_entry.artwork = artwork;
         }
     }
+
     if igdb_game.websites.len() > 0 {
         if let Ok(websites) = get_websites(connection, &igdb_game.websites).await {
             game_entry.websites.extend(
