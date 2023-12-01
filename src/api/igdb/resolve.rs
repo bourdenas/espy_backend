@@ -199,6 +199,20 @@ pub async fn resolve_game_info(
         };
     }
 
+    if game_entry.steam_data.is_none() {
+        // Another attempt to retrieve steam data in case the steam appid can be
+        // extracted IGDB links.
+        match game_entry.get_steam_appid() {
+            Some(appid) => {
+                let steam = SteamDataApi::new();
+                if let Err(e) = steam.retrieve_steam_data(&appid, game_entry).await {
+                    warn!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
+                }
+            }
+            None => {}
+        }
+    }
+
     Ok(())
 }
 
