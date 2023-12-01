@@ -111,8 +111,12 @@ async fn update_steam_data(
     };
 
     let steam = SteamDataApi::new();
-    if let Err(e) = steam.retrieve_steam_data(&steam_appid, game_entry).await {
-        warn!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
+    match steam.retrieve_steam_data(&steam_appid).await {
+        Ok(steam_data) => game_entry.add_steam_data(steam_data),
+        Err(status) => warn!(
+            "Failed to retrieve SteamData for '{}' {status}",
+            game_entry.name
+        ),
     }
 
     firestore::games::write(&firestore, game_entry).await

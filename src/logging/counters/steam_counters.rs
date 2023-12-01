@@ -2,7 +2,7 @@ use std::time::SystemTime;
 
 use tracing::info;
 
-use crate::{documents::GameEntry, Status};
+use crate::Status;
 
 pub struct SteamFetchCounter {
     start: SystemTime,
@@ -15,7 +15,7 @@ impl SteamFetchCounter {
         }
     }
 
-    pub fn log(self, game_entry: &GameEntry) {
+    pub fn log(self) {
         info!(
             labels.log_type = COUNTERS,
             counter.group = STEAM,
@@ -24,44 +24,29 @@ impl SteamFetchCounter {
                 .duration_since(self.start)
                 .unwrap()
                 .as_millis(),
-            "Steam fetch: {}",
-            game_entry_description(game_entry),
+            "Steam fetch",
         )
     }
 
-    pub fn log_warning(&self, warning: &str, game_entry: &GameEntry, status: &Status) {
+    pub fn log_warning(&self, warning: &str, status: &Status) {
         info!(
             labels.log_type = COUNTERS,
             counter.group = STEAM,
             counter.name = warning,
             counter.status = status.to_string(),
-            "Steam warning '{warning}': {}",
-            game_entry_description(game_entry),
+            "Steam warning: {warning}",
         )
     }
 
-    pub fn log_error(self, game_entry: &GameEntry, status: &Status) {
+    pub fn log_error(self, status: &Status) {
         info!(
             labels.log_type = COUNTERS,
             counter.group = STEAM,
             counter.name = "fetch_fail",
             counter.status = status.to_string(),
-            "Steam fetch fail: {}",
-            game_entry_description(game_entry),
+            "Steam fetch fail",
         )
     }
-}
-
-fn game_entry_description(game_entry: &GameEntry) -> String {
-    format!(
-        "'{}', igdb: {}, steam: {}",
-        game_entry.name,
-        game_entry.id,
-        match &game_entry.steam_data {
-            Some(steam_data) => steam_data.steam_appid.to_string(),
-            None => "none".to_owned(),
-        }
-    )
 }
 
 const COUNTERS: &str = "counters";

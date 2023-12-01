@@ -162,8 +162,9 @@ async fn main() -> Result<(), Status> {
             };
 
             let steam = SteamDataApi::new();
-            if let Err(e) = steam.retrieve_steam_data(&steam_appid, game).await {
-                error!("Failed to retrieve SteamData for '{}' {e}", game.name);
+            match steam.retrieve_steam_data(&steam_appid).await {
+                Ok(steam_data) => game.add_steam_data(steam_data),
+                Err(status) => warn!("Failed to retrieve SteamData for '{}' {status}", game.name),
             }
         } else {
             break;

@@ -1,6 +1,8 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 use crate::api::IgdbGame;
 
@@ -133,6 +135,65 @@ impl GameEntry {
                     .find_map(|s| Some(s.to_string())),
                 _ => None,
             })
+    }
+
+    pub fn add_steam_data(&mut self, steam_data: SteamData) {
+        self.release_date = match &steam_data.release_date {
+            // TODO: Make parsing more resilient to location formatting.
+            Some(date) => match NaiveDateTime::parse_from_str(
+                &format!("{} 12:00:00", &date.date),
+                "%b %e, %Y %H:%M:%S",
+            ) {
+                Ok(date) => Some(date.timestamp()),
+                Err(_) => match NaiveDateTime::parse_from_str(
+                    &format!("{} 12:00:00", &date.date),
+                    "%e %b, %Y %H:%M:%S",
+                ) {
+                    Ok(date) => Some(date.timestamp()),
+                    Err(status) => {
+                        warn!(
+                            "Steam date '{}' parsing failed for {}({}): {status}",
+                            &date.date, self.name, self.id,
+                        );
+                        self.release_date
+                    }
+                },
+            },
+            None => self.release_date,
+        };
+        self.scores = Scores {
+            tier: match &steam_data.score {
+                Some(score) => match score.review_score_desc.as_str() {
+                    "Overwhelmingly Positive" => Some(9),
+                    "Very Positive" => Some(8),
+                    "Positive" => Some(7),
+                    "Mostly Positive" => Some(6),
+                    "Mixed" => Some(5),
+                    "Mostly Negative" => Some(4),
+                    "Negative" => Some(3),
+                    "Very Negative" => Some(2),
+                    "Overwhelmingly Negative" => Some(1),
+                    _ => None,
+                },
+                None => None,
+            },
+            thumbs: match &steam_data.score {
+                Some(score) => Some(score.review_score),
+                None => self.scores.thumbs,
+            },
+            popularity: match &steam_data.score {
+                Some(score) => match score.total_reviews {
+                    0 => self.scores.popularity,
+                    _ => Some(score.total_reviews),
+                },
+                None => self.scores.popularity,
+            },
+            metacritic: match &steam_data.metacritic {
+                Some(metacrtic) => Some(metacrtic.score),
+                None => self.scores.metacritic,
+            },
+        };
+        self.steam_data = Some(steam_data);
     }
 }
 

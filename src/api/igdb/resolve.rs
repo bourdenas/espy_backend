@@ -9,7 +9,7 @@ use crate::{
     Status,
 };
 use async_recursion::async_recursion;
-use tracing::{instrument, warn};
+use tracing::{instrument, trace_span, warn, Instrument};
 
 use super::{
     backend::post,
@@ -35,6 +35,21 @@ pub async fn resolve_game_digest(
 ) -> Result<GameEntry, Status> {
     let mut game_entry = GameEntry::from(igdb_game);
     let igdb_game = &game_entry.igdb_game;
+
+    // Spawn a task to retrieve steam data.
+    let handle = match firestore::external_games::get_steam_id(firestore, game_entry.id).await {
+        Ok(steam_appid) => Some(tokio::spawn(
+            async move {
+                let steam = SteamDataApi::new();
+                steam.retrieve_steam_data(&steam_appid).await
+            }
+            .instrument(trace_span!("spawn_steam_request")),
+        )),
+        Err(status) => {
+            warn!("{status}");
+            None
+        }
+    };
 
     if let Some(cover) = igdb_game.cover {
         game_entry.cover = get_cover(connection, cover).await?;
@@ -85,14 +100,14 @@ pub async fn resolve_game_digest(
 
     game_entry.resolve_genres();
 
-    match firestore::external_games::get_steam_id(firestore, game_entry.id).await {
-        Ok(steam_id) => {
-            let steam = SteamDataApi::new();
-            if let Err(e) = steam.retrieve_steam_data(&steam_id, &mut game_entry).await {
-                warn!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
-            }
+    if let Some(handle) = handle {
+        match handle.await {
+            Ok(result) => match result {
+                Ok(steam_data) => game_entry.add_steam_data(steam_data),
+                Err(status) => warn!("{status}"),
+            },
+            Err(status) => warn!("{status}"),
         }
-        Err(status) => warn!("{status}"),
     }
 
     // TODO: Remove these updates from the critical path.
@@ -123,18 +138,6 @@ pub async fn resolve_game_info(
         game_entry.keywords = get_keywords(firestore, &igdb_game.keywords).await?;
     }
 
-    // Skip screenshots if they already exist from steam data.
-    if !igdb_game.screenshots.is_empty() && game_entry.steam_data.is_none() {
-        if let Ok(screenshots) = get_screenshots(connection, &igdb_game.screenshots).await {
-            game_entry.screenshots = screenshots;
-        }
-    }
-    if !igdb_game.artworks.is_empty() {
-        if let Ok(artwork) = get_artwork(connection, &igdb_game.artworks).await {
-            game_entry.artwork = artwork;
-        }
-    }
-
     if igdb_game.websites.len() > 0 {
         if let Ok(websites) = get_websites(connection, &igdb_game.websites).await {
             game_entry.websites.extend(
@@ -157,6 +160,34 @@ pub async fn resolve_game_info(
                         _ => true,
                     }),
             );
+        }
+    }
+
+    // Another attempt to retrieve steam data in case the steam appid can be
+    // extracted IGDB links.
+    let handle = match game_entry.steam_data {
+        Some(_) => None,
+        None => match game_entry.get_steam_appid() {
+            Some(steam_appid) => Some(tokio::spawn(
+                async move {
+                    let steam = SteamDataApi::new();
+                    steam.retrieve_steam_data(&steam_appid).await
+                }
+                .instrument(trace_span!("spawn_steam_request")),
+            )),
+            None => None,
+        },
+    };
+
+    // Skip screenshots if they already exist from steam data.
+    if !igdb_game.screenshots.is_empty() && game_entry.steam_data.is_none() {
+        if let Ok(screenshots) = get_screenshots(connection, &igdb_game.screenshots).await {
+            game_entry.screenshots = screenshots;
+        }
+    }
+    if !igdb_game.artworks.is_empty() {
+        if let Ok(artwork) = get_artwork(connection, &igdb_game.artworks).await {
+            game_entry.artwork = artwork;
         }
     }
 
@@ -199,17 +230,13 @@ pub async fn resolve_game_info(
         };
     }
 
-    if game_entry.steam_data.is_none() {
-        // Another attempt to retrieve steam data in case the steam appid can be
-        // extracted IGDB links.
-        match game_entry.get_steam_appid() {
-            Some(appid) => {
-                let steam = SteamDataApi::new();
-                if let Err(e) = steam.retrieve_steam_data(&appid, game_entry).await {
-                    warn!("Failed to retrieve SteamData for '{}' {e}", game_entry.name);
-                }
-            }
-            None => {}
+    if let Some(handle) = handle {
+        match handle.await {
+            Ok(result) => match result {
+                Ok(steam_data) => game_entry.add_steam_data(steam_data),
+                Err(status) => warn!("{status}"),
+            },
+            Err(status) => warn!("{status}"),
         }
     }
 
