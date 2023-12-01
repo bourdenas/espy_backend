@@ -27,16 +27,7 @@ pub struct GameEntry {
     pub release_date: Option<i64>,
 
     #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub score: Option<u64>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub thumbs: Option<u64>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub popularity: Option<u64>,
+    pub scores: Scores,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -44,7 +35,7 @@ pub struct GameEntry {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub genres: Vec<String>,
+    pub espy_genres: Vec<EspyGenre>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -116,6 +107,35 @@ fn is_released(release_date: Option<i64>) -> bool {
     }
 }
 
+impl GameEntry {
+    pub fn resolve_genres(&mut self) {
+        self.espy_genres = self
+            .igdb_game
+            .genres
+            .iter()
+            .filter_map(|igdb_genre_id| match GENRES_BY_ID.get(&igdb_genre_id) {
+                Some(genre) => Some(*genre),
+                None => None,
+            })
+            .collect();
+    }
+
+    pub fn get_steam_appid(&self) -> Option<String> {
+        self.websites
+            .iter()
+            .find_map(|website| match website.authority {
+                WebsiteAuthority::Steam => website
+                    .url
+                    .split("/")
+                    .collect::<Vec<_>>()
+                    .iter()
+                    .rev()
+                    .find_map(|s| Some(s.to_string())),
+                _ => None,
+            })
+    }
+}
+
 impl From<IgdbGame> for GameEntry {
     fn from(igdb_game: IgdbGame) -> Self {
         GameEntry {
@@ -129,21 +149,26 @@ impl From<IgdbGame> for GameEntry {
             status: GameStatus::from(igdb_game.status),
 
             release_date: igdb_game.first_release_date,
-            score: match igdb_game.aggregated_rating {
-                Some(rating) => Some(rating.round() as u64),
-                None => None,
-            },
-            thumbs: match igdb_game.total_rating {
-                Some(rating) => Some(rating.round() as u64),
-                None => None,
-            },
-            popularity: match is_released(igdb_game.first_release_date) {
-                // Use IGDB popularity only for unreleased titles. Otherwise,
-                // Steam should be used as source.
-                false => Some(
-                    igdb_game.follows.unwrap_or_default() + igdb_game.hypes.unwrap_or_default(),
-                ),
-                true => None,
+            scores: Scores {
+                tier: None,
+                thumbs: match igdb_game.total_rating {
+                    // Use IGDB rating only for unreleased titles. Otherwise,
+                    // Steam should be used as source.
+                    Some(rating) => Some(rating.round() as u64),
+                    None => None,
+                },
+                popularity: match is_released(igdb_game.first_release_date) {
+                    // Use IGDB popularity only for unreleased titles. Otherwise,
+                    // Steam should be used as source.
+                    false => Some(
+                        igdb_game.follows.unwrap_or_default() + igdb_game.hypes.unwrap_or_default(),
+                    ),
+                    true => None,
+                },
+                metacritic: match igdb_game.aggregated_rating {
+                    Some(rating) => Some(rating.round() as u64),
+                    None => None,
+                },
             },
 
             parent: match igdb_game.parent_game {
@@ -247,7 +272,7 @@ impl From<u64> for GameStatus {
 
 impl Default for GameStatus {
     fn default() -> Self {
-        GameStatus::Released
+        GameStatus::Unknown
     }
 }
 
@@ -255,6 +280,29 @@ impl std::fmt::Display for GameStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct Scores {
+    // 1-9 tier based on Steam score description.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tier: Option<u64>,
+
+    // Thumbs up percentage from Steam.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thumbs: Option<u64>,
+
+    // Popularity measured as total reviews on Steam.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub popularity: Option<u64>,
+
+    // Metacritic score sourced either from Steam or IGDB.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metacritic: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -341,4 +389,111 @@ impl Default for WebsiteAuthority {
     fn default() -> Self {
         WebsiteAuthority::Null
     }
+}
+
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+pub enum EspyGenre {
+    Adventure,
+    Arcade,
+    Online,
+    Platformer,
+    RPG,
+    Shooter,
+    Simulator,
+    Strategy,
+    Indie,
+}
+
+use phf::phf_map;
+
+static GENRES_BY_ID: phf::Map<u64, EspyGenre> = phf_map! {
+    2u64 => EspyGenre::Adventure,
+    4u64 => EspyGenre::Arcade,
+    5u64 => EspyGenre::Shooter,
+    8u64 => EspyGenre::Platformer,
+    10u64 => EspyGenre::Simulator,
+    11u64 => EspyGenre::Strategy,
+    12u64 => EspyGenre::RPG,
+    13u64 => EspyGenre::Simulator,
+    14u64 => EspyGenre::Simulator,
+    15u64 => EspyGenre::Strategy,
+    16u64 => EspyGenre::Strategy,
+    24u64 => EspyGenre::Strategy,
+    25u64 => EspyGenre::Arcade,
+    30u64 => EspyGenre::Arcade,
+    31u64 => EspyGenre::Adventure,
+    32u64 => EspyGenre::Indie,
+    33u64 => EspyGenre::Arcade,
+    35u64 => EspyGenre::Arcade,
+    36u64 => EspyGenre::Online,
+};
+
+pub enum EspySubGenre {
+    //  Adventure
+    PointAndClick,
+    Action,
+    IsometricAction,
+    IsometricAdventure,
+    FirstPersonAdventure,
+    NarrativeAdventure,
+    PuzzleAdventure,
+
+    // RPG
+    CRpg,
+    IsometricRpg,
+    TurnBasedRpg,
+    RTwPRpg,
+    FirstPersonRpg,
+    ActionRpg,
+    HackAndSlash,
+    JRpg,
+
+    // Strategy
+    TurnBasedStrategy,
+    RealTimeStrategy,
+    TurnBasedTactics,
+    RealTimeTactics,
+    IsometricTactics,
+    GrandStrategy,
+    XXXX,
+
+    // Arcade
+    Fighting,
+    Pinball,
+    BeatemUp,
+    Puzzle,
+    TowerDefense,
+    EndlessRunner,
+    CardBoardGame,
+
+    // Online
+    MMORPG,
+    Moba,
+    BattleRoyale,
+    Coop,
+    PvP,
+
+    // Platformer
+    SideScroller,
+    Metroidvania,
+    ThreeDPlatformer,
+    ShooterPlatformer,
+    PuzzlePlatformer,
+
+    // Shooter
+    FirstPersonShooter,
+    TopDownShooter,
+    ThirdPersonShooter,
+    SpaceShooter,
+    StealthShooter,
+    FirstPersonMelee,
+
+    // Simulator
+    CityBuilder,
+    GodGame,
+    Racing,
+    Sport,
+    FlightSimulator,
+    Management,
+    Survival,
 }

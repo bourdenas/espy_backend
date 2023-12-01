@@ -52,7 +52,7 @@ impl Reconciler {
         let digest = match game_entry {
             Ok(game_entry) => Ok(GameDigest::from(game_entry)),
             Err(_) => match igdb.get(game_id).await {
-                Ok(igdb_game) => match igdb.get_digest(Arc::clone(&firestore), igdb_game).await {
+                Ok(igdb_game) => match igdb.resolve_digest(&firestore, igdb_game).await {
                     Ok(digest) => Ok(digest),
                     Err(e) => Err(e),
                 },
@@ -144,7 +144,7 @@ async fn match_by_external_id(
                         Err(Status::NotFound(_)) => return Ok(None),
                         Err(e) => return Err(e),
                     };
-                    match igdb.get_digest(firestore, igdb_game).await {
+                    match igdb.resolve_digest(&firestore, igdb_game).await {
                         Ok(digest) => Ok(Some(digest)),
                         Err(Status::NotFound(_)) => Ok(None),
                         Err(e) => Err(e),
@@ -170,7 +170,7 @@ async fn match_by_title(
     match candidates.into_iter().next() {
         Some(igdb_game) => match firestore::games::read(&firestore, igdb_game.id).await {
             Ok(game_entry) => Ok(Some(GameDigest::from(game_entry))),
-            Err(Status::NotFound(_)) => match igdb.get_digest(firestore, igdb_game).await {
+            Err(Status::NotFound(_)) => match igdb.resolve_digest(&firestore, igdb_game).await {
                 Ok(digest) => Ok(Some(digest)),
                 Err(Status::NotFound(_)) => Ok(None),
                 Err(e) => Err(e),

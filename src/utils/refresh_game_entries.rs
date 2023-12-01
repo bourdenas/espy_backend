@@ -41,44 +41,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             true => library::firestore::games::delete(&firestore, id).await?,
         }
     } else {
-        refresh_entries(firestore, igdb, opts.from).await?;
+        todo!("not implemented");
     }
 
     Ok(())
 }
 
 async fn refresh_game(firestore: FirestoreApi, id: u64, igdb: api::IgdbApi) -> Result<(), Status> {
-    let game = library::firestore::games::read(&firestore, id).await?;
-    refresh(firestore, vec![game], igdb).await
+    refresh(firestore, &vec![id], igdb).await
 }
 
 #[instrument(level = "trace", skip(firestore, igdb))]
-async fn refresh_entries(
-    firestore: FirestoreApi,
-    igdb: api::IgdbApi,
-    from: u64,
-) -> Result<(), Status> {
-    let game_entries = library::firestore::games::list(&firestore)
-        .await?
-        .into_iter()
-        .skip_while(|e| from != 0 && e.id != from)
-        .collect();
-    refresh(firestore, game_entries, igdb).await
-}
-
 async fn refresh(
     firestore: FirestoreApi,
-    game_entries: Vec<documents::GameEntry>,
+    game_ids: &[u64],
     igdb: api::IgdbApi,
 ) -> Result<(), Status> {
-    info!("Updating {} game entries...", game_entries.len());
+    info!("Updating {} game entries...", game_ids.len());
     let mut k = 0;
 
     let firestore = Arc::new(firestore);
-    for game_entry in game_entries {
-        info!("#{k} Updating {} ({})", &game_entry.name, game_entry.id);
+    for id in game_ids {
+        info!("#{k} Updating id={id}");
 
-        match igdb.get(game_entry.id).await {
+        match igdb.get(*id).await {
             Ok(igdb_game) => {
                 if let Err(e) = igdb.resolve(Arc::clone(&firestore), igdb_game).await {
                     error!("{e}");

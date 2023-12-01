@@ -102,12 +102,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
                     match firestore::games::read(&firestore, *game).await {
                         Ok(game_entry) => {
-                            let digest = GameDigest::short_digest(&game_entry);
+                            let digest = GameDigest::from(game_entry);
                             games.insert(digest.id, digest.clone());
                             game_digests.push(digest)
                         }
                         Err(Status::NotFound(_)) => {
-                            let digest = match igdb.get_short_digest(*game).await {
+                            let igdb_game = match igdb.get(*game).await {
+                                Ok(game) => game,
+                                Err(e) => {
+                                    error!("  company={}: {e}", &company.name);
+                                    continue;
+                                }
+                            };
+                            let digest = match igdb.resolve_digest(&firestore, igdb_game).await {
                                 Ok(digest) => digest,
                                 Err(e) => {
                                     error!("  company={}: {e}", &company.name);

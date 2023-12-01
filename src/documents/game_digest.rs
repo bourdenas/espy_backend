@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-use super::{GameCategory, GameEntry};
+use super::{EspyGenre, GameCategory, GameEntry, Scores};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct GameDigest {
@@ -21,16 +21,7 @@ pub struct GameDigest {
     pub release_date: Option<i64>,
 
     #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub score: Option<u64>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub thumbs: Option<u64>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub popularity: Option<u64>,
+    pub scores: Scores,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -54,48 +45,7 @@ pub struct GameDigest {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub genres: Vec<String>,
-}
-
-impl GameDigest {
-    pub fn short_digest(game_entry: &GameEntry) -> Self {
-        GameDigest {
-            id: game_entry.id,
-            name: game_entry.name.clone(),
-            category: game_entry.category,
-
-            cover: match &game_entry.cover {
-                Some(cover) => Some(cover.image_id.clone()),
-                None => None,
-            },
-
-            release_date: match game_entry.release_date {
-                Some(date) => Some(date),
-                None => game_entry.igdb_game.first_release_date,
-            },
-            score: match game_entry.score {
-                Some(score) => Some(score),
-                None => match game_entry.igdb_game.aggregated_rating {
-                    Some(rating) => Some(rating.round() as u64),
-                    None => None,
-                },
-            },
-            thumbs: match game_entry.thumbs {
-                Some(thumbs) => Some(thumbs),
-                None => match game_entry.igdb_game.total_rating {
-                    Some(rating) => Some(rating.round() as u64),
-                    None => None,
-                },
-            },
-            popularity: game_entry.popularity,
-
-            parent_id: match &game_entry.parent {
-                Some(parent) => Some(parent.id),
-                None => None,
-            },
-            ..Default::default()
-        }
-    }
+    pub espy_genres: Vec<EspyGenre>,
 }
 
 impl From<GameEntry> for GameDigest {
@@ -114,26 +64,14 @@ impl From<GameEntry> for GameDigest {
                 Some(date) => Some(date),
                 None => game_entry.igdb_game.first_release_date,
             },
-            score: match game_entry.score {
-                Some(score) => Some(score),
-                None => match game_entry.igdb_game.aggregated_rating {
-                    Some(rating) => Some(rating.round() as u64),
-                    None => None,
-                },
-            },
-            thumbs: match game_entry.thumbs {
-                Some(thumbs) => Some(thumbs),
-                None => match game_entry.igdb_game.total_rating {
-                    Some(rating) => Some(rating.round() as u64),
-                    None => None,
-                },
-            },
-            popularity: game_entry.popularity,
+            scores: game_entry.scores.clone(),
 
             parent_id: match game_entry.parent {
                 Some(parent) => Some(parent.id),
                 None => None,
             },
+
+            espy_genres: game_entry.espy_genres,
 
             collections: game_entry
                 .collections
@@ -166,40 +104,6 @@ impl From<GameEntry> for GameDigest {
                 .collect::<HashSet<_>>()
                 .into_iter()
                 .collect(),
-
-            genres: extract_genres(&game_entry.genres),
         }
     }
 }
-
-fn extract_genres(igdb_genres: &Vec<String>) -> Vec<String> {
-    igdb_genres
-        .iter()
-        .filter_map(|igdb_genre| match GENRES.get(&igdb_genre) {
-            Some(genre) => Some((*genre).to_owned()),
-            None => None,
-        })
-        .collect()
-}
-
-use phf::phf_map;
-
-static GENRES: phf::Map<&'static str, &'static str> = phf_map! {
-    "Point-and-click" => "Adventure",
-    "Adventure" => "Adventure",
-    "Pinball" => "Arcade",
-    "Arcade" => "Arcade",
-    "Fighting" => "Arcade",
-    "Card & Board Game" => "Arcade",
-    "MOBA" => "Online",
-    "Platform" => "Platformer",
-    "Role-playing (RPG)" => "RPG",
-    "Shooter" => "Shooter",
-    "Racing" => "Simulator",
-    "Simulator" => "Simulator",
-    "Sport" => "Simulator",
-    "Real Time Strategy (RTS)" => "Strategy",
-    "Strategy" => "Strategy",
-    "Turn-based strategy (TBS)" => "Strategy",
-    "Tactical" => "Strategy",
-};

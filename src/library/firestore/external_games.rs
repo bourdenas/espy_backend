@@ -1,4 +1,6 @@
 use crate::{api::FirestoreApi, documents::ExternalGame, Status};
+use firestore::{path, FirestoreResult};
+use futures::{stream::BoxStream, TryStreamExt};
 use tracing::instrument;
 
 #[instrument(name = "external_games::read", level = "trace", skip(firestore))]
@@ -62,6 +64,31 @@ pub async fn delete(firestore: &FirestoreApi, store: &str, store_id: &str) -> Re
         .execute()
         .await?;
     Ok(())
+}
+
+pub async fn get_steam_id(firestore: &FirestoreApi, igdb_id: u64) -> Result<String, Status> {
+    let external_games: BoxStream<FirestoreResult<ExternalGame>> = firestore
+        .db()
+        .fluent()
+        .select()
+        .from("external_games")
+        .filter(|q| {
+            q.for_all([
+                q.field(path!(ExternalGame::igdb_id)).equal(igdb_id),
+                q.field(path!(ExternalGame::store_name)).equal("steam"),
+            ])
+        })
+        .obj()
+        .stream_query_with_errors()
+        .await?;
+
+    let external_games = external_games.try_collect::<Vec<ExternalGame>>().await?;
+    match external_games.is_empty() {
+        false => Ok(external_games[0].store_id.clone()),
+        true => Err(Status::not_found(format!(
+            "Steam Id for {igdb_id} was not found"
+        ))),
+    }
 }
 
 const EXTERNAL_GAMES: &str = "external_games";

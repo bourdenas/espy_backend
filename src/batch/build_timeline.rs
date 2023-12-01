@@ -9,13 +9,13 @@ use espy_backend::{
     api::{self, FirestoreApi},
     documents::{GameCategory, GameDigest, GameEntry, Timeline},
     games::SteamDataApi,
-    library::firestore::timeline,
+    library::firestore::{external_games, timeline},
     util, Status, Tracing,
 };
 use firestore::{path, FirestoreQueryDirection, FirestoreResult};
 use futures::{stream::BoxStream, TryStreamExt};
 use itertools::Itertools;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 #[derive(Parser)]
 struct Opts {
@@ -84,7 +84,7 @@ async fn main() -> Result<(), Status> {
             _ => false,
         })
         .filter(|entry| {
-            entry.popularity.unwrap_or_default() > UPCOMING_POPULARITY_THRESHOLD
+            entry.scores.popularity.unwrap_or_default() > UPCOMING_POPULARITY_THRESHOLD
                 || entry
                     .developers
                     .iter()
@@ -150,8 +150,19 @@ async fn main() -> Result<(), Status> {
             }
         } else if game.release_date.unwrap_or_default() as u64 >= d5 {
             info!("Fetching Steam data for '{}'...", game.name);
+            let steam_appid = match game.get_steam_appid() {
+                Some(id) => id,
+                None => match external_games::get_steam_id(&firestore, game.id).await {
+                    Ok(id) => id,
+                    Err(status) => {
+                        warn!("{status}");
+                        return Ok(());
+                    }
+                },
+            };
+
             let steam = SteamDataApi::new();
-            if let Err(e) = steam.retrieve_steam_data(game).await {
+            if let Err(e) = steam.retrieve_steam_data(&steam_appid, game).await {
                 error!("Failed to retrieve SteamData for '{}' {e}", game.name);
             }
         } else {
@@ -179,7 +190,7 @@ async fn main() -> Result<(), Status> {
                     .publishers
                     .iter()
                     .any(|publ| notable.contains(&publ.name))
-                || match entry.popularity {
+                || match entry.scores.popularity {
                     Some(value) => match entry.category {
                         GameCategory::Main => value >= RECENT_POPULARITY_THRESHOLD,
                         _ => value >= RECENT_POPULARITY_THRESHOLD_DLC,

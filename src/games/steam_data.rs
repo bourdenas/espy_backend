@@ -1,6 +1,6 @@
 use crate::{
     api::SteamApi,
-    documents::{self, GameEntry},
+    documents::{GameEntry, Scores},
     logging::SteamFetchCounter,
     util::rate_limiter::RateLimiter,
     Status,
@@ -25,20 +25,12 @@ impl SteamDataApi {
         skip(self, game_entry),
         fields(game_entry = %game_entry.name),
     )]
-    pub async fn retrieve_steam_data(&self, game_entry: &mut GameEntry) -> Result<(), Status> {
+    pub async fn retrieve_steam_data(
+        &self,
+        steam_appid: &str,
+        game_entry: &mut GameEntry,
+    ) -> Result<(), Status> {
         let counter = SteamFetchCounter::new();
-
-        let steam_appid = match get_steam_appid(game_entry) {
-            Some(id) => id,
-            None => {
-                counter.log_warning(
-                    "missing_id",
-                    &game_entry,
-                    &Status::not_found("missing steam id"),
-                );
-                return Ok(());
-            }
-        };
 
         self.qps.wait();
         let score = match SteamApi::get_app_score(steam_appid).await {
@@ -81,40 +73,41 @@ impl SteamDataApi {
             },
             None => game_entry.release_date,
         };
-        game_entry.score = match &steam_data.metacritic {
-            Some(metacrtic) => Some(metacrtic.score),
-            None => game_entry.score,
-        };
-        game_entry.thumbs = match &steam_data.score {
-            Some(score) => Some(score.review_score),
-            None => game_entry.thumbs,
-        };
-        game_entry.popularity = match &steam_data.score {
-            Some(score) => match score.total_reviews {
-                0 => game_entry.popularity,
-                _ => Some(score.total_reviews),
+        game_entry.scores = Scores {
+            tier: match &steam_data.score {
+                Some(score) => match score.review_score_desc.as_str() {
+                    "Overwhelmingly Positive" => Some(9),
+                    "Very Positive" => Some(8),
+                    "Positive" => Some(7),
+                    "Mostly Positive" => Some(6),
+                    "Mixed" => Some(5),
+                    "Mostly Negative" => Some(4),
+                    "Negative" => Some(3),
+                    "Very Negative" => Some(2),
+                    "Overwhelmingly Negative" => Some(1),
+                    _ => None,
+                },
+                None => None,
             },
-            None => game_entry.popularity,
+            thumbs: match &steam_data.score {
+                Some(score) => Some(score.review_score),
+                None => game_entry.scores.thumbs,
+            },
+            popularity: match &steam_data.score {
+                Some(score) => match score.total_reviews {
+                    0 => game_entry.scores.popularity,
+                    _ => Some(score.total_reviews),
+                },
+                None => game_entry.scores.popularity,
+            },
+            metacritic: match &steam_data.metacritic {
+                Some(metacrtic) => Some(metacrtic.score),
+                None => game_entry.scores.metacritic,
+            },
         };
         game_entry.steam_data = Some(steam_data);
 
         counter.log(&game_entry);
         Ok(())
     }
-}
-
-fn get_steam_appid(game_entry: &GameEntry) -> Option<u64> {
-    game_entry
-        .websites
-        .iter()
-        .find_map(|website| match website.authority {
-            documents::WebsiteAuthority::Steam => website
-                .url
-                .split("/")
-                .collect::<Vec<_>>()
-                .iter()
-                .rev()
-                .find_map(|s| s.parse().ok()),
-            _ => None,
-        })
 }
