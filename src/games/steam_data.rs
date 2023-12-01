@@ -7,7 +7,7 @@ use crate::{
 };
 use chrono::NaiveDateTime;
 use std::time::Duration;
-use tracing::{instrument, warn};
+use tracing::instrument;
 
 pub struct SteamDataApi {
     qps: RateLimiter,
@@ -51,8 +51,6 @@ impl SteamDataApi {
                 return Err(status);
             }
         };
-
-        warn!("steam_data={:?}", steam_data);
 
         game_entry.release_date = match &steam_data.release_date {
             // TODO: Make parsing more resilient to location formatting.

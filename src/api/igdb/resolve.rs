@@ -527,6 +527,7 @@ async fn get_involved_companies(
 }
 
 /// Make sure that any companies involved in the game are updated to include it.
+#[instrument(level = "trace", skip(firestore, game_entry))]
 async fn update_companies(firestore: &FirestoreApi, game_entry: &GameEntry) {
     for (companies, company_role) in [
         (&game_entry.developers, CompanyRole::Developer),
@@ -575,6 +576,7 @@ async fn update_companies(firestore: &FirestoreApi, game_entry: &GameEntry) {
 }
 
 /// Update collections / franchises in the game with a fresh digest.
+#[instrument(level = "trace", skip(firestore, game_entry))]
 async fn update_collections(firestore: &FirestoreApi, game_entry: &GameEntry) {
     for (collections, collection_type) in [
         (&game_entry.collections, CollectionType::Collection),
