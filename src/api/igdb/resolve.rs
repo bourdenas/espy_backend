@@ -120,7 +120,7 @@ pub async fn resolve_game_info(
     let igdb_game = &game_entry.igdb_game;
 
     if !igdb_game.keywords.is_empty() {
-        game_entry.keywords = get_keywords(connection, firestore, &igdb_game.keywords).await?;
+        game_entry.keywords = get_keywords(firestore, &igdb_game.keywords).await?;
     }
 
     if !igdb_game.screenshots.is_empty() {
@@ -289,43 +289,14 @@ async fn get_genres(
     Ok(genres)
 }
 
-/// Returns game keywords based on id from the igdb/keywords endpoint.
-#[instrument(level = "trace", skip(connection, firestore))]
-async fn get_keywords(
-    connection: &IgdbConnection,
-    firestore: &FirestoreApi,
-    ids: &[u64],
-) -> Result<Vec<String>, Status> {
-    let mut keywords = vec![];
-    let mut missing = vec![];
-    for id in ids {
-        match firestore::keywords::read(firestore, *id).await {
-            Ok(kw) => keywords.push(kw.name),
-            Err(_) => missing.push(id),
-        }
-    }
-
-    if !missing.is_empty() {
-        keywords.extend(
-            post::<Vec<docs::IgdbAnnotation>>(
-                connection,
-                KEYWORDS_ENDPOINT,
-                &format!(
-                    "fields *; where id = ({});",
-                    missing
-                        .iter()
-                        .map(|id| id.to_string())
-                        .collect::<Vec<String>>()
-                        .join(",")
-                ),
-            )
-            .await?
-            .into_iter()
-            .map(|keyword| keyword.name),
-        );
-    }
-
-    Ok(keywords)
+/// Returns game keywords from their ids.
+#[instrument(level = "trace", skip(firestore))]
+async fn get_keywords(firestore: &FirestoreApi, ids: &[u64]) -> Result<Vec<String>, Status> {
+    Ok(firestore::keywords::batch_read(firestore, ids)
+        .await?
+        .iter()
+        .map(|kw| kw.name.clone())
+        .collect())
 }
 
 /// Returns game screenshots based on id from the igdb/screenshots endpoint.
