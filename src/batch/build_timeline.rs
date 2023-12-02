@@ -8,14 +8,13 @@ use clap::Parser;
 use espy_backend::{
     api::{self, FirestoreApi},
     documents::{GameCategory, GameDigest, GameEntry, Timeline},
-    games::SteamDataApi,
-    library::firestore::{external_games, timeline},
+    library::firestore::timeline,
     util, Status, Tracing,
 };
 use firestore::{path, FirestoreQueryDirection, FirestoreResult};
 use futures::{stream::BoxStream, TryStreamExt};
 use itertools::Itertools;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 #[derive(Parser)]
 struct Opts {
@@ -120,14 +119,8 @@ async fn main() -> Result<(), Status> {
     let mut recent = recent.try_collect::<Vec<GameEntry>>().await?;
     info!("recent = {}", recent.len());
 
-    let d1 = SystemTime::now()
-        .checked_sub(Duration::from_secs(1 * 24 * 60 * 60))
-        .unwrap()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let d5 = SystemTime::now()
-        .checked_sub(Duration::from_secs(5 * 24 * 60 * 60))
+    let d7 = SystemTime::now()
+        .checked_sub(Duration::from_secs(7 * 24 * 60 * 60))
         .unwrap()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -139,7 +132,7 @@ async fn main() -> Result<(), Status> {
 
     let firestore = Arc::new(firestore);
     for game in &mut recent {
-        if game.release_date.unwrap_or_default() as u64 >= d1 {
+        if game.release_date.unwrap_or_default() as u64 >= d7 {
             info!("Updating '{}'...", game.name);
             match igdb.get(game.id).await {
                 Ok(igdb_game) => match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
@@ -147,24 +140,6 @@ async fn main() -> Result<(), Status> {
                     Err(e) => error!("{e}"),
                 },
                 Err(e) => error!("{e}"),
-            }
-        } else if game.release_date.unwrap_or_default() as u64 >= d5 {
-            info!("Fetching Steam data for '{}'...", game.name);
-            let steam_appid = match game.get_steam_appid() {
-                Some(id) => id,
-                None => match external_games::get_steam_id(&firestore, game.id).await {
-                    Ok(id) => id,
-                    Err(status) => {
-                        warn!("{status}");
-                        return Ok(());
-                    }
-                },
-            };
-
-            let steam = SteamDataApi::new();
-            match steam.retrieve_steam_data(&steam_appid).await {
-                Ok(steam_data) => game.add_steam_data(steam_data),
-                Err(status) => warn!("Failed to retrieve SteamData for '{}' {status}", game.name),
             }
         } else {
             break;
