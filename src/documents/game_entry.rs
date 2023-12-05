@@ -1,8 +1,6 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use tracing::warn;
 
 use crate::api::IgdbGame;
 
@@ -138,29 +136,6 @@ impl GameEntry {
     }
 
     pub fn add_steam_data(&mut self, steam_data: SteamData) {
-        self.release_date = match &steam_data.release_date {
-            // TODO: Make parsing more resilient to location formatting.
-            Some(date) => match NaiveDateTime::parse_from_str(
-                &format!("{} 12:00:00", &date.date),
-                "%b %e, %Y %H:%M:%S",
-            ) {
-                Ok(date) => Some(date.timestamp()),
-                Err(_) => match NaiveDateTime::parse_from_str(
-                    &format!("{} 12:00:00", &date.date),
-                    "%e %b, %Y %H:%M:%S",
-                ) {
-                    Ok(date) => Some(date.timestamp()),
-                    Err(status) => {
-                        warn!(
-                            "Steam date '{}' parsing failed for {}({}): {status}",
-                            &date.date, self.name, self.id,
-                        );
-                        self.release_date
-                    }
-                },
-            },
-            None => self.release_date,
-        };
         self.scores = Scores {
             tier: match &steam_data.score {
                 Some(score) => match score.review_score_desc.as_str() {
