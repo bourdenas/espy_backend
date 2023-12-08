@@ -330,45 +330,6 @@ async fn get_games(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<IgdbG
     .await
 }
 
-/// Returns game genres based on id from the igdb/genres endpoint.
-#[instrument(level = "trace", skip(connection, firestore))]
-async fn get_genres(
-    connection: &IgdbConnection,
-    firestore: &FirestoreApi,
-    ids: &[u64],
-) -> Result<Vec<String>, Status> {
-    let mut genres = vec![];
-    let mut missing = vec![];
-    for id in ids {
-        match firestore::genres::read(firestore, *id).await {
-            Ok(genre) => genres.push(genre.name),
-            Err(_) => missing.push(id),
-        }
-    }
-
-    if !missing.is_empty() {
-        genres.extend(
-            post::<Vec<docs::IgdbAnnotation>>(
-                connection,
-                GENRES_ENDPOINT,
-                &format!(
-                    "fields *; where id = ({});",
-                    missing
-                        .into_iter()
-                        .map(|id| id.to_string())
-                        .collect::<Vec<String>>()
-                        .join(",")
-                ),
-            )
-            .await?
-            .into_iter()
-            .map(|genre| genre.name),
-        );
-    }
-
-    Ok(genres)
-}
-
 /// Returns game keywords from their ids.
 #[instrument(level = "trace", skip(firestore))]
 async fn get_keywords(firestore: &FirestoreApi, ids: &[u64]) -> Result<Vec<String>, Status> {
