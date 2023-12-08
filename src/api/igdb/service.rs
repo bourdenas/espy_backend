@@ -70,19 +70,7 @@ impl IgdbApi {
     #[instrument(level = "trace", skip(self))]
     pub async fn get(&self, id: u64) -> Result<IgdbGame, Status> {
         let connection = self.connection()?;
-        let result: Vec<IgdbGame> = post(
-            &connection,
-            GAMES_ENDPOINT,
-            &format!("fields *; where id={id};"),
-        )
-        .await?;
-
-        match result.into_iter().next() {
-            Some(igdb_game) => Ok(igdb_game),
-            None => Err(Status::not_found(format!(
-                "IgdbGame with id={id} was not found."
-            ))),
-        }
+        get_game(&connection, id).await
     }
 
     /// Returns an IgdbGame based on external id info in IGDB.

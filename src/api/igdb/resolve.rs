@@ -298,7 +298,7 @@ async fn get_digests(
 ///
 /// Does not perform any lookups on tables beyond Game.
 #[instrument(level = "trace", skip(connection))]
-async fn get_game(connection: &IgdbConnection, id: u64) -> Result<IgdbGame, Status> {
+pub async fn get_game(connection: &IgdbConnection, id: u64) -> Result<IgdbGame, Status> {
     let result: Vec<IgdbGame> = post(
         connection,
         GAMES_ENDPOINT,
