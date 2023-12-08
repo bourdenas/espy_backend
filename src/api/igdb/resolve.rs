@@ -204,31 +204,23 @@ pub async fn resolve_game_info(
             game_entry.parent = Some(game);
         };
     }
-    for id in igdb_game.expansions.iter() {
-        if let Ok(game) = get_digest(connection, firestore, *id).await {
-            game_entry.expansions.push(game);
-        };
-    }
-    for id in igdb_game.standalone_expansions.iter() {
-        if let Ok(game) = get_digest(connection, firestore, *id).await {
-            game_entry.expansions.push(game);
-        };
-    }
-    for id in igdb_game.dlcs.iter() {
-        if let Ok(game) = get_digest(connection, firestore, *id).await {
-            game_entry.dlcs.push(game);
-        };
-    }
-    for id in igdb_game.remakes.iter() {
-        if let Ok(game) = get_digest(connection, firestore, *id).await {
-            game_entry.remakes.push(game);
-        };
-    }
-    for id in igdb_game.remasters.iter() {
-        if let Ok(game) = get_digest(connection, firestore, *id).await {
-            game_entry.remasters.push(game);
-        };
-    }
+    if let Ok(digests) = get_digests(connection, firestore, &igdb_game.expansions).await {
+        game_entry.expansions = digests;
+    };
+    if let Ok(mut digests) =
+        get_digests(connection, firestore, &igdb_game.standalone_expansions).await
+    {
+        game_entry.expansions.append(&mut digests);
+    };
+    if let Ok(digests) = get_digests(connection, firestore, &igdb_game.dlcs).await {
+        game_entry.dlcs = digests;
+    };
+    if let Ok(digests) = get_digests(connection, firestore, &igdb_game.remakes).await {
+        game_entry.remakes = digests;
+    };
+    if let Ok(digests) = get_digests(connection, firestore, &igdb_game.remasters).await {
+        game_entry.remasters = digests;
+    };
 
     if let Some(handle) = handle {
         match handle.await {
@@ -273,6 +265,35 @@ async fn get_digest(
     ))
 }
 
+#[instrument(level = "trace", skip(connection, firestore))]
+async fn get_digests(
+    connection: &IgdbConnection,
+    firestore: &FirestoreApi,
+    ids: &[u64],
+) -> Result<Vec<GameDigest>, Status> {
+    let mut digests = match firestore::games::batch_read(firestore, ids).await {
+        Ok(game_entries) => game_entries
+            .into_iter()
+            .map(|entry| GameDigest::from(entry))
+            .collect(),
+        Err(_) => vec![],
+    };
+
+    let missing = ids
+        .iter()
+        .filter(|id| digests.iter().all(|digest| digest.id != **id))
+        .map(|id| *id)
+        .collect::<Vec<_>>();
+
+    let games = get_games(connection, &missing).await?;
+    for igdb_game in games {
+        digests.push(GameDigest::from(
+            resolve_game_digest(connection, firestore, igdb_game).await?,
+        ));
+    }
+    Ok(digests)
+}
+
 /// Returns an IgdbGame doc from IGDB for given game `id`.
 ///
 /// Does not perform any lookups on tables beyond Game.
@@ -291,6 +312,22 @@ async fn get_game(connection: &IgdbConnection, id: u64) -> Result<IgdbGame, Stat
             "Failed to retrieve game with id={id}"
         ))),
     }
+}
+
+#[instrument(level = "trace", skip(connection))]
+async fn get_games(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<IgdbGame>, Status> {
+    post::<Vec<IgdbGame>>(
+        connection,
+        GAMES_ENDPOINT,
+        &format!(
+            "fields *; where id = ({});",
+            ids.into_iter()
+                .map(|id| id.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+    )
+    .await
 }
 
 /// Returns game genres based on id from the igdb/genres endpoint.

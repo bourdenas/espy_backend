@@ -1,7 +1,8 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use firestore::FirestoreResult;
 use futures::{stream::BoxStream, StreamExt};
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 use crate::{api::FirestoreApi, documents::GameEntry, Status};
 
@@ -36,6 +37,34 @@ pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<GameEntry, St
             "Firestore document '{GAMES}/{doc_id}' was not found"
         ))),
     }
+}
+
+#[instrument(name = "games::batch_read", level = "trace", skip(firestore))]
+pub async fn batch_read(
+    firestore: &FirestoreApi,
+    doc_ids: &[u64],
+) -> Result<Vec<GameEntry>, Status> {
+    let mut docs: BoxStream<FirestoreResult<(String, Option<GameEntry>)>> = firestore
+        .db()
+        .fluent()
+        .select()
+        .by_id_in(GAMES)
+        .obj()
+        .batch_with_errors(doc_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>())
+        .await?;
+
+    let mut games: Vec<GameEntry> = vec![];
+    while let Some(game) = docs.next().await {
+        match game {
+            Ok((_, game)) => match game {
+                Some(game) => games.push(game),
+                None => {}
+            },
+            Err(status) => warn!("{status}"),
+        }
+    }
+
+    Ok(games)
 }
 
 #[instrument(name = "games::write", level = "trace", skip(firestore, game_entry))]

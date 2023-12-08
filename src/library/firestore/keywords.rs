@@ -23,7 +23,7 @@ pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<Keyword, Stat
     }
 }
 
-#[instrument(name = "keywords::read", level = "trace", skip(firestore))]
+#[instrument(name = "keywords::batch_read", level = "trace", skip(firestore))]
 pub async fn batch_read(firestore: &FirestoreApi, doc_ids: &[u64]) -> Result<Vec<Keyword>, Status> {
     let mut docs: BoxStream<FirestoreResult<(String, Option<Keyword>)>> = firestore
         .db()
