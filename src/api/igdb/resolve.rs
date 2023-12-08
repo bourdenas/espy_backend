@@ -204,23 +204,33 @@ pub async fn resolve_game_info(
             game_entry.parent = Some(game);
         };
     }
-    if let Ok(digests) = get_digests(connection, firestore, &igdb_game.expansions).await {
-        game_entry.expansions = digests;
-    };
-    if let Ok(mut digests) =
-        get_digests(connection, firestore, &igdb_game.standalone_expansions).await
-    {
-        game_entry.expansions.append(&mut digests);
-    };
-    if let Ok(digests) = get_digests(connection, firestore, &igdb_game.dlcs).await {
-        game_entry.dlcs = digests;
-    };
-    if let Ok(digests) = get_digests(connection, firestore, &igdb_game.remakes).await {
-        game_entry.remakes = digests;
-    };
-    if let Ok(digests) = get_digests(connection, firestore, &igdb_game.remasters).await {
-        game_entry.remasters = digests;
-    };
+    if !igdb_game.expansions.is_empty() {
+        if let Ok(digests) = get_digests(connection, firestore, &igdb_game.expansions).await {
+            game_entry.expansions = digests;
+        }
+    }
+    if !igdb_game.standalone_expansions.is_empty() {
+        if let Ok(mut digests) =
+            get_digests(connection, firestore, &igdb_game.standalone_expansions).await
+        {
+            game_entry.expansions.append(&mut digests);
+        }
+    }
+    if !igdb_game.dlcs.is_empty() {
+        if let Ok(digests) = get_digests(connection, firestore, &igdb_game.dlcs).await {
+            game_entry.dlcs = digests;
+        }
+    }
+    if !igdb_game.remakes.is_empty() {
+        if let Ok(digests) = get_digests(connection, firestore, &igdb_game.remakes).await {
+            game_entry.remakes = digests;
+        }
+    }
+    if !igdb_game.remasters.is_empty() {
+        if let Ok(digests) = get_digests(connection, firestore, &igdb_game.remasters).await {
+            game_entry.remasters = digests;
+        }
+    }
 
     if let Some(handle) = handle {
         match handle.await {
