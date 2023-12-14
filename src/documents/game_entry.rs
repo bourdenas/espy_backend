@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::IgdbGame;
 
-use super::{GameDigest, SteamData};
+use super::{GameDigest, Scores, SteamData};
 
 /// Document type under 'users/{user_id}/games' that represents an espy game
 /// entry.
@@ -167,6 +167,7 @@ impl GameEntry {
                 Some(metacrtic) => Some(metacrtic.score),
                 None => self.scores.metacritic,
             },
+            ..Default::default()
         };
         self.steam_data = Some(steam_data);
     }
@@ -205,6 +206,7 @@ impl From<IgdbGame> for GameEntry {
                     Some(rating) => Some(rating.round() as u64),
                     None => None,
                 },
+                ..Default::default()
             },
 
             parent: match igdb_game.parent_game {
@@ -316,29 +318,6 @@ impl std::fmt::Display for GameStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
-}
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct Scores {
-    // 1-9 tier based on Steam score description.
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tier: Option<u64>,
-
-    // Thumbs up percentage from Steam.
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub thumbs: Option<u64>,
-
-    // Popularity measured as total reviews on Steam.
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub popularity: Option<u64>,
-
-    // Metacritic score sourced either from Steam or IGDB.
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metacritic: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
