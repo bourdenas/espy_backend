@@ -23,8 +23,7 @@ pub struct GameEntry {
     pub last_updated: u64,
 
     #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub release_date: Option<i64>,
+    pub release_date: i64,
 
     #[serde(default)]
     pub scores: Scores,
@@ -185,7 +184,10 @@ impl From<IgdbGame> for GameEntry {
             },
             status: GameStatus::from(igdb_game.status),
 
-            release_date: igdb_game.first_release_date,
+            release_date: match igdb_game.first_release_date {
+                Some(timestamp) => timestamp,
+                None => 0,
+            },
             scores: Scores {
                 tier: None,
                 thumbs: match igdb_game.total_rating {

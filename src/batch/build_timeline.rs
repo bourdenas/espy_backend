@@ -132,7 +132,7 @@ async fn main() -> Result<(), Status> {
 
     let firestore = Arc::new(firestore);
     for game in &mut recent {
-        if game.release_date.unwrap_or_default() as u64 >= d7 {
+        if game.release_date as u64 >= d7 {
             info!("Updating '{}'...", game.name);
             match igdb.get(game.id).await {
                 Ok(igdb_game) => match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
@@ -192,7 +192,7 @@ async fn main() -> Result<(), Status> {
     timeline::write(&firestore, &timeline).await?;
 
     let serialized = serde_json::to_string(&timeline)?;
-    info!("create frontpage size: {}KB", serialized.len() / 1024);
+    info!("created timeline size: {}KB", serialized.len() / 1024);
 
     Ok(())
 }

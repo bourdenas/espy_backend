@@ -61,8 +61,8 @@ impl From<GameEntry> for GameDigest {
             },
 
             release_date: match game_entry.release_date {
-                Some(date) => Some(date),
-                None => game_entry.igdb_game.first_release_date,
+                0 => None,
+                x => Some(x),
             },
             scores: game_entry.scores.clone(),
 
