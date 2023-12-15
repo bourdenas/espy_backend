@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use clap::Parser;
 use espy_backend::{documents::StoreEntry, *};
 use itertools::Itertools;
@@ -25,6 +27,11 @@ struct Opts {
     /// search.
     #[clap(long)]
     expand: bool,
+
+    /// If set retrieves all available information for the top candidate of the
+    /// search.
+    #[clap(long)]
+    resolve: bool,
 
     /// JSON file that contains application keys for espy service.
     #[clap(long, default_value = "keys.json")]
@@ -76,6 +83,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 println!("{:?}", igdb_game);
             }
         }
+    } else if opts.resolve && !games.is_empty() {
+        let firestore = Arc::new(api::FirestoreApi::connect().await?);
+        let igdb_game = games.first().unwrap();
+        let game_entry = igdb.resolve(firestore, igdb_game.clone()).await?;
+        let serialized = serde_json::to_string(&game_entry)?;
+        println!("{serialized}");
     }
 
     Ok(())
