@@ -155,10 +155,10 @@ impl GameEntry {
                 Some(score) => Some(score.review_score),
                 None => self.scores.thumbs,
             },
-            popularity: match &steam_data.score {
-                Some(score) => match score.total_reviews {
+            popularity: match &steam_data.recommendations {
+                Some(rec) => match rec.total {
                     0 => self.scores.popularity,
-                    _ => Some(score.total_reviews),
+                    _ => Some(rec.total),
                 },
                 None => self.scores.popularity,
             },
