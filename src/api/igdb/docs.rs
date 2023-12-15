@@ -29,6 +29,10 @@ pub struct IgdbGame {
     pub first_release_date: Option<i64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub release_dates: Vec<u64>,
+
+    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aggregated_rating: Option<f64>,
 
@@ -295,6 +299,24 @@ pub struct IgdbAnnotation {
 
     #[serde(default)]
     pub slug: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+pub struct ReleaseDate {
+    pub category: u64,
+
+    #[serde(default)]
+    pub date: i64,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<ReleaseDateStatus>,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+pub struct ReleaseDateStatus {
+    #[serde(default)]
+    pub name: String,
 }
 
 #[derive(Serialize, Default, Debug, Clone)]
