@@ -73,9 +73,11 @@ impl EspyTier {
         match (&scores.thumbs_tier, &scores.pop_tier) {
             (Some(thumb), Some(pop)) => match thumb {
                 Thumbs::Masterpiece => match pop {
-                    Popularity::Massive | Popularity::Hit | Popularity::Popular => {
-                        Self::Masterpiece
-                    }
+                    Popularity::Massive | Popularity::Hit => match scores.critics_tier {
+                        Some(Critics::Masterpiece) | Some(Critics::Excellent) => Self::Masterpiece,
+                        _ => Self::Excellent,
+                    },
+                    Popularity::Popular => Self::Excellent,
                     Popularity::Niche => Self::Great,
                     _ => Self::Unknown,
                 },
@@ -89,8 +91,14 @@ impl EspyTier {
                     Popularity::Niche => Self::Great,
                     _ => Self::Unknown,
                 },
-                Thumbs::VeryGood => Self::VeryGood,
-                Thumbs::Good => Self::Ok,
+                Thumbs::VeryGood => match pop {
+                    Popularity::Fringe => Self::Unknown,
+                    _ => Self::VeryGood,
+                },
+                Thumbs::Good => match pop {
+                    Popularity::Fringe => Self::Unknown,
+                    _ => Self::Ok,
+                },
                 Thumbs::Mixed => Self::Mixed,
                 Thumbs::NotGood => match pop {
                     Popularity::Massive | Popularity::Hit | Popularity::Popular => Self::Flop,
@@ -140,8 +148,8 @@ impl Thumbs {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum Popularity {
     Massive = 100000,
-    Hit = 50000,
-    Popular = 2000,
+    Hit = 20000,
+    Popular = 5000,
     Niche = 1000,
     Fringe = 0,
     Unknown,
