@@ -25,6 +25,10 @@ path = "src/batch/build_notable.rs"
 name = "build_timeline"
 path = "src/batch/build_timeline.rs"
 
+[[bin]]
+name = "build_year_summary"
+path = "src/batch/build_year_summary.rs"
+
 
 # Command line utils
 [[bin]]

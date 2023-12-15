@@ -12,3 +12,4 @@ pub mod timeline;
 pub mod user_data;
 pub mod user_tags;
 pub mod wishlist;
+pub mod year;
