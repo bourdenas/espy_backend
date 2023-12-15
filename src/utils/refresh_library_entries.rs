@@ -18,6 +18,9 @@ struct Opts {
     #[clap(long, default_value = "keys.json")]
     key_store: String,
 
+    #[clap(long)]
+    resolve: bool,
+
     /// Export in a text file the library (for inspection) instead of refreshing it.
     #[clap(long)]
     export: bool,
@@ -47,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let text = summary_library(library);
         println!("{text}");
     } else {
-        refresh_library_entries(firestore, igdb, &opts.user).await?;
+        refresh_library_entries(firestore, igdb, &opts.user, opts.resolve).await?;
     }
 
     Ok(())
@@ -58,25 +61,31 @@ async fn refresh_library_entries(
     firestore: FirestoreApi,
     igdb: IgdbApi,
     user_id: &str,
+    resolve: bool,
 ) -> Result<(), Status> {
     let legacy_library = library::firestore::library::read(&firestore, user_id).await?;
     info!("updating {} titles...", legacy_library.entries.len());
 
     let firestore = Arc::new(firestore);
 
-    let mut game_entries: HashMap<u64, LibraryEntry> = HashMap::new();
+    let mut library_entries: HashMap<u64, LibraryEntry> = HashMap::new();
     let mut k = 0;
     for entry in legacy_library.entries {
-        let game_entry = library::firestore::games::read(&firestore, entry.id).await;
+        println!(
+            "#{k} Get '{title}' ({id})",
+            title = entry.digest.name,
+            id = entry.id,
+        );
+
+        let game_entry = if resolve {
+            let igdb_game = igdb.get(entry.id).await?;
+            igdb.resolve(Arc::clone(&firestore), igdb_game).await
+        } else {
+            library::firestore::games::read(&firestore, entry.id).await
+        };
 
         let game_entry = match game_entry {
-            Ok(game_entry) => {
-                info!(
-                    "#{k} Read from firestore '{title}'",
-                    title = game_entry.name
-                );
-                GameDigest::from(game_entry)
-            }
+            Ok(game_entry) => GameDigest::from(game_entry),
             Err(_) => match igdb.get(entry.id).await {
                 Ok(igdb_game) => {
                     info!("#{k} Fetching from igdb '{title}'", title = igdb_game.name);
@@ -95,19 +104,19 @@ async fn refresh_library_entries(
             },
         };
 
-        let entry = LibraryEntry::new(game_entry, entry.store_entries.clone());
-        game_entries
-            .entry(entry.id)
+        let library_entry = LibraryEntry::new(game_entry, entry.store_entries.clone());
+        library_entries
+            .entry(library_entry.id)
             .and_modify(|e| {
                 e.store_entries
-                    .extend(entry.store_entries.iter().map(|e| e.clone()))
+                    .extend(library_entry.store_entries.iter().map(|e| e.clone()))
             })
-            .or_insert(entry);
+            .or_insert(library_entry);
         k += 1;
     }
 
     let library = Library {
-        entries: game_entries
+        entries: library_entries
             .into_iter()
             .map(|(_, mut entry)| {
                 entry.store_entries.sort_by(|a, b| match a.id.cmp(&b.id) {
