@@ -75,6 +75,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             game.release_date,
             NaiveDateTime::from_timestamp_millis(game.release_date * 1000).unwrap()
         );
+
+        match game.category {
+            GameCategory::Dlc
+            | GameCategory::Bundle
+            | GameCategory::Episode
+            | GameCategory::Version
+            | GameCategory::Ignore => {
+                continue;
+            }
+            _ => {}
+        }
+
         i += 1;
 
         if let Some(pop) = game.scores.popularity {
