@@ -39,6 +39,21 @@ pub struct Scores {
     pub critics_tier: Option<Critics>,
 }
 
+impl Scores {
+    pub fn calculate_tiers(&mut self) {
+        if let Some(pop) = self.popularity {
+            self.pop_tier = Some(Popularity::create(pop));
+        }
+        if let Some(thumbs) = self.thumbs {
+            self.thumbs_tier = Some(Thumbs::create(thumbs));
+        }
+        if let Some(critics) = self.metacritic {
+            self.critics_tier = Some(Critics::create(critics));
+        }
+        self.espy_tier = Some(EspyTier::create(&self));
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum EspyTier {
     Masterpiece,

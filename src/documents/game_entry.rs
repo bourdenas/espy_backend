@@ -168,13 +168,15 @@ impl GameEntry {
             },
             ..Default::default()
         };
+        self.scores.calculate_tiers();
+
         self.steam_data = Some(steam_data);
     }
 }
 
 impl From<IgdbGame> for GameEntry {
     fn from(igdb_game: IgdbGame) -> Self {
-        GameEntry {
+        let mut game_entry = GameEntry {
             id: igdb_game.id,
             name: igdb_game.name.clone(),
 
@@ -233,7 +235,9 @@ impl From<IgdbGame> for GameEntry {
             igdb_game,
 
             ..Default::default()
-        }
+        };
+        game_entry.scores.calculate_tiers();
+        game_entry
     }
 }
 
