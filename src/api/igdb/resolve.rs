@@ -308,11 +308,13 @@ async fn get_digests(
         .map(|id| *id)
         .collect::<Vec<_>>();
 
-    let games = get_games(connection, &missing).await?;
-    for igdb_game in games {
-        digests.push(GameDigest::from(
-            resolve_game_digest(connection, firestore, igdb_game).await?,
-        ));
+    if !missing.is_empty() {
+        let games = get_games(connection, &missing).await?;
+        for igdb_game in games {
+            digests.push(GameDigest::from(
+                resolve_game_digest(connection, firestore, igdb_game).await?,
+            ));
+        }
     }
     Ok(digests)
 }
