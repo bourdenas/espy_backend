@@ -38,6 +38,10 @@ pub struct GameEntry {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub espy_subgenres: Vec<EspySubGenre>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub keywords: Vec<String>,
 
     #[serde(default)]
@@ -113,6 +117,16 @@ impl GameEntry {
             .genres
             .iter()
             .filter_map(|igdb_genre_id| match GENRES_BY_ID.get(&igdb_genre_id) {
+                Some(genre) => Some(*genre),
+                None => None,
+            })
+            .collect();
+
+        self.espy_subgenres = self
+            .igdb_game
+            .genres
+            .iter()
+            .filter_map(|igdb_genre_id| match SUBGENRES_BY_ID.get(&igdb_genre_id) {
                 Some(genre) => Some(*genre),
                 None => None,
             })
@@ -449,6 +463,22 @@ static GENRES_BY_ID: phf::Map<u64, EspyGenre> = phf_map! {
     36u64 => EspyGenre::Online,
 };
 
+static SUBGENRES_BY_ID: phf::Map<u64, EspySubGenre> = phf_map! {
+    2u64 => EspySubGenre::PointAndClick,
+    4u64 => EspySubGenre::Fighting,
+    5u64 => EspySubGenre::FirstPersonShooter,
+    10u64 => EspySubGenre::Racing,
+    11u64 => EspySubGenre::RealTimeStrategy,
+    14u64 => EspySubGenre::Sport,
+    16u64 => EspySubGenre::TurnBasedStrategy,
+    24u64 => EspySubGenre::TurnBasedTactics,
+    25u64 => EspySubGenre::HackAndSlash,
+    30u64 => EspySubGenre::Pinball,
+    35u64 => EspySubGenre::CardBoardGame,
+    36u64 => EspySubGenre::Moba,
+};
+
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum EspySubGenre {
     //  Adventure
     PointAndClick,
