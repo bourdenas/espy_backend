@@ -32,6 +32,10 @@ path = "src/batch/build_year_summary.rs"
 
 # Command line utils
 [[bin]]
+name = "count_docs"
+path = "src/utils/count_docs.rs"
+
+[[bin]]
 name = "collect_collections"
 path = "src/utils/collect_collections.rs"
 
