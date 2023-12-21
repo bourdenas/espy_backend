@@ -67,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let mut i = 0;
     let mut digests = vec![];
-    for mut game in games {
+    for game in games {
         println!(
             "#{i} -- {} -- id={} -- release={} ({})",
             game.name,
@@ -89,20 +89,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         i += 1;
 
-        if let Some(pop) = game.scores.popularity {
-            game.scores.pop_tier = Some(Popularity::create(pop));
-        }
-        if let Some(thumbs) = game.scores.thumbs {
-            game.scores.thumbs_tier = Some(Thumbs::create(thumbs));
-        }
-        if let Some(critics) = game.scores.metacritic {
-            game.scores.critics_tier = Some(Critics::create(critics));
-        }
-        game.scores.espy_tier = Some(EspyTier::create(&game.scores));
-
-        match game.scores.espy_tier.as_ref().unwrap() {
-            EspyTier::Unknown => {}
-            _ => digests.push(GameDigest::from(game)),
+        match &game.scores.espy_tier {
+            Some(tier) => match tier {
+                EspyTier::Unknown => {}
+                _ => digests.push(GameDigest::from(game)),
+            },
+            None => {}
         }
     }
 
@@ -118,7 +110,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     year::write(&firestore, &timeline, opts.year).await?;
 
     let serialized = serde_json::to_string(&timeline)?;
-    info!(
+    println!(
         "created year {} size: {}KB",
         opts.year,
         serialized.len() / 1024
