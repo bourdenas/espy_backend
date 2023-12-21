@@ -40,7 +40,7 @@ pub struct Scores {
 }
 
 impl Scores {
-    pub fn calculate_tiers(&mut self) {
+    pub fn calculate_tiers(&mut self, release_date: i64) {
         if let Some(pop) = self.popularity {
             self.pop_tier = Some(Popularity::create(pop));
         }
@@ -50,7 +50,14 @@ impl Scores {
         if let Some(critics) = self.metacritic {
             self.critics_tier = Some(Critics::create(critics));
         }
-        self.espy_tier = Some(EspyTier::create(&self));
+
+        // Final score logic depends on year of release. Releases before 2006 do
+        // not have representative steam counts.
+        self.espy_tier = Some(if release_date >= 1136070000 {
+            EspyTier::create(&self)
+        } else {
+            EspyTier::create_classics(&self)
+        });
     }
 }
 
@@ -112,6 +119,23 @@ impl EspyTier {
             },
 
             _ => Self::Unknown,
+        }
+    }
+
+    pub fn create_classics(scores: &Scores) -> Self {
+        match &scores.thumbs_tier {
+            Some(thumb) => match thumb {
+                Thumbs::Masterpiece => Self::Masterpiece,
+                Thumbs::Excellent => Self::Excellent,
+                Thumbs::Great => Self::Great,
+                Thumbs::VeryGood => Self::VeryGood,
+                Thumbs::Good => Self::Ok,
+                Thumbs::Mixed => Self::Mixed,
+                Thumbs::NotGood => Self::NotGood,
+                Thumbs::Bad => Self::Bad,
+                Thumbs::Unknown => Self::Unknown,
+            },
+            None => Self::Unknown,
         }
     }
 }

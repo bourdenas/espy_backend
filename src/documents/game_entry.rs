@@ -182,7 +182,7 @@ impl GameEntry {
             },
             ..Default::default()
         };
-        self.scores.calculate_tiers();
+        self.scores.calculate_tiers(self.release_date);
 
         self.steam_data = Some(steam_data);
     }
@@ -250,7 +250,7 @@ impl From<IgdbGame> for GameEntry {
 
             ..Default::default()
         };
-        game_entry.scores.calculate_tiers();
+        game_entry.scores.calculate_tiers(game_entry.release_date);
         game_entry
     }
 }
