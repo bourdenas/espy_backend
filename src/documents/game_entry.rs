@@ -1,5 +1,3 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
 use serde::{Deserialize, Serialize};
 
 use crate::api::IgdbGame;
@@ -100,16 +98,6 @@ pub struct GameEntry {
     pub steam_data: Option<SteamData>,
 }
 
-fn is_released(release_date: Option<i64>) -> bool {
-    match release_date {
-        Some(release_date) => {
-            let release = UNIX_EPOCH + Duration::from_secs(release_date as u64);
-            release < SystemTime::now()
-        }
-        None => false,
-    }
-}
-
 impl GameEntry {
     pub fn resolve_genres(&mut self) {
         self.espy_genres = self
@@ -149,48 +137,14 @@ impl GameEntry {
     }
 
     pub fn add_steam_data(&mut self, steam_data: SteamData) {
-        self.scores = Scores {
-            tier: match &steam_data.score {
-                Some(score) => match score.review_score_desc.as_str() {
-                    "Overwhelmingly Positive" => Some(9),
-                    "Very Positive" => Some(8),
-                    "Positive" => Some(7),
-                    "Mostly Positive" => Some(6),
-                    "Mixed" => Some(5),
-                    "Mostly Negative" => Some(4),
-                    "Negative" => Some(3),
-                    "Very Negative" => Some(2),
-                    "Overwhelmingly Negative" => Some(1),
-                    _ => None,
-                },
-                None => None,
-            },
-            thumbs: match &steam_data.score {
-                Some(score) => Some(score.review_score),
-                None => self.scores.thumbs,
-            },
-            popularity: match &steam_data.recommendations {
-                Some(rec) => match rec.total {
-                    0 => self.scores.popularity,
-                    _ => Some(rec.total),
-                },
-                None => self.scores.popularity,
-            },
-            metacritic: match &steam_data.metacritic {
-                Some(metacrtic) => Some(metacrtic.score),
-                None => self.scores.metacritic,
-            },
-            ..Default::default()
-        };
-        self.scores.calculate_tiers(self.release_date);
-
+        self.scores.update(&steam_data, self.release_date);
         self.steam_data = Some(steam_data);
     }
 }
 
 impl From<IgdbGame> for GameEntry {
     fn from(igdb_game: IgdbGame) -> Self {
-        let mut game_entry = GameEntry {
+        GameEntry {
             id: igdb_game.id,
             name: igdb_game.name.clone(),
 
@@ -204,28 +158,7 @@ impl From<IgdbGame> for GameEntry {
                 Some(timestamp) => timestamp,
                 None => 0,
             },
-            scores: Scores {
-                tier: None,
-                thumbs: match igdb_game.total_rating {
-                    // Use IGDB rating only for unreleased titles. Otherwise,
-                    // Steam should be used as source.
-                    Some(rating) => Some(rating.round() as u64),
-                    None => None,
-                },
-                popularity: match is_released(igdb_game.first_release_date) {
-                    // Use IGDB popularity only for unreleased titles. Otherwise,
-                    // Steam should be used as source.
-                    false => Some(
-                        igdb_game.follows.unwrap_or_default() + igdb_game.hypes.unwrap_or_default(),
-                    ),
-                    true => None,
-                },
-                metacritic: match igdb_game.aggregated_rating {
-                    Some(rating) => Some(rating.round() as u64),
-                    None => None,
-                },
-                ..Default::default()
-            },
+            scores: Scores::from(&igdb_game),
 
             parent: match igdb_game.parent_game {
                 Some(id) => Some(GameDigest {
@@ -249,9 +182,7 @@ impl From<IgdbGame> for GameEntry {
             igdb_game,
 
             ..Default::default()
-        };
-        game_entry.scores.calculate_tiers(game_entry.release_date);
-        game_entry
+        }
     }
 }
 

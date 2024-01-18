@@ -1,4 +1,10 @@
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
 use serde::{Deserialize, Serialize};
+
+use crate::api::IgdbGame;
+
+use super::SteamData;
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Scores {
@@ -40,7 +46,46 @@ pub struct Scores {
 }
 
 impl Scores {
-    pub fn calculate_tiers(&mut self, release_date: i64) {
+    pub fn update(&mut self, steam_data: &SteamData, release_date: i64) {
+        if let Some(score) = &steam_data.score {
+            self.tier = match score.review_score_desc.as_str() {
+                "Overwhelmingly Positive" => Some(9),
+                "Very Positive" => Some(8),
+                "Positive" => Some(7),
+                "Mostly Positive" => Some(6),
+                "Mixed" => Some(5),
+                "Mostly Negative" => Some(4),
+                "Negative" => Some(3),
+                "Very Negative" => Some(2),
+                "Overwhelmingly Negative" => Some(1),
+                _ => None,
+            };
+        }
+
+        if let Some(score) = &steam_data.score {
+            self.thumbs = Some(score.review_score);
+        }
+
+        if let Some(rec) = &steam_data.recommendations {
+            self.popularity = match rec.total {
+                0 => None,
+                _ => Some(rec.total),
+            };
+        }
+
+        match &steam_data.metacritic {
+            Some(metacrtic) => self.metacritic = Some(metacrtic.score),
+            // Assign Steam score to "classics" that miss metacritic reviews.
+            None => match is_classic(release_date) {
+                true => {
+                    if let Some(score) = &self.thumbs {
+                        self.metacritic = Some(*score);
+                    }
+                }
+                false => {}
+            },
+        }
+
         if let Some(pop) = self.popularity {
             self.pop_tier = Some(Popularity::create(pop));
         }
@@ -51,14 +96,46 @@ impl Scores {
             self.critics_tier = Some(Critics::create(critics));
         }
 
-        // Final score logic depends on year of release. Releases before 2006 do
-        // not have representative steam counts.
-        self.espy_tier = Some(if release_date >= 1136070000 {
-            EspyTier::create(&self)
-        } else {
+        // Final score logic depends on year of release. Classics do not have
+        // representative steam counts.
+        self.espy_tier = Some(if is_classic(release_date) {
             EspyTier::create_classics(&self)
+        } else {
+            EspyTier::create(&self)
         });
     }
+}
+
+impl From<&IgdbGame> for Scores {
+    fn from(igdb_game: &IgdbGame) -> Scores {
+        Scores {
+            popularity: if !is_released(igdb_game.first_release_date) {
+                // Use IGDB popularity only for unreleased titles. Otherwise,
+                // Steam should be used as source.
+                Some(igdb_game.follows.unwrap_or_default() + igdb_game.hypes.unwrap_or_default())
+            } else {
+                None
+            },
+            ..Default::default()
+        }
+    }
+}
+
+fn is_released(release_date: Option<i64>) -> bool {
+    match release_date {
+        Some(release_date) => {
+            let release = UNIX_EPOCH + Duration::from_secs(release_date as u64);
+            release < SystemTime::now()
+        }
+        None => false,
+    }
+}
+
+fn is_classic(release_date: i64) -> bool {
+    const Y2009: Duration = Duration::from_secs(39 * 365 * 24 * 60 * 60);
+    let y2009 = UNIX_EPOCH + Y2009;
+    let release = UNIX_EPOCH + Duration::from_secs(release_date as u64);
+    release < SystemTime::from(y2009)
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
