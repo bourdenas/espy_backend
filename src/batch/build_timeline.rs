@@ -40,7 +40,7 @@ async fn main() -> Result<(), Status> {
         .unwrap()
         .as_secs();
     let recent_past = SystemTime::now()
-        .checked_sub(Duration::from_secs(6 * 30 * 24 * 60 * 60))
+        .checked_sub(Duration::from_secs(12 * 30 * 24 * 60 * 60))
         .unwrap()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -166,13 +166,7 @@ async fn main() -> Result<(), Status> {
                     .publishers
                     .iter()
                     .any(|publ| notable.contains(&publ.name))
-                || match entry.scores.popularity {
-                    Some(value) => match entry.category {
-                        GameCategory::Main => value >= RECENT_POPULARITY_THRESHOLD,
-                        _ => value >= RECENT_POPULARITY_THRESHOLD_DLC,
-                    },
-                    None => false,
-                }
+                || entry.scores.metacritic.is_some()
         })
         .collect_vec();
     info!("recent after filtering = {}", recent.len());
