@@ -73,17 +73,8 @@ impl Scores {
             };
         }
 
-        match &steam_data.metacritic {
-            Some(metacrtic) => self.metacritic = Some(metacrtic.score),
-            // Assign Steam score to "classics" that miss metacritic reviews.
-            None => match is_classic(release_date) {
-                true => {
-                    if let Some(score) = &self.thumbs {
-                        self.metacritic = Some(*score);
-                    }
-                }
-                false => {}
-            },
+        if let Some(metacritic) = &steam_data.metacritic {
+            self.metacritic = Some(metacritic.score);
         }
 
         if let Some(pop) = self.popularity {
