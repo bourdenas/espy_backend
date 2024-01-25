@@ -8,7 +8,7 @@ use clap::Parser;
 use espy_backend::{api::FirestoreApi, documents::*, library::firestore::year, *};
 use firestore::{path, FirestoreQueryDirection, FirestoreResult};
 use futures::{stream::BoxStream, TryStreamExt};
-use tracing::{info, instrument};
+use tracing::instrument;
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
 #[derive(Parser)]
