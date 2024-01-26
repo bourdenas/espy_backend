@@ -14,7 +14,12 @@ pub struct IgdbGame {
     pub status: u64,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "String::is_empty")]
     pub url: String,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub slug: String,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "String::is_empty")]
