@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use crate::{
-    api::FirestoreApi,
+    api::{FirestoreApi, MetacriticApi},
     documents::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
         GameDigest, GameEntry, Image, SteamData, Website, WebsiteAuthority,
@@ -40,7 +40,8 @@ pub async fn resolve_game_digest(
     let igdb_game = &game_entry.igdb_game;
 
     // Spawn a task to retrieve steam data.
-    let handle = match firestore::external_games::get_steam_id(firestore, game_entry.id).await {
+    let steam_handle = match firestore::external_games::get_steam_id(firestore, game_entry.id).await
+    {
         Ok(steam_appid) => Some(tokio::spawn(
             async move {
                 let steam = SteamDataApi::new();
@@ -53,6 +54,13 @@ pub async fn resolve_game_digest(
             None
         }
     };
+
+    // Spawn a task to retrieve metacritic score.
+    let slug = igdb_game.url.split('/').last().unwrap_or("").to_owned();
+    let metacritic_handle = tokio::spawn(
+        async move { MetacriticApi::get_score(&slug).await }
+            .instrument(trace_span!("spawn_metacritic_request")),
+    );
 
     if let Some(cover) = igdb_game.cover {
         game_entry.cover = get_cover(connection, cover).await?;
@@ -102,7 +110,7 @@ pub async fn resolve_game_digest(
     }
 
     let mut steam_data = None;
-    if let Some(handle) = handle {
+    if let Some(handle) = steam_handle {
         match handle.await {
             Ok(result) => match result {
                 Ok(data) => steam_data = Some(data),
@@ -122,6 +130,16 @@ pub async fn resolve_game_digest(
         game_entry.add_steam_data(steam_data);
     }
     game_entry.resolve_genres();
+
+    if game_entry.scores.metacritic.is_none() {
+        match metacritic_handle.await {
+            Ok(response) => match response {
+                Ok(score) => game_entry.scores.metacritic = Some(score),
+                Err(status) => warn!("{status}"),
+            },
+            Err(status) => warn!("{status}"),
+        }
+    }
 
     // TODO: Remove these updates from the critical path.
     update_companies(firestore, &game_entry).await;
@@ -248,7 +266,16 @@ pub async fn resolve_game_info(
     if let Some(handle) = handle {
         match handle.await {
             Ok(result) => match result {
-                Ok(steam_data) => game_entry.add_steam_data(steam_data),
+                Ok(steam_data) => {
+                    let metacritic = game_entry.scores.metacritic;
+                    game_entry.add_steam_data(steam_data);
+
+                    // If updating steam data erases metacritic score (because
+                    // it is hidden in steam) write back the original.
+                    if game_entry.scores.metacritic.is_none() {
+                        game_entry.scores.metacritic = metacritic;
+                    }
+                }
                 Err(status) => warn!("{status}"),
             },
             Err(status) => warn!("{status}"),
