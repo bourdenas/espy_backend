@@ -453,7 +453,8 @@ impl IgdbGameDiff {
     }
 
     pub fn needs_resolve(&self) -> bool {
-        self.genres
+        self.first_release_date
+            || self.genres
             || self.keywords
             || self.expansions
             || self.standalone_expansions

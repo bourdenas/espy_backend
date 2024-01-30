@@ -1,3 +1,5 @@
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
 use serde::{Deserialize, Serialize};
 
 use crate::api::IgdbGame;
@@ -140,6 +142,35 @@ impl GameEntry {
         self.scores.update(&steam_data, self.release_date);
         self.steam_data = Some(steam_data);
     }
+
+    pub fn update(&mut self, igdb_game: IgdbGame) {
+        self.name = igdb_game.name.clone();
+        self.category = Self::extract_category(&igdb_game);
+        self.status = GameStatus::from(igdb_game.status);
+
+        if !Self::is_released(self.release_date) {
+            self.scores = Scores::from(&igdb_game);
+        }
+
+        self.igdb_game = igdb_game;
+    }
+
+    fn is_released(release_date: i64) -> bool {
+        match release_date {
+            0 => false,
+            release_date => {
+                let release = UNIX_EPOCH + Duration::from_secs(release_date as u64);
+                release < SystemTime::now()
+            }
+        }
+    }
+
+    fn extract_category(igdb_game: &IgdbGame) -> GameCategory {
+        match igdb_game.version_parent {
+            Some(_) => GameCategory::Version,
+            None => GameCategory::from(igdb_game.category),
+        }
+    }
 }
 
 impl From<IgdbGame> for GameEntry {
@@ -148,17 +179,17 @@ impl From<IgdbGame> for GameEntry {
             id: igdb_game.id,
             name: igdb_game.name.clone(),
 
-            category: match igdb_game.version_parent {
-                Some(_) => GameCategory::Version,
-                None => GameCategory::from(igdb_game.category),
-            },
+            category: GameEntry::extract_category(&igdb_game),
             status: GameStatus::from(igdb_game.status),
 
             release_date: match igdb_game.first_release_date {
                 Some(timestamp) => timestamp,
                 None => 0,
             },
-            scores: Scores::from(&igdb_game),
+            scores: match GameEntry::is_released(igdb_game.first_release_date.unwrap_or(0)) {
+                false => Scores::from(&igdb_game),
+                true => Scores::default(),
+            },
 
             parent: match igdb_game.parent_game {
                 Some(id) => Some(GameDigest {

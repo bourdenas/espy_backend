@@ -1,6 +1,6 @@
 use crate::{
-    api::{FirestoreApi, IgdbApi, IgdbExternalGame, IgdbGame},
-    documents::{ExternalGame, GameCategory, GameEntry, GameStatus, Genre, Keyword},
+    api::{FirestoreApi, IgdbApi, IgdbExternalGame, IgdbGame, MetacriticApi},
+    documents::{ExternalGame, GameEntry, Genre, Keyword},
     games::SteamDataApi,
     library::firestore,
     Status,
@@ -10,7 +10,7 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use tracing::{instrument, warn};
+use tracing::{instrument, trace_span, warn, Instrument};
 use warp::http::StatusCode;
 
 use super::event_logs::{
@@ -58,7 +58,7 @@ pub async fn update_game_webhook(
                         .unwrap()
                         .checked_sub(Duration::from_secs(game_entry.last_updated))
                         .unwrap()
-                        > Duration::from_secs(15 * DAYS)
+                        > Duration::from_secs(1 * DAY_SECS)
                 {
                     match update_steam_data(firestore, &mut game_entry, igdb_game).await {
                         Ok(()) => event.log(Some(diff)),
@@ -87,36 +87,56 @@ pub async fn update_game_webhook(
     Ok(StatusCode::OK)
 }
 
-const DAYS: u64 = 24 * 60 * 60;
+const DAY_SECS: u64 = 24 * 60 * 60;
 
 async fn update_steam_data(
     firestore: Arc<FirestoreApi>,
     game_entry: &mut GameEntry,
     igdb_game: IgdbGame,
 ) -> Result<(), Status> {
-    game_entry.name = igdb_game.name.clone();
-    game_entry.category = GameCategory::from(igdb_game.category);
-    game_entry.status = GameStatus::from(igdb_game.status);
-    game_entry.igdb_game = igdb_game;
+    game_entry.update(igdb_game);
 
-    let steam_appid = match game_entry.get_steam_appid() {
-        Some(id) => id,
-        None => match firestore::external_games::get_steam_id(&firestore, game_entry.id).await {
-            Ok(id) => id,
+    // Spawn a task to retrieve steam data.
+    let steam_handle =
+        match firestore::external_games::get_steam_id(&firestore, game_entry.id).await {
+            Ok(steam_appid) => Some(tokio::spawn(
+                async move {
+                    let steam = SteamDataApi::new();
+                    steam.retrieve_steam_data(&steam_appid).await
+                }
+                .instrument(trace_span!("spawn_steam_request")),
+            )),
             Err(status) => {
                 warn!("{status}");
-                return Ok(());
+                None
             }
-        },
-    };
+        };
 
-    let steam = SteamDataApi::new();
-    match steam.retrieve_steam_data(&steam_appid).await {
-        Ok(steam_data) => game_entry.add_steam_data(steam_data),
-        Err(status) => warn!(
-            "Failed to retrieve SteamData for '{}' {status}",
-            game_entry.name
-        ),
+    // Spawn a task to retrieve metacritic score.
+    let slug = MetacriticApi::guess_id(&game_entry.igdb_game.url).to_owned();
+    let metacritic_handle = tokio::spawn(
+        async move { MetacriticApi::get_score(&slug).await }
+            .instrument(trace_span!("spawn_metacritic_request")),
+    );
+
+    if let Some(handle) = steam_handle {
+        match handle.await {
+            Ok(result) => match result {
+                Ok(steam_data) => game_entry.add_steam_data(steam_data),
+                Err(status) => warn!("{status}"),
+            },
+            Err(status) => warn!("{status}"),
+        }
+    }
+
+    if game_entry.scores.metacritic.is_none() {
+        match metacritic_handle.await {
+            Ok(response) => match response {
+                Ok(score) => game_entry.scores.metacritic = Some(score),
+                Err(status) => warn!("{status}"),
+            },
+            Err(status) => warn!("{status}"),
+        }
     }
 
     firestore::games::write(&firestore, game_entry).await

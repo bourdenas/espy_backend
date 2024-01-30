@@ -100,25 +100,11 @@ impl Scores {
 impl From<&IgdbGame> for Scores {
     fn from(igdb_game: &IgdbGame) -> Scores {
         Scores {
-            popularity: if !is_released(igdb_game.first_release_date) {
-                // Use IGDB popularity only for unreleased titles. Otherwise,
-                // Steam should be used as source.
-                Some(igdb_game.follows.unwrap_or_default() + igdb_game.hypes.unwrap_or_default())
-            } else {
-                None
-            },
+            popularity: Some(
+                igdb_game.follows.unwrap_or_default() + igdb_game.hypes.unwrap_or_default(),
+            ),
             ..Default::default()
         }
-    }
-}
-
-fn is_released(release_date: Option<i64>) -> bool {
-    match release_date {
-        Some(release_date) => {
-            let release = UNIX_EPOCH + Duration::from_secs(release_date as u64);
-            release < SystemTime::now()
-        }
-        None => false,
     }
 }
 

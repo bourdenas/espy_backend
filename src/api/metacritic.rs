@@ -23,6 +23,10 @@ impl MetacriticApi {
             None => Err(Status::not_found(format!("{slug} not found"))),
         }
     }
+
+    pub fn guess_id(igdb_url: &str) -> &str {
+        igdb_url.split('/').last().unwrap_or("")
+    }
 }
 
 const SCORE_TAG: &str = "c-productScoreInfo_scoreNumber";

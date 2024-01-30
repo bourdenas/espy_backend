@@ -56,7 +56,7 @@ pub async fn resolve_game_digest(
     };
 
     // Spawn a task to retrieve metacritic score.
-    let slug = igdb_game.url.split('/').last().unwrap_or("").to_owned();
+    let slug = MetacriticApi::guess_id(&igdb_game.url).to_owned();
     let metacritic_handle = tokio::spawn(
         async move { MetacriticApi::get_score(&slug).await }
             .instrument(trace_span!("spawn_metacritic_request")),
@@ -676,7 +676,7 @@ async fn get_release_date(
         .iter()
         .filter(|release_date| release_date.date > 0);
 
-    // If IGDB date is exact (category == 0) or release is before 2005 then
+    // If IGDB date is exact (category == 0) or release is before 2008 then
     // prefer the IGDB release date. Steam's release dates refer to the release
     // on the platform instead of the game itself. For games before 2008 this is
     // problematic.
