@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-use super::{EspyGenre, GameCategory, GameEntry, Scores};
+use super::{EspyGenre, GameCategory, GameEntry, GameStatus, Scores};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct GameDigest {
@@ -11,6 +11,9 @@ pub struct GameDigest {
 
     #[serde(default)]
     pub category: GameCategory,
+
+    #[serde(default)]
+    pub status: GameStatus,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -54,6 +57,7 @@ impl From<GameEntry> for GameDigest {
             id: game_entry.id,
             name: game_entry.name,
             category: game_entry.category,
+            status: game_entry.status,
 
             cover: match game_entry.cover {
                 Some(cover) => Some(cover.image_id),
