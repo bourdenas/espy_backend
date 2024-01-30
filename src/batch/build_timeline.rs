@@ -7,7 +7,7 @@ use std::{
 use clap::Parser;
 use espy_backend::{
     api::{self, FirestoreApi},
-    documents::{GameCategory, GameDigest, GameEntry, Timeline},
+    documents::{GameCategory, GameDigest, GameEntry, GameStatus, Timeline},
     library::firestore::timeline,
     util, Status, Tracing,
 };
@@ -75,7 +75,6 @@ async fn main() -> Result<(), Status> {
         .into_iter()
         .filter(|entry| match entry.category {
             GameCategory::Main
-            | GameCategory::Dlc
             | GameCategory::Expansion
             | GameCategory::StandaloneExpansion
             | GameCategory::Remake
@@ -150,7 +149,6 @@ async fn main() -> Result<(), Status> {
         .into_iter()
         .filter(|entry| match entry.category {
             GameCategory::Main
-            | GameCategory::Dlc
             | GameCategory::Expansion
             | GameCategory::StandaloneExpansion
             | GameCategory::Remake
@@ -167,6 +165,10 @@ async fn main() -> Result<(), Status> {
                     .iter()
                     .any(|publ| notable.contains(&publ.name))
                 || entry.scores.metacritic.is_some()
+                || match entry.status {
+                    GameStatus::EarlyAccess => entry.scores.popularity.unwrap_or(0) > 5000,
+                    _ => false,
+                }
         })
         .collect_vec();
     info!("recent after filtering = {}", recent.len());
