@@ -30,6 +30,6 @@ pub use scores::*;
 pub use steam_data::{SteamData, SteamScore};
 pub use store_entry::{FailedEntries, StoreEntry};
 pub use storefront::Storefront;
-pub use timeline::Timeline;
+pub use timeline::*;
 pub use user_data::{Keys, UserData};
 pub use user_tags::{Tag, UserTags};
