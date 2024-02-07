@@ -8,6 +8,7 @@ use clap::Parser;
 use espy_backend::{api::FirestoreApi, documents::*, library::firestore::year, *};
 use firestore::{path, FirestoreQueryDirection, FirestoreResult};
 use futures::{stream::BoxStream, TryStreamExt};
+use itertools::Itertools;
 use tracing::instrument;
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
@@ -89,29 +90,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         i += 1;
 
-        match &game.scores.espy_tier {
-            Some(tier) => match tier {
-                EspyTier::Unknown => {}
-                _ => digests.push(GameDigest::from(game)),
-            },
-            None => {}
-        }
+        digests.push(GameDigest::from(game))
     }
 
-    let timeline = Timeline {
+    let mut partitions = digests.into_iter().into_group_map_by(|digest| {
+        if digest.espy_genres.iter().any(|genre| match genre {
+            EspyGenre::Indie => digest.scores.thumbs.is_some(),
+            _ => false,
+        }) {
+            "indies"
+        } else if let GameStatus::EarlyAccess = digest.status {
+            "early_access"
+        } else if digest.scores.metacritic.is_some() || digest.scores.thumbs.is_some() {
+            "releases"
+        } else {
+            "debug"
+        }
+    });
+
+    for (_, digests) in &mut partitions {
+        digests.sort_by(|a, b| match b.scores.metacritic.cmp(&a.scores.metacritic) {
+            std::cmp::Ordering::Equal => match b.scores.popularity.cmp(&a.scores.popularity) {
+                std::cmp::Ordering::Equal => b.scores.thumbs.cmp(&a.scores.thumbs),
+                other => other,
+            },
+            other => other,
+        })
+    }
+
+    let review = AnnualReview {
         last_updated: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs(),
-        upcoming: vec![],
-        recent: digests,
+        releases: partitions.remove("releases").unwrap_or(vec![]),
+        indies: partitions.remove("indies").unwrap_or(vec![]),
+        early_access: partitions.remove("early_access").unwrap_or(vec![]),
+        debug: partitions.remove("debug").unwrap_or(vec![]),
     };
 
-    year::write(&firestore, &timeline, opts.year).await?;
+    year::write(&firestore, &review, opts.year).await?;
 
-    let serialized = serde_json::to_string(&timeline)?;
+    let serialized = serde_json::to_string(&review)?;
     println!(
-        "created year {} size: {}KB",
+        "created annual review for {} size: {}KB",
         opts.year,
         serialized.len() / 1024
     );

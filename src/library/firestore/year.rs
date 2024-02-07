@@ -1,11 +1,11 @@
 use tracing::instrument;
 
-use crate::{api::FirestoreApi, documents::TimelineLegacy, Status};
+use crate::{api::FirestoreApi, documents::AnnualReview, Status};
 
 #[instrument(name = "year::write", level = "trace", skip(firestore))]
 pub async fn write(
     firestore: &FirestoreApi,
-    timeline: &TimelineLegacy,
+    review: &AnnualReview,
     year: u64,
 ) -> Result<(), Status> {
     firestore
@@ -14,7 +14,7 @@ pub async fn write(
         .update()
         .in_col("espy")
         .document_id(format!("{year}"))
-        .object(timeline)
+        .object(review)
         .execute()
         .await?;
     Ok(())
