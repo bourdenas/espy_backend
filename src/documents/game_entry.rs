@@ -1,5 +1,6 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use chrono::{Datelike, NaiveDateTime};
 use serde::{Deserialize, Serialize};
 
 use crate::api::IgdbGame;
@@ -153,6 +154,12 @@ impl GameEntry {
         }
 
         self.igdb_game = igdb_game;
+    }
+
+    pub fn release_year(&self) -> i32 {
+        NaiveDateTime::from_timestamp_opt(self.release_date, 0)
+            .unwrap()
+            .year()
     }
 
     fn is_released(release_date: i64) -> bool {

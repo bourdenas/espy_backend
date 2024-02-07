@@ -57,8 +57,9 @@ pub async fn resolve_game_digest(
 
     // Spawn a task to retrieve metacritic score.
     let slug = MetacriticApi::guess_id(&igdb_game.url).to_owned();
+    let year = igdb_game.release_year();
     let metacritic_handle = tokio::spawn(
-        async move { MetacriticApi::get_score(&slug).await }
+        async move { MetacriticApi::get_score(&slug, year).await }
             .instrument(trace_span!("spawn_metacritic_request")),
     );
 
@@ -131,14 +132,12 @@ pub async fn resolve_game_digest(
     }
     game_entry.resolve_genres();
 
-    if game_entry.scores.metacritic.is_none() {
-        match metacritic_handle.await {
-            Ok(response) => match response {
-                Ok(score) => game_entry.scores.metacritic = Some(score),
-                Err(status) => warn!("{status}"),
-            },
+    match metacritic_handle.await {
+        Ok(response) => match response {
+            Ok(score) => game_entry.scores.metacritic = Some(score),
             Err(status) => warn!("{status}"),
-        }
+        },
+        Err(status) => warn!("{status}"),
     }
 
     // TODO: Remove these updates from the critical path.

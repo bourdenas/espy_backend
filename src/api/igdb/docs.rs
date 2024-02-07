@@ -1,5 +1,6 @@
 use std::{collections::HashSet, fmt};
 
+use chrono::{Datelike, NaiveDateTime};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -151,6 +152,12 @@ impl IgdbGame {
             0 | 1 | 2 | 4 | 8 | 9 | 10 | 14 => true,
             _ => false,
         }
+    }
+
+    pub fn release_year(&self) -> i32 {
+        NaiveDateTime::from_timestamp_opt(self.first_release_date.unwrap_or(0), 0)
+            .unwrap()
+            .year()
     }
 
     pub fn has_hype(&self) -> bool {
