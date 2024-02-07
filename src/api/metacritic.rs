@@ -1,59 +1,62 @@
 use soup::prelude::*;
-
-use crate::Status;
+use tracing::warn;
 
 pub struct MetacriticApi {}
 
 impl MetacriticApi {
-    pub async fn get_score(slug: &str, year: i32) -> Result<u64, Status> {
+    pub async fn get_score(slug: &str, year: i32) -> Option<u64> {
         let uri = format!("https://www.metacritic.com/game/{slug}/");
 
-        let resp = reqwest::get(&uri).await?;
-        let text = resp.text().await?;
+        let resp = match reqwest::get(&uri).await {
+            Ok(resp) => resp,
+            Err(status) => {
+                warn!("{status}");
+                return None;
+            }
+        };
+        let text = match resp.text().await {
+            Ok(text) => text,
+            Err(status) => {
+                warn!("{status}");
+                return None;
+            }
+        };
         let soup = Soup::new(&text);
 
-        match soup.class(PLATFORM_LOGO).find() {
-            Some(platform) => match platform.tag("title").find() {
+        for tile in soup.class(PLATFORM_TILE).find_all() {
+            match tile.tag("title").find() {
                 Some(title) => {
-                    println!("{}", title.text());
                     if title.text() != "PC" {
-                        return Err(Status::not_found(format!("Score not found for {slug}")));
+                        continue;
                     }
                 }
-                None => return Err(Status::not_found(format!("Score not found for {slug}"))),
-            },
-            None => return Err(Status::not_found(format!("Score not found for {slug}"))),
-        }
+                None => continue,
+            }
 
-        match soup.class(SCORE_CONTENT).find() {
-            Some(content) => {
-                if year > 2010 {
-                    let count = match content.class(SCORE_REVIEWS_TOTAL).find() {
-                        Some(reviews_total) => match reviews_total.tag("span").find() {
-                            Some(span) => extract_review_count(&span.text()),
-                            None => None,
-                        },
-                        None => None,
-                    };
+            if year > 2010 {
+                let count = match tile.tag("p").find() {
+                    Some(reviews_total) => extract_review_count(&reviews_total.text()),
+                    None => None,
+                };
 
-                    if count.unwrap_or(0) < 10 {
-                        return Err(Status::not_found(format!("Score not found for {slug}")));
-                    }
-                }
-
-                match content.class(SCORE_NUMBER).find() {
-                    Some(score_number) => match score_number.tag("span").find() {
-                        Some(span) => match span.text().parse() {
-                            Ok(num) => Ok(num),
-                            Err(_) => Err(Status::not_found(format!("Score not found for {slug}"))),
-                        },
-                        None => Err(Status::not_found(format!("Score not found for {slug}"))),
-                    },
-                    None => Err(Status::not_found(format!("Score not found for {slug}"))),
+                if count.unwrap_or(0) < 10 {
+                    return None;
                 }
             }
-            None => Err(Status::not_found(format!("Score not found for {slug}"))),
+
+            let score = match tile.class(REVIEWS_SCORE).find() {
+                Some(reviews_score) => match reviews_score.tag("span").find() {
+                    Some(span) => match span.text().parse() {
+                        Ok(num) => Some(num),
+                        Err(_) => None,
+                    },
+                    None => None,
+                },
+                None => None,
+            };
+            return score;
         }
+        None
     }
 
     pub fn guess_id(igdb_url: &str) -> &str {
@@ -77,7 +80,5 @@ fn extract_review_count(input: &str) -> Option<u64> {
     })
 }
 
-const PLATFORM_LOGO: &str = "c-gamePlatformLogo";
-const SCORE_CONTENT: &str = "c-productScoreInfo_scoreContent";
-const SCORE_REVIEWS_TOTAL: &str = "c-productScoreInfo_reviewsTotal";
-const SCORE_NUMBER: &str = "c-productScoreInfo_scoreNumber";
+const PLATFORM_TILE: &str = "c-gamePlatformTile";
+const REVIEWS_SCORE: &str = "c-siteReviewScore";

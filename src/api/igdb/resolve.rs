@@ -133,10 +133,11 @@ pub async fn resolve_game_digest(
     game_entry.resolve_genres();
 
     match metacritic_handle.await {
-        Ok(response) => match response {
-            Ok(score) => game_entry.scores.metacritic = Some(score),
-            Err(status) => warn!("{status}"),
-        },
+        Ok(response) => {
+            if let Some(score) = response {
+                game_entry.scores.metacritic = Some(score);
+            }
+        }
         Err(status) => warn!("{status}"),
     }
 

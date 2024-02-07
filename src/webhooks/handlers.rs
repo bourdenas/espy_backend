@@ -131,10 +131,11 @@ async fn update_steam_data(
     }
 
     match metacritic_handle.await {
-        Ok(response) => match response {
-            Ok(score) => game_entry.scores.metacritic = Some(score),
-            Err(status) => warn!("{status}"),
-        },
+        Ok(response) => {
+            if let Some(score) = response {
+                game_entry.scores.metacritic = Some(score);
+            }
+        }
         Err(status) => warn!("{status}"),
     }
 
