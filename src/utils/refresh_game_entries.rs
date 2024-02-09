@@ -13,14 +13,6 @@ use tracing::{error, instrument};
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
 #[derive(Parser)]
 struct Opts {
-    /// Refresh only game with specified id.
-    #[clap(long)]
-    id: Option<u64>,
-
-    /// If set, delete game entry instead of refreshing it.
-    #[clap(long)]
-    delete: bool,
-
     /// JSON file that contains application keys for espy service.
     #[clap(long, default_value = "keys.json")]
     key_store: String,
@@ -39,67 +31,72 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut igdb = api::IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
     igdb.connect().await?;
 
-    if let Some(id) = opts.id {
+    let mut cursor = match opts.cursor {
+        0 => SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
+        cursor => cursor,
+    };
+    let mut i = 0;
+    while i % 400 == 0 {
         let firestore = Arc::new(api::FirestoreApi::connect().await?);
-        if opts.delete {
-            library::firestore::games::delete(&firestore, id).await?;
-        } else {
-            refresh_game(firestore, id, &igdb).await?;
-        }
-    } else {
-        let mut cursor = opts.cursor;
-        let mut i = 0;
-        while i % 400 == 0 {
-            let firestore = Arc::new(api::FirestoreApi::connect().await?);
 
-            let mut game_entries: BoxStream<FirestoreResult<GameEntry>> = firestore
-                .db()
-                .fluent()
-                .select()
-                .from("games")
-                // .start_at(FirestoreQueryCursor::AfterValue(vec![(&cursor).into()]))
-                .filter(|q| {
-                    q.for_all([q.field(path!(GameEntry::id)).greater_than_or_equal(cursor)])
-                })
-                .order_by([(path!(GameEntry::id), FirestoreQueryDirection::Ascending)])
-                .limit(400)
-                .obj()
-                .stream_query_with_errors()
-                .await?;
+        let mut game_entries: BoxStream<FirestoreResult<GameEntry>> = firestore
+            .db()
+            .fluent()
+            .select()
+            .from("games")
+            // .start_at(FirestoreQueryCursor::AfterValue(vec![(&cursor).into()]))
+            .filter(|q| {
+                q.for_all([
+                    q.field(path!(GameEntry::release_date))
+                        .less_than_or_equal(cursor),
+                    q.field(path!(GameEntry::release_date)).greater_than(0),
+                ])
+            })
+            .order_by([(
+                path!(GameEntry::release_date),
+                FirestoreQueryDirection::Descending,
+            )])
+            .limit(400)
+            .obj()
+            .stream_query_with_errors()
+            .await?;
 
-            while let Some(game_entry) = game_entries.next().await {
-                match game_entry {
-                    Ok(game_entry) => {
-                        println!(
-                            "#{i} -- {} -- id={} -- release={} ({})",
-                            game_entry.name,
-                            game_entry.id,
-                            game_entry.release_date,
-                            NaiveDateTime::from_timestamp_millis(game_entry.release_date * 1000)
-                                .unwrap()
-                        );
-
-                        let start = SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
+        while let Some(game_entry) = game_entries.next().await {
+            match game_entry {
+                Ok(game_entry) => {
+                    println!(
+                        "#{i} -- {} -- id={} -- release={} ({})",
+                        game_entry.name,
+                        game_entry.id,
+                        game_entry.release_date,
+                        NaiveDateTime::from_timestamp_millis(game_entry.release_date * 1000)
                             .unwrap()
-                            .as_millis();
-                        if let Err(status) =
-                            refresh_game(Arc::clone(&firestore), game_entry.id, &igdb).await
-                        {
-                            error!("{status}");
-                        }
-                        cursor = game_entry.id;
+                    );
 
-                        let finish = SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .unwrap()
-                            .as_millis();
-                        println!("  -- {} msec", finish - start);
+                    let start = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis();
+
+                    cursor = game_entry.release_date as u64;
+
+                    let firestore = Arc::clone(&firestore);
+                    if let Err(status) = refresh_game(firestore, game_entry, &igdb).await {
+                        error!("{status}");
                     }
-                    Err(status) => error!("{status}"),
+
+                    let finish = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis();
+                    println!("  -- {} msec", finish - start);
                 }
-                i += 1;
+                Err(status) => error!("{status}"),
             }
+            i += 1;
         }
     }
 
@@ -113,10 +110,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 )]
 async fn refresh_game(
     firestore: Arc<FirestoreApi>,
-    id: u64,
+    game_entry: GameEntry,
     igdb: &api::IgdbApi,
 ) -> Result<(), Status> {
-    let igdb_game = igdb.get(id).await?;
+    let igdb_game = igdb.get(game_entry.id).await?;
     igdb.resolve(firestore, igdb_game).await?;
 
     Ok(())
