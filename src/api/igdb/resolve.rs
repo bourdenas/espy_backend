@@ -57,9 +57,8 @@ pub async fn resolve_game_digest(
 
     // Spawn a task to retrieve metacritic score.
     let slug = MetacriticApi::guess_id(&igdb_game.url).to_owned();
-    let year = igdb_game.release_year();
     let metacritic_handle = tokio::spawn(
-        async move { MetacriticApi::get_score(&slug, year).await }
+        async move { MetacriticApi::get_score(&slug).await }
             .instrument(trace_span!("spawn_metacritic_request")),
     );
 
@@ -134,8 +133,8 @@ pub async fn resolve_game_digest(
 
     match metacritic_handle.await {
         Ok(response) => {
-            if let Some(score) = response {
-                game_entry.scores.metacritic = Some(score);
+            if let Some(metacritic) = response {
+                game_entry.scores.add_metacritic(metacritic);
             }
         }
         Err(status) => warn!("{status}"),
@@ -266,16 +265,7 @@ pub async fn resolve_game_info(
     if let Some(handle) = handle {
         match handle.await {
             Ok(result) => match result {
-                Ok(steam_data) => {
-                    let metacritic = game_entry.scores.metacritic;
-                    game_entry.add_steam_data(steam_data);
-
-                    // If updating steam data erases metacritic score (because
-                    // it is hidden in steam) write back the original.
-                    if game_entry.scores.metacritic.is_none() {
-                        game_entry.scores.metacritic = metacritic;
-                    }
-                }
+                Ok(steam_data) => game_entry.add_steam_data(steam_data),
                 Err(status) => warn!("{status}"),
             },
             Err(status) => warn!("{status}"),

@@ -9,5 +9,5 @@ pub use firestore::FirestoreApi;
 pub use gog::GogApi;
 pub use gog_token::GogToken;
 pub use igdb::*;
-pub use metacritic::MetacriticApi;
+pub use metacritic::{MetacriticApi, MetacriticData};
 pub use steam::SteamApi;

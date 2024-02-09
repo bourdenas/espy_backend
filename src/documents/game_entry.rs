@@ -140,7 +140,7 @@ impl GameEntry {
     }
 
     pub fn add_steam_data(&mut self, steam_data: SteamData) {
-        self.scores.update(&steam_data, self.release_date);
+        self.scores.add_steam(&steam_data, self.release_date);
         self.steam_data = Some(steam_data);
     }
 

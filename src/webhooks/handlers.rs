@@ -114,9 +114,8 @@ async fn update_steam_data(
 
     // Spawn a task to retrieve metacritic score.
     let slug = MetacriticApi::guess_id(&game_entry.igdb_game.url).to_owned();
-    let year = game_entry.release_year();
     let metacritic_handle = tokio::spawn(
-        async move { MetacriticApi::get_score(&slug, year).await }
+        async move { MetacriticApi::get_score(&slug).await }
             .instrument(trace_span!("spawn_metacritic_request")),
     );
 
@@ -132,8 +131,8 @@ async fn update_steam_data(
 
     match metacritic_handle.await {
         Ok(response) => {
-            if let Some(score) = response {
-                game_entry.scores.metacritic = Some(score);
+            if let Some(metacritic) = response {
+                game_entry.scores.add_metacritic(metacritic);
             }
         }
         Err(status) => warn!("{status}"),

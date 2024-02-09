@@ -1,10 +1,16 @@
 use soup::prelude::*;
 use tracing::warn;
 
+#[derive(Default, Clone, Debug)]
+pub struct MetacriticData {
+    pub score: Option<u64>,
+    pub review_count: Option<u64>,
+}
+
 pub struct MetacriticApi {}
 
 impl MetacriticApi {
-    pub async fn get_score(slug: &str, year: i32) -> Option<u64> {
+    pub async fn get_score(slug: &str) -> Option<MetacriticData> {
         let uri = format!("https://www.metacritic.com/game/{slug}/");
 
         let resp = match reqwest::get(&uri).await {
@@ -33,16 +39,10 @@ impl MetacriticApi {
                 None => continue,
             }
 
-            if year > 2010 {
-                let count = match tile.tag("p").find() {
-                    Some(reviews_total) => extract_review_count(&reviews_total.text()),
-                    None => None,
-                };
-
-                if count.unwrap_or(0) < 10 {
-                    return None;
-                }
-            }
+            let review_count = match tile.tag("p").find() {
+                Some(reviews_total) => extract_review_count(&reviews_total.text()),
+                None => None,
+            };
 
             let score = match tile.class(REVIEWS_SCORE).find() {
                 Some(reviews_score) => match reviews_score.tag("span").find() {
@@ -54,7 +54,11 @@ impl MetacriticApi {
                 },
                 None => None,
             };
-            return score;
+
+            return Some(MetacriticData {
+                score,
+                review_count,
+            });
         }
         None
     }
