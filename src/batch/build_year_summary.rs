@@ -109,7 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     });
 
     for (_, digests) in &mut partitions {
-        digests.sort_by(|a, b| match b.scores.metacritic.cmp(&a.scores.metacritic) {
+        digests.sort_by(|a, b| match b.scores.espy_score.cmp(&a.scores.espy_score) {
             std::cmp::Ordering::Equal => match b.scores.popularity.cmp(&a.scores.popularity) {
                 std::cmp::Ordering::Equal => b.scores.thumbs.cmp(&a.scores.thumbs),
                 other => other,
