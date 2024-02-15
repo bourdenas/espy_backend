@@ -29,6 +29,7 @@ pub struct Scores {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_deserializing)]
     pub espy_tier: Option<EspyTier>,
 }
 
@@ -61,7 +62,8 @@ impl Scores {
             if let Some(score) = self.metacritic {
                 let pop_multiplier = match self.popularity {
                     Some(pop) if pop >= 5000 => 1.0,
-                    Some(pop) if pop >= 1000 => 0.7,
+                    Some(pop) if pop >= 3000 => 0.9,
+                    Some(pop) if pop >= 1000 => 0.75,
                     _ => 0.5,
                 };
                 self.espy_score = Some((score as f64 * pop_multiplier).round() as u64);

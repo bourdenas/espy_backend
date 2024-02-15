@@ -33,8 +33,12 @@ pub async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<Library, St
 pub async fn write(
     firestore: &FirestoreApi,
     user_id: &str,
-    library: &Library,
+    mut library: Library,
 ) -> Result<(), Status> {
+    library
+        .entries
+        .sort_by(|l, r| r.digest.release_date.cmp(&l.digest.release_date));
+
     let parent_path = firestore.db().parent_path(USERS, user_id)?;
 
     firestore
@@ -44,7 +48,7 @@ pub async fn write(
         .in_col(GAMES)
         .document_id(LIBRARY_DOC)
         .parent(&parent_path)
-        .object(library)
+        .object(&library)
         .execute()
         .await?;
     Ok(())
@@ -70,7 +74,7 @@ pub async fn add_entry(
     for digest in digests {
         add(digest, store_entry.clone(), &mut library);
     }
-    write(firestore, user_id, &library).await
+    write(firestore, user_id, library).await
 }
 
 /// NOTE: This is an odd interface to expose that has to do with particularities
@@ -96,7 +100,7 @@ pub async fn add_entries(
             add(digest, store_entry.clone(), &mut library);
         }
     }
-    write(firestore, user_id, &library).await
+    write(firestore, user_id, library).await
 }
 
 #[instrument(
@@ -111,7 +115,7 @@ pub async fn remove_entry(
 ) -> Result<(), Status> {
     let mut library = read(firestore, user_id).await?;
     if remove(store_entry, &mut library) {
-        write(firestore, user_id, &library).await?;
+        write(firestore, user_id, library).await?;
     }
     Ok(())
 }
@@ -140,7 +144,7 @@ pub async fn update_entry(
         }
     }
 
-    write(firestore, user_id, &library).await
+    write(firestore, user_id, library).await
 }
 
 #[instrument(
@@ -155,7 +159,7 @@ pub async fn remove_storefront(
 ) -> Result<(), Status> {
     let mut library = read(firestore, user_id).await?;
     remove_store_entries(storefront_id, &mut library);
-    write(firestore, user_id, &library).await
+    write(firestore, user_id, library).await
 }
 
 /// Adds `LibraryEntry` in the library.

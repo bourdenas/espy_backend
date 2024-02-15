@@ -20,7 +20,7 @@ pub async fn add_entry(
 ) -> Result<(), Status> {
     let mut wishlist = read(firestore, user_id).await?;
     if add(library_entry, &mut wishlist) {
-        write(firestore, user_id, &wishlist).await?;
+        write(firestore, user_id, wishlist).await?;
     }
     Ok(())
 }
@@ -37,7 +37,7 @@ pub async fn remove_entry(
 ) -> Result<(), Status> {
     let mut wishlist = read(firestore, user_id).await?;
     if remove(game_id, &mut wishlist) {
-        return write(firestore, user_id, &wishlist).await;
+        return write(firestore, user_id, wishlist).await;
     }
     Ok(())
 }
@@ -59,7 +59,7 @@ pub async fn remove_entries(
     }
 
     match wishlist.entries.len() < old_size {
-        true => write(firestore, user_id, &wishlist).await,
+        true => write(firestore, user_id, wishlist).await,
         false => Ok(()),
     }
 }
@@ -88,7 +88,7 @@ pub async fn update_entry(
         }
     }
 
-    write(firestore, user_id, &wishlist).await
+    write(firestore, user_id, wishlist).await
 }
 
 fn add(library_entry: LibraryEntry, wishlist: &mut Library) -> bool {
@@ -132,7 +132,15 @@ async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<Library, Status
     level = "trace",
     skip(firestore, user_id, library)
 )]
-async fn write(firestore: &FirestoreApi, user_id: &str, library: &Library) -> Result<(), Status> {
+async fn write(
+    firestore: &FirestoreApi,
+    user_id: &str,
+    mut library: Library,
+) -> Result<(), Status> {
+    library
+        .entries
+        .sort_by(|l, r| r.digest.release_date.cmp(&l.digest.release_date));
+
     let parent_path = firestore.db().parent_path(USERS, user_id)?;
 
     firestore
@@ -142,7 +150,7 @@ async fn write(firestore: &FirestoreApi, user_id: &str, library: &Library) -> Re
         .in_col(GAMES)
         .document_id(WISHLIST_DOC)
         .parent(&parent_path)
-        .object(library)
+        .object(&library)
         .execute()
         .await?;
     Ok(())

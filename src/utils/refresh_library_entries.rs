@@ -131,9 +131,9 @@ async fn refresh_library_entries(
             .collect(),
     };
 
-    library::firestore::library::write(&firestore, user_id, &library).await?;
     let serialized = serde_json::to_string(&library)?;
     info!("updated library size: {}KB", serialized.len() / 1024);
+    library::firestore::library::write(&firestore, user_id, library).await?;
 
     Ok(())
 }
