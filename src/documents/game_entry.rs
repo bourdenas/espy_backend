@@ -150,7 +150,7 @@ impl GameEntry {
         self.status = GameStatus::from(igdb_game.status);
 
         if !Self::is_released(self.release_date) {
-            self.scores = Scores::from(&igdb_game);
+            self.scores.add_igdb(&igdb_game);
         }
 
         self.igdb_game = igdb_game;
@@ -194,7 +194,11 @@ impl From<IgdbGame> for GameEntry {
                 None => 0,
             },
             scores: match GameEntry::is_released(igdb_game.first_release_date.unwrap_or(0)) {
-                false => Scores::from(&igdb_game),
+                false => {
+                    let mut scores = Scores::default();
+                    scores.add_igdb(&igdb_game);
+                    scores
+                }
                 true => Scores::default(),
             },
 

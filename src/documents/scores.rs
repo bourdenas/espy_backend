@@ -18,6 +18,11 @@ pub struct Scores {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub popularity: Option<u64>,
 
+    // Hype measured by IGDB follows and hypes for games that are not released yet.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hype: Option<u64>,
+
     // Metacritic score sourced either from Steam or IGDB.
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -73,16 +78,9 @@ impl Scores {
         }
         self.espy_tier = EspyTier::create(&self);
     }
-}
 
-impl From<&IgdbGame> for Scores {
-    fn from(igdb_game: &IgdbGame) -> Scores {
-        Scores {
-            popularity: Some(
-                igdb_game.follows.unwrap_or_default() + igdb_game.hypes.unwrap_or_default(),
-            ),
-            ..Default::default()
-        }
+    pub fn add_igdb(&mut self, igdb_game: &IgdbGame) {
+        self.hype = igdb_game.hypes;
     }
 }
 
