@@ -1,5 +1,3 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
 use chrono::{Datelike, NaiveDateTime};
 use serde::{Deserialize, Serialize};
 
@@ -148,10 +146,7 @@ impl GameEntry {
         self.name = igdb_game.name.clone();
         self.category = Self::extract_category(&igdb_game);
         self.status = GameStatus::from(igdb_game.status);
-
-        if !Self::is_released(self.release_date) {
-            self.scores.add_igdb(&igdb_game);
-        }
+        self.scores.add_igdb(&igdb_game);
 
         self.igdb_game = igdb_game;
     }
@@ -160,16 +155,6 @@ impl GameEntry {
         NaiveDateTime::from_timestamp_opt(self.release_date, 0)
             .unwrap()
             .year()
-    }
-
-    fn is_released(release_date: i64) -> bool {
-        match release_date {
-            0 => false,
-            release_date => {
-                let release = UNIX_EPOCH + Duration::from_secs(release_date as u64);
-                release < SystemTime::now()
-            }
-        }
     }
 
     fn extract_category(igdb_game: &IgdbGame) -> GameCategory {
@@ -193,13 +178,10 @@ impl From<IgdbGame> for GameEntry {
                 Some(timestamp) => timestamp,
                 None => 0,
             },
-            scores: match GameEntry::is_released(igdb_game.first_release_date.unwrap_or(0)) {
-                false => {
-                    let mut scores = Scores::default();
-                    scores.add_igdb(&igdb_game);
-                    scores
-                }
-                true => Scores::default(),
+            scores: {
+                let mut scores = Scores::default();
+                scores.add_igdb(&igdb_game);
+                scores
             },
 
             parent: match igdb_game.parent_game {
