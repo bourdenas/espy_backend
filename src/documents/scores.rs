@@ -39,9 +39,23 @@ pub struct Scores {
 }
 
 impl Scores {
-    pub fn add_metacritic(&mut self, metacritic: MetacriticData) {
+    pub fn add_metacritic(&mut self, metacritic: MetacriticData, release_date: i64) {
         self.metacritic = metacritic.score;
-        self.espy_score = self.metacritic;
+        self.espy_score = if is_classic(release_date) {
+            self.metacritic
+        } else {
+            match self.metacritic {
+                Some(score) => {
+                    let multiplier = match metacritic.review_count {
+                        Some(count) if count >= 20 => 1.0,
+                        Some(count) if count >= 10 => 0.9,
+                        _ => 0.75,
+                    };
+                    Some((score as f64 * multiplier).round() as u64)
+                }
+                None => None,
+            }
+        };
         self.espy_tier = EspyTier::create(&self);
     }
 
@@ -84,6 +98,7 @@ impl Scores {
     }
 }
 
+// Returns true if game was released before 2011.
 fn is_classic(release_date: i64) -> bool {
     const _41_YEARS: Duration = Duration::from_secs(41 * 365 * 24 * 60 * 60);
     let y2011 = UNIX_EPOCH + _41_YEARS;

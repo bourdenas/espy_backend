@@ -132,7 +132,9 @@ async fn update_steam_data(
     match metacritic_handle.await {
         Ok(response) => {
             if let Some(metacritic) = response {
-                game_entry.scores.add_metacritic(metacritic);
+                game_entry
+                    .scores
+                    .add_metacritic(metacritic, game_entry.release_date);
             }
         }
         Err(status) => warn!("{status}"),
