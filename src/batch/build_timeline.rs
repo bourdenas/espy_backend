@@ -87,7 +87,7 @@ async fn main() -> Result<(), Status> {
             _ => false,
         })
         .filter(|entry| {
-            entry.scores.popularity.unwrap_or_default() > UPCOMING_POPULARITY_THRESHOLD
+            entry.scores.hype.unwrap_or_default() > UPCOMING_HYPE_THRESHOLD
                 || entry
                     .developers
                     .iter()
@@ -107,8 +107,7 @@ async fn main() -> Result<(), Status> {
         .from("games")
         .filter(|q| {
             q.for_all([
-                q.field(path!(GameEntry::release_date))
-                    .less_than_or_equal(now),
+                q.field(path!(GameEntry::release_date)).less_than(now),
                 q.field(path!(GameEntry::release_date))
                     .greater_than_or_equal(recent_past),
             ])
@@ -140,17 +139,21 @@ async fn main() -> Result<(), Status> {
             _ => false,
         })
         .filter(|entry| {
-            entry
-                .developers
-                .iter()
-                .any(|dev| notable.contains(&dev.name))
+            entry.scores.hype.unwrap_or_default() > UPCOMING_HYPE_THRESHOLD
+                || entry.scores.metacritic.is_some()
+                || entry
+                    .developers
+                    .iter()
+                    .any(|dev| notable.contains(&dev.name))
                 || entry
                     .publishers
                     .iter()
                     .any(|publ| notable.contains(&publ.name))
-                || entry.scores.metacritic.is_some()
                 || match entry.status {
-                    GameStatus::EarlyAccess => entry.scores.popularity.unwrap_or(0) > 5000,
+                    GameStatus::EarlyAccess => {
+                        entry.scores.popularity.unwrap_or_default()
+                            > EARLY_ACCESS_POPULARITY_THRESHOLD
+                    }
                     _ => false,
                 }
         })
@@ -259,6 +262,5 @@ async fn update_recent(keys_path: &str, recent: &mut [GameEntry]) -> Result<(), 
     Ok(())
 }
 
-const UPCOMING_POPULARITY_THRESHOLD: u64 = 1;
-const _RECENT_POPULARITY_THRESHOLD: u64 = 500;
-const _RECENT_POPULARITY_THRESHOLD_DLC: u64 = 100;
+const UPCOMING_HYPE_THRESHOLD: u64 = 1;
+const EARLY_ACCESS_POPULARITY_THRESHOLD: u64 = 5000;
