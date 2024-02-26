@@ -169,7 +169,7 @@ async fn main() -> Result<(), Status> {
         let label = if diff.num_days().abs() <= 15 {
             release_date.format("%-d %b").to_string()
         } else if is_future && release_date.month() == 12 && release_date.day() == 31 {
-            "Q4".to_owned()
+            release_date.year().to_string()
         } else if is_future && release_date.month() == 9 && release_date.day() == 30 {
             "Q3".to_owned()
         } else if is_future && release_date.month() == 6 && release_date.day() == 30 {
