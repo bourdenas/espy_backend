@@ -61,7 +61,9 @@ impl Scores {
 
     pub fn add_steam(&mut self, steam_data: &SteamData, release_date: i64) {
         if let Some(score) = &steam_data.score {
-            self.thumbs = Some(score.review_score);
+            if score.review_score > 0 {
+                self.thumbs = Some(score.review_score);
+            }
         }
 
         if let Some(rec) = &steam_data.recommendations {
