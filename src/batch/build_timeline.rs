@@ -166,7 +166,7 @@ async fn main() -> Result<(), Status> {
         let diff = today.signed_duration_since(release_date);
         let is_future = diff.num_days() < 0;
 
-        let label = if diff.num_days().abs() <= 15 {
+        let label = if diff.num_days().abs() <= 7 {
             release_date.format("%-d %b").to_string()
         } else if is_future && release_date.month() == 12 && release_date.day() == 31 {
             release_date.year().to_string()
