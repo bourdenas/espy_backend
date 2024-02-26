@@ -191,7 +191,7 @@ async fn main() -> Result<(), Status> {
             let mut games = games
                 .map(|game| GameDigest::from(game.clone()))
                 .collect_vec();
-            games.sort_by(|a, b| b.scores.popularity.cmp(&a.scores.popularity));
+            games.sort_by(|a, b| b.scores.hype.cmp(&a.scores.hype));
             ReleaseEvent {
                 label: key.0,
                 year: key.1,
