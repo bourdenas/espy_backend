@@ -173,7 +173,7 @@ impl IgdbApi {
         post::<Vec<IgdbGame>>(
             &connection,
             GAMES_ENDPOINT,
-            &format!("search \"{title}\"; fields *; where platforms = (6,13,14);"),
+            &format!("search \"{title}\"; fields *; where platforms = (6,13);"),
         )
         .await
     }

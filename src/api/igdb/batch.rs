@@ -33,7 +33,7 @@ impl IgdbBatchApi {
         post::<Vec<IgdbGame>>(
             &connection,
             GAMES_ENDPOINT,
-            &format!("fields *; where (platforms = (6,13,14) | platforms = null) & updated_at >= {updated_since} & (follows > 0 | hypes > 0) & (category = 0 | category = 1 | category = 2 | category = 4 | category = 8 | category = 9); limit 500; offset {offset};"),
+            &format!("fields *; where (platforms = (6,13) | platforms = null) & updated_at >= {updated_since} & (follows > 0 | hypes > 0) & (category = 0 | category = 1 | category = 2 | category = 4 | category = 8 | category = 9); limit 500; offset {offset};"),
         )
         .await
     }
@@ -48,7 +48,7 @@ impl IgdbBatchApi {
         post::<Vec<IgdbGame>>(
             &connection,
             GAMES_ENDPOINT,
-            &format!("fields *; where platforms = (6,13,14) & collection = {collection_id} & (category = 0 | category = 1 | category = 2 | category = 4 | category = 8 | category = 9); limit 500; offset {offset};"),
+            &format!("fields *; where platforms = (6,13) & collection = {collection_id} & (category = 0 | category = 1 | category = 2 | category = 4 | category = 8 | category = 9); limit 500; offset {offset};"),
         )
         .await
     }
@@ -63,7 +63,7 @@ impl IgdbBatchApi {
         post::<Vec<IgdbGame>>(
             &connection,
             GAMES_ENDPOINT,
-            &format!("fields *; where platforms = (6,13,14) & (franchise = {franchise_id} | franchises = ({franchise_id})) & (category = 0 | category = 1 | category = 2 | category = 4 | category = 8 | category = 9); limit 500; offset {offset};"),
+            &format!("fields *; where platforms = (6,13) & (franchise = {franchise_id} | franchises = ({franchise_id})) & (category = 0 | category = 1 | category = 2 | category = 4 | category = 8 | category = 9); limit 500; offset {offset};"),
         )
         .await
     }

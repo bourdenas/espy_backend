@@ -144,7 +144,7 @@ pub struct IgdbGame {
 
 impl IgdbGame {
     pub fn is_pc_game(&self) -> bool {
-        self.platforms.contains(&6) || self.platforms.contains(&13) || self.platforms.contains(&14)
+        self.platforms.contains(&6) || self.platforms.contains(&13)
     }
 
     pub fn is_main_category(&self) -> bool {
