@@ -3,8 +3,8 @@ use tracing::warn;
 
 #[derive(Default, Clone, Debug)]
 pub struct MetacriticData {
-    pub score: Option<u64>,
-    pub review_count: Option<u64>,
+    pub score: u64,
+    pub review_count: u64,
 }
 
 pub struct MetacriticApi {}
@@ -55,10 +55,12 @@ impl MetacriticApi {
                 None => None,
             };
 
-            return Some(MetacriticData {
-                score,
-                review_count,
-            });
+            if let Some(score) = score {
+                return Some(MetacriticData {
+                    score,
+                    review_count: review_count.unwrap_or_default(),
+                });
+            }
         }
         None
     }

@@ -4,6 +4,7 @@ mod gog_token;
 mod igdb;
 mod metacritic;
 mod steam;
+mod wikipedia;
 
 pub use firestore::FirestoreApi;
 pub use gog::GogApi;
@@ -11,3 +12,4 @@ pub use gog_token::GogToken;
 pub use igdb::*;
 pub use metacritic::{MetacriticApi, MetacriticData};
 pub use steam::SteamApi;
+pub use wikipedia::{WikipediaData, WikipediaScrape};

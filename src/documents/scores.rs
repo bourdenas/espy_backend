@@ -2,7 +2,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use crate::api::{IgdbGame, MetacriticData};
+use crate::api::{IgdbGame, MetacriticData, WikipediaData};
 
 use super::SteamData;
 
@@ -23,10 +23,15 @@ pub struct Scores {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hype: Option<u64>,
 
-    // Metacritic score sourced either from Steam or IGDB.
+    // Aggregator score Metacritic or GameRankings.
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metacritic: Option<u64>,
+
+    // Metacritic score sourced either from Steam or IGDB.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "MetacrtitcSource::is_metacritic")]
+    pub metacritic_source: MetacrtitcSource,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -40,15 +45,16 @@ pub struct Scores {
 
 impl Scores {
     pub fn add_metacritic(&mut self, metacritic: MetacriticData, release_date: i64) {
-        self.metacritic = metacritic.score;
+        self.metacritic = Some(metacritic.score);
+        self.metacritic_source = MetacrtitcSource::Metacritic;
         self.espy_score = if is_classic(release_date) {
             self.metacritic
         } else {
             match self.metacritic {
                 Some(score) => {
                     let multiplier = match metacritic.review_count {
-                        Some(count) if count >= 20 => 1.0,
-                        Some(count) if count >= 10 => 0.9,
+                        count if count >= 20 => 1.0,
+                        count if count >= 10 => 0.9,
                         _ => 0.75,
                     };
                     Some((score as f64 * multiplier).round() as u64)
@@ -57,6 +63,12 @@ impl Scores {
             }
         };
         self.espy_tier = EspyTier::create(&self);
+    }
+
+    pub fn add_wikipedia(&mut self, wikipedia: WikipediaData) {
+        self.metacritic = Some(wikipedia.score);
+        self.metacritic_source = MetacrtitcSource::Wikipedia;
+        self.espy_score = Some(wikipedia.score);
     }
 
     pub fn add_steam(&mut self, steam_data: &SteamData, release_date: i64) {
@@ -76,6 +88,7 @@ impl Scores {
         if self.metacritic.is_none() {
             if let Some(metacritic) = &steam_data.metacritic {
                 self.metacritic = Some(metacritic.score);
+                self.metacritic_source = MetacrtitcSource::Steam;
             }
         }
 
@@ -97,6 +110,20 @@ impl Scores {
 
     pub fn add_igdb(&mut self, igdb_game: &IgdbGame) {
         self.hype = igdb_game.hypes;
+    }
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub enum MetacrtitcSource {
+    #[default]
+    Metacritic,
+    Wikipedia,
+    Steam,
+}
+
+impl MetacrtitcSource {
+    fn is_metacritic(&self) -> bool {
+        matches!(self, MetacrtitcSource::Metacritic)
     }
 }
 
