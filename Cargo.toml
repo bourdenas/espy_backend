@@ -83,6 +83,10 @@ path = "src/utils/search_igdb.rs"
 name = "storefront_cleanup"
 path = "src/utils/storefront_cleanup.rs"
 
+[[bin]]
+name = "wikipedia_scrape"
+path = "src/utils/wikipedia_scrape.rs"
+
 
 [dependencies]
 async-recursion = "1.0"
