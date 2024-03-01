@@ -32,3 +32,20 @@ pub async fn read_notable(firestore: &FirestoreApi) -> Result<NotableCompanies, 
         .await?
         .unwrap_or_default())
 }
+
+#[instrument(name = "timeline::write_notable", level = "trace", skip(firestore))]
+pub async fn write_notable(
+    firestore: &FirestoreApi,
+    notable: &NotableCompanies,
+) -> Result<(), Status> {
+    firestore
+        .db()
+        .fluent()
+        .update()
+        .in_col("espy")
+        .document_id("notable")
+        .object(notable)
+        .execute()
+        .await?;
+    Ok(())
+}

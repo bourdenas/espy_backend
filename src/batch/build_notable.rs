@@ -59,6 +59,7 @@ async fn main() -> Result<(), Status> {
     let notable = NotableCompanies {
         companies: Vec::from_iter(companies.into_iter()),
         last_updated: now,
+        ..Default::default()
     };
 
     db.fluent()
