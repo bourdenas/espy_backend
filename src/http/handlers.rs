@@ -1,7 +1,7 @@
 use crate::{
     api::{FirestoreApi, IgdbApi},
     http::models,
-    library::{LibraryManager, User},
+    library::{firestore::games, LibraryManager, User},
     util, Status,
 };
 use std::{convert::Infallible, sync::Arc};
@@ -65,6 +65,17 @@ pub async fn post_resolve(
             event.log_error(status);
             Ok(StatusCode::NOT_FOUND)
         }
+    }
+}
+
+#[instrument(level = "trace", skip(firestore))]
+pub async fn post_delete(
+    resolve: models::Resolve,
+    firestore: Arc<FirestoreApi>,
+) -> Result<impl warp::Reply, Infallible> {
+    match games::delete(&firestore, resolve.game_id).await {
+        Ok(()) => Ok(StatusCode::OK),
+        Err(_) => Ok(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 

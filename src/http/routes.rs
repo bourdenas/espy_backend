@@ -17,6 +17,7 @@ pub fn routes(
     home()
         .or(post_search(Arc::clone(&igdb)))
         .or(post_resolve(Arc::clone(&firestore), Arc::clone(&igdb)))
+        .or(post_delete(Arc::clone(&firestore)))
         .or(post_match(Arc::clone(&firestore), Arc::clone(&igdb)))
         .or(post_update(Arc::clone(&firestore), Arc::clone(&igdb)))
         .or(post_wishlist(Arc::clone(&firestore)))
@@ -57,6 +58,17 @@ fn post_resolve(
         .and(with_firestore(firestore))
         .and(with_igdb(igdb))
         .and_then(handlers::post_resolve)
+}
+
+/// POST /delete
+fn post_delete(
+    firestore: Arc<FirestoreApi>,
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+    warp::path!("delete")
+        .and(warp::post())
+        .and(json_body::<models::Resolve>())
+        .and(with_firestore(firestore))
+        .and_then(handlers::post_delete)
 }
 
 /// POST /library/{user_id}/match
