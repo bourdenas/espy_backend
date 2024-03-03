@@ -90,22 +90,25 @@ impl Scores {
                 self.metacritic = Some(metacritic.score);
                 self.metacritic_source = MetacrtitcSource::Steam;
             }
-        }
 
-        if !is_classic(release_date) {
-            if let Some(score) = self.metacritic {
-                let pop_multiplier = match self.popularity {
-                    Some(pop) if pop >= 5000 => 1.0,
-                    Some(pop) if pop >= 3000 => 0.9,
-                    Some(pop) if pop >= 1000 => 0.75,
-                    _ => 0.5,
-                };
-                self.espy_score = Some((score as f64 * pop_multiplier).round() as u64);
-            }
-        } else {
-            self.espy_score = self.metacritic;
+            self.espy_score = if is_classic(release_date) {
+                self.metacritic
+            } else {
+                match self.metacritic {
+                    Some(score) => {
+                        let pop_multiplier = match self.popularity {
+                            Some(pop) if pop >= 5000 => 1.0,
+                            Some(pop) if pop >= 3000 => 0.9,
+                            Some(pop) if pop >= 1000 => 0.75,
+                            _ => 0.5,
+                        };
+                        Some((score as f64 * pop_multiplier).round() as u64)
+                    }
+                    None => None,
+                }
+            };
+            self.espy_tier = EspyTier::create(&self);
         }
-        self.espy_tier = EspyTier::create(&self);
     }
 
     pub fn add_igdb(&mut self, igdb_game: &IgdbGame) {
