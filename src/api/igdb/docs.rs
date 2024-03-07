@@ -3,6 +3,8 @@ use std::{collections::HashSet, fmt};
 use chrono::{Datelike, NaiveDateTime};
 use serde::{Deserialize, Serialize};
 
+use crate::documents::GameCategory;
+
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct IgdbGame {
     pub id: u64,
@@ -148,20 +150,22 @@ impl IgdbGame {
     }
 
     pub fn is_main_category(&self) -> bool {
-        match self.category {
-            0 | 1 | 2 | 4 | 8 | 9 | 10 | 14 => true,
-            _ => false,
-        }
+        let game_category = GameCategory::from(self.category);
+        matches!(
+            game_category,
+            GameCategory::Main
+                | GameCategory::Dlc
+                | GameCategory::Expansion
+                | GameCategory::StandaloneExpansion
+                | GameCategory::Remake
+                | GameCategory::Remaster
+        )
     }
 
     pub fn release_year(&self) -> i32 {
         NaiveDateTime::from_timestamp_opt(self.first_release_date.unwrap_or(0), 0)
             .unwrap()
             .year()
-    }
-
-    pub fn has_hype(&self) -> bool {
-        self.follows.unwrap_or_default() > 0 || self.hypes.unwrap_or_default() > 0
     }
 
     pub fn diff(&self, other: &IgdbGame) -> IgdbGameDiff {
