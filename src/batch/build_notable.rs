@@ -1,6 +1,6 @@
 use clap::Parser;
 use espy_backend::{
-    documents::{Library, NotableCompanies},
+    documents::{Library, Notable},
     Status, Tracing,
 };
 use firestore::FirestoreDb;
@@ -56,7 +56,7 @@ async fn main() -> Result<(), Status> {
         }
     }
 
-    let notable = NotableCompanies {
+    let notable = Notable {
         companies: Vec::from_iter(companies.into_iter()),
         last_updated: now,
         ..Default::default()

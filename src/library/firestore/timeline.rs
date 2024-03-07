@@ -2,7 +2,7 @@ use tracing::instrument;
 
 use crate::{
     api::FirestoreApi,
-    documents::{NotableCompanies, Timeline},
+    documents::{Notable, Timeline},
     Status,
 };
 
@@ -21,7 +21,7 @@ pub async fn write(firestore: &FirestoreApi, timeline: &Timeline) -> Result<(), 
 }
 
 #[instrument(name = "timeline::read_notable", level = "trace", skip(firestore))]
-pub async fn read_notable(firestore: &FirestoreApi) -> Result<NotableCompanies, Status> {
+pub async fn read_notable(firestore: &FirestoreApi) -> Result<Notable, Status> {
     Ok(firestore
         .db()
         .fluent()
@@ -34,10 +34,7 @@ pub async fn read_notable(firestore: &FirestoreApi) -> Result<NotableCompanies, 
 }
 
 #[instrument(name = "timeline::write_notable", level = "trace", skip(firestore))]
-pub async fn write_notable(
-    firestore: &FirestoreApi,
-    notable: &NotableCompanies,
-) -> Result<(), Status> {
+pub async fn write_notable(firestore: &FirestoreApi, notable: &Notable) -> Result<(), Status> {
     firestore
         .db()
         .fluent()

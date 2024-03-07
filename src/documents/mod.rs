@@ -24,7 +24,7 @@ pub use game_entry::*;
 pub use genre::Genre;
 pub use keyword::Keyword;
 pub use library_entry::{Library, LibraryEntry};
-pub use notable::NotableCompanies;
+pub use notable::Notable;
 pub use recent::{Recent, RecentEntry};
 pub use scores::*;
 pub use steam_data::{SteamData, SteamScore};

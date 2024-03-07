@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct NotableCompanies {
+pub struct Notable {
     #[serde(default)]
     pub companies: Vec<String>,
 
