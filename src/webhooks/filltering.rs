@@ -31,17 +31,26 @@ impl GameEntryClassifier {
         }
     }
 
+    pub fn pre_filter(&self, igdb_game: &IgdbGame) -> bool {
+        igdb_game.is_pc_game()
+            && igdb_game.is_main_category()
+            && (igdb_game.follows.unwrap_or_default() > 0
+                || igdb_game.hypes.unwrap_or_default() > 0
+                || igdb_game.aggregated_rating.unwrap_or_default() > 0.0)
+    }
+
+    pub fn filter(&self, game: &GameEntry) -> bool {
+        !matches!(self.classify(game), GameEntryClass::Ignore)
+    }
+
     pub fn classify(&self, game: &GameEntry) -> GameEntryClass {
         if game.release_date == 0 {
             match is_hyped_tbd(&game) {
                 true => GameEntryClass::Main,
                 false => GameEntryClass::Ignore,
             }
-        } else if is_early_access(&game) {
-            match is_popular_early_access(&game) {
-                true => GameEntryClass::EarlyAccess,
-                false => GameEntryClass::Ignore,
-            }
+        } else if is_popular_early_access(&game) {
+            GameEntryClass::EarlyAccess
         } else if is_expansion(&game) && game.scores.metacritic.is_none() {
             GameEntryClass::Expansion
         } else if is_indie(&game) {
@@ -67,14 +76,6 @@ impl GameEntryClassifier {
             GameEntryClass::Ignore
         }
     }
-
-    pub fn filter(&self, game: &GameEntry) -> bool {
-        !matches!(self.classify(game), GameEntryClass::Ignore)
-    }
-
-    pub fn pre_filter(&self, igdb_game: &IgdbGame) -> bool {
-        igdb_game.is_pc_game() && igdb_game.is_main_category()
-    }
 }
 
 fn is_popular(game: &GameEntry) -> bool {
@@ -83,7 +84,7 @@ fn is_popular(game: &GameEntry) -> bool {
 }
 
 fn is_popular_early_access(game: &GameEntry) -> bool {
-    game.scores.popularity.unwrap_or_default() >= 5000
+    is_early_access(game) && game.scores.popularity.unwrap_or_default() >= 5000
 }
 
 fn is_hyped_tbd(game: &GameEntry) -> bool {
