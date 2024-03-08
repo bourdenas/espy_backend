@@ -30,8 +30,16 @@ pub async fn add_game_webhook(
     }
 
     let event = AddGameEvent::new(igdb_game.id, igdb_game.name.clone());
-    match igdb.resolve(firestore, igdb_game).await {
-        Ok(_) => event.log(),
+    match igdb.resolve_only(Arc::clone(&firestore), igdb_game).await {
+        Ok(mut game_entry) => {
+            if !classifier.filter(&game_entry) {
+                event.log_reject(classifier.explain(&game_entry));
+            } else if let Err(status) = firestore::games::write(&firestore, &mut game_entry).await {
+                event.log_error(status);
+            } else {
+                event.log()
+            }
+        }
         Err(status) => event.log_error(status),
     }
 
@@ -80,10 +88,22 @@ pub async fn update_game_webhook(
                 Err(status) => event.log_error(status),
             },
         },
-        Err(Status::NotFound(_)) => match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
-            Ok(_) => event.log_added(),
-            Err(status) => event.log_error(status),
-        },
+        Err(Status::NotFound(_)) => {
+            match igdb.resolve_only(Arc::clone(&firestore), igdb_game).await {
+                Ok(mut game_entry) => {
+                    if !classifier.filter(&game_entry) {
+                        event.log_reject(classifier.explain(&game_entry));
+                    } else if let Err(status) =
+                        firestore::games::write(&firestore, &mut game_entry).await
+                    {
+                        event.log_error(status);
+                    } else {
+                        event.log_added()
+                    }
+                }
+                Err(status) => event.log_error(status),
+            }
+        }
         Err(status) => event.log_error(status),
     }
 

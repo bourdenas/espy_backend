@@ -6,6 +6,8 @@ use crate::{
     Status,
 };
 
+use super::filltering::RejectionReason;
+
 pub struct AddGameEvent {
     id: u64,
     name: String,
@@ -22,11 +24,22 @@ impl AddGameEvent {
             labels.handler = ADD_GAME_HANDLER,
             add_game.id = self.id,
             add_game.name = self.name,
-            "game added {}",
+            "added game {}",
             self.id
         )
     }
 
+    pub fn log_reject(self, rejection: RejectionReason) {
+        error!(
+            labels.log_type = WEBHOOK_LOGS,
+            labels.handler = UPDATE_GAME_HANDLER,
+            labels.rejection = rejection.to_string(),
+            update_game.id = self.id,
+            update_game.name = self.name,
+            "rejected game {}",
+            self.id
+        )
+    }
     pub fn log_error(self, status: Status) {
         error!(
             labels.log_type = WEBHOOK_LOGS,
@@ -60,7 +73,7 @@ impl UpdateGameEvent {
                 Some(diff) => diff.to_string(),
                 None => "null".to_owned(),
             },
-            "game updated {}",
+            "updated game {}",
             self.id
         )
     }
@@ -72,7 +85,19 @@ impl UpdateGameEvent {
             update_game.id = self.id,
             update_game.name = self.name,
             update_game.added = true,
-            "game updated {}",
+            "discovered game {}",
+            self.id
+        )
+    }
+
+    pub fn log_reject(self, rejection: RejectionReason) {
+        error!(
+            labels.log_type = WEBHOOK_LOGS,
+            labels.handler = UPDATE_GAME_HANDLER,
+            labels.rejection = rejection.to_string(),
+            update_game.id = self.id,
+            update_game.name = self.name,
+            "rejected game {}",
             self.id
         )
     }
