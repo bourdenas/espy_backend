@@ -44,7 +44,7 @@ impl GameEntryClassifier {
     }
 
     pub fn classify(&self, game: &GameEntry) -> GameEntryClass {
-        if game.release_date == 0 {
+        if !game.is_released() {
             match is_hyped_tbd(&game) {
                 true => GameEntryClass::Main,
                 false => GameEntryClass::Ignore,
@@ -76,6 +76,42 @@ impl GameEntryClassifier {
             GameEntryClass::Ignore
         }
     }
+
+    pub fn explain(&self, game: &GameEntry) -> RejectionReason {
+        if !game.is_released() {
+            if game.scores.hype.unwrap_or_default() == 0 {
+                RejectionReason::FutureReleaseNoHype
+            } else if game.scores.thumbs.is_some() {
+                RejectionReason::FutureReleaseWithThumbsUp
+            } else if is_casual(game) {
+                RejectionReason::FutureReleaseCasual
+            } else {
+                RejectionReason::Unknown
+            }
+        } else if is_early_access(game) && !is_popular_early_access(game) {
+            RejectionReason::EarlyAccessLowPopularity
+        } else if is_popular(game) {
+            RejectionReason::NoScoreLowPopularity
+        } else {
+            RejectionReason::Unknown
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum RejectionReason {
+    FutureReleaseNoHype,
+    FutureReleaseWithThumbsUp,
+    FutureReleaseCasual,
+    EarlyAccessLowPopularity,
+    NoScoreLowPopularity,
+    Unknown,
+}
+
+impl std::fmt::Display for RejectionReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 fn is_popular(game: &GameEntry) -> bool {
@@ -88,8 +124,10 @@ fn is_popular_early_access(game: &GameEntry) -> bool {
 }
 
 fn is_hyped_tbd(game: &GameEntry) -> bool {
-    !matches!(game.status, GameStatus::Cancelled)
-        && game.scores.hype.unwrap_or_default() > 1
+    !matches!(
+        game.status,
+        GameStatus::Cancelled | GameStatus::Alpha | GameStatus::Beta
+    ) && game.scores.hype.unwrap_or_default() > 0
         && game.scores.thumbs.is_none()
         && !is_casual(&game)
 }
