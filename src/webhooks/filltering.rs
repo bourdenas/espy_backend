@@ -90,7 +90,7 @@ impl GameEntryClassifier {
             }
         } else if is_early_access(game) && !is_popular_early_access(game) {
             RejectionReason::EarlyAccessLowPopularity
-        } else if is_popular(game) {
+        } else if !is_popular(game) {
             RejectionReason::NoScoreLowPopularity
         } else {
             RejectionReason::Unknown
