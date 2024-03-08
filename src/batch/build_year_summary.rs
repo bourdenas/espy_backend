@@ -167,7 +167,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .unwrap_or_default()
         .iter()
     {
-        println!("#{i} deleting {}({})", game.name, game.id);
+        println!(
+            "#{i} deleting {}({}) -- {}",
+            game.name,
+            game.id,
+            classifier.explain(&game)
+        );
         i += 1;
         library::firestore::games::delete(&firestore, game.id).await?;
     }
