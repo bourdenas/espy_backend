@@ -1,7 +1,10 @@
 use clap::Parser;
 use espy_backend::{
     api::{FirestoreApi, IgdbApi},
-    util, webhooks, Status, Tracing,
+    library::firestore::timeline,
+    util,
+    webhooks::{self, filltering::GameEntryClassifier},
+    Status, Tracing,
 };
 use std::{env, sync::Arc};
 use tracing::info;
@@ -46,10 +49,13 @@ async fn main() -> Result<(), Status> {
         Err(_) => opts.port,
     };
 
+    let notable = timeline::read_notable(&firestore).await?;
+    let classifier = GameEntryClassifier::new(notable);
+
     info!("webhooks handler started");
 
     warp::serve(
-        webhooks::routes::routes(Arc::new(igdb), Arc::new(firestore)).with(
+        webhooks::routes::routes(Arc::new(igdb), Arc::new(firestore), Arc::new(classifier)).with(
             warp::cors()
                 .allow_methods(vec!["POST"])
                 .allow_headers(vec!["Content-Type", "Authorization"])

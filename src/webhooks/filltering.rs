@@ -1,7 +1,10 @@
 use std::collections::HashSet;
 
-use crate::documents::{
-    EspyGenre, GameCategory, GameEntry, GameStatus, Notable, SteamData, WebsiteAuthority,
+use crate::{
+    api::IgdbGame,
+    documents::{
+        EspyGenre, GameCategory, GameEntry, GameStatus, Notable, SteamData, WebsiteAuthority,
+    },
 };
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -68,6 +71,10 @@ impl GameEntryClassifier {
     pub fn filter(&self, game: &GameEntry) -> bool {
         !matches!(self.classify(game), GameEntryClass::Ignore)
     }
+
+    pub fn pre_filter(&self, igdb_game: &IgdbGame) -> bool {
+        igdb_game.is_pc_game() && igdb_game.is_main_category()
+    }
 }
 
 fn is_popular(game: &GameEntry) -> bool {
@@ -75,11 +82,52 @@ fn is_popular(game: &GameEntry) -> bool {
         || (game.release_year() <= 2011 && game.scores.popularity.unwrap_or_default() > 0)
 }
 
+fn is_popular_early_access(game: &GameEntry) -> bool {
+    game.scores.popularity.unwrap_or_default() >= 5000
+}
+
+fn is_hyped_tbd(game: &GameEntry) -> bool {
+    !matches!(game.status, GameStatus::Cancelled)
+        && game.scores.hype.unwrap_or_default() > 1
+        && game.scores.thumbs.is_none()
+        && !is_casual(&game)
+}
+
+fn is_indie(game: &GameEntry) -> bool {
+    game.release_year() > 2007
+        && game
+            .espy_genres
+            .iter()
+            .any(|genre| matches!(genre, EspyGenre::Indie))
+}
+
+fn is_early_access(game: &GameEntry) -> bool {
+    game.release_year() > 2018
+        && matches!(game.status, GameStatus::EarlyAccess)
+        && game.scores.metacritic.is_none()
+}
+
 fn is_remaster(game: &GameEntry) -> bool {
     match game.category {
         GameCategory::Remake | GameCategory::Remaster => true,
         _ => false,
     }
+}
+
+fn is_expansion(game: &GameEntry) -> bool {
+    matches!(
+        game.category,
+        GameCategory::Expansion | GameCategory::StandaloneExpansion
+    )
+}
+
+fn is_casual(game: &GameEntry) -> bool {
+    game.steam_data
+        .as_ref()
+        .unwrap_or(&SteamData::default())
+        .genres
+        .iter()
+        .any(|genre| genre.description == "Casual")
 }
 
 fn is_gog_classic(game: &GameEntry) -> bool {
@@ -100,46 +148,4 @@ fn is_notable(
             .collections
             .iter()
             .any(|c| collections.contains(&c.name))
-}
-
-fn is_casual(game: &GameEntry) -> bool {
-    game.steam_data
-        .as_ref()
-        .unwrap_or(&SteamData::default())
-        .genres
-        .iter()
-        .any(|genre| genre.description == "Casual")
-}
-
-fn is_hyped_tbd(game: &GameEntry) -> bool {
-    game.release_date == 0
-        && !matches!(game.status, GameStatus::Cancelled)
-        && game.scores.hype.unwrap_or_default() > 1
-        && game.scores.thumbs.is_none()
-        && !is_casual(&game)
-}
-
-fn is_early_access(game: &GameEntry) -> bool {
-    game.release_year() > 2018
-        && matches!(game.status, GameStatus::EarlyAccess)
-        && game.scores.metacritic.is_none()
-}
-
-fn is_popular_early_access(game: &GameEntry) -> bool {
-    game.scores.popularity.unwrap_or_default() >= 5000
-}
-
-fn is_expansion(game: &GameEntry) -> bool {
-    matches!(
-        game.category,
-        GameCategory::Expansion | GameCategory::StandaloneExpansion
-    )
-}
-
-fn is_indie(game: &GameEntry) -> bool {
-    game.release_year() > 2007
-        && game
-            .espy_genres
-            .iter()
-            .any(|genre| matches!(genre, EspyGenre::Indie))
 }

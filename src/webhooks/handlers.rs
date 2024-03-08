@@ -13,17 +13,19 @@ use std::{
 use tracing::{instrument, trace_span, warn, Instrument};
 use warp::http::StatusCode;
 
-use super::event_logs::{
-    AddGameEvent, ExternalGameEvent, GenresEvent, KeywordsEvent, UpdateGameEvent,
+use super::{
+    event_logs::{AddGameEvent, ExternalGameEvent, GenresEvent, KeywordsEvent, UpdateGameEvent},
+    filltering::GameEntryClassifier,
 };
 
-#[instrument(level = "trace", skip(igdb_game, firestore, igdb))]
+#[instrument(level = "trace", skip(igdb_game, firestore, igdb, classifier))]
 pub async fn add_game_webhook(
     igdb_game: IgdbGame,
     firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
+    classifier: Arc<GameEntryClassifier>,
 ) -> Result<impl warp::Reply, Infallible> {
-    if !igdb_game.is_pc_game() || !igdb_game.is_main_category() {
+    if !classifier.pre_filter(&igdb_game) {
         return Ok(StatusCode::OK);
     }
 
@@ -36,13 +38,14 @@ pub async fn add_game_webhook(
     Ok(StatusCode::OK)
 }
 
-#[instrument(level = "trace", skip(igdb_game, firestore, igdb))]
+#[instrument(level = "trace", skip(igdb_game, firestore, igdb, classifier))]
 pub async fn update_game_webhook(
     igdb_game: IgdbGame,
     firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
+    classifier: Arc<GameEntryClassifier>,
 ) -> Result<impl warp::Reply, Infallible> {
-    if !igdb_game.is_pc_game() || !igdb_game.is_main_category() {
+    if !classifier.pre_filter(&igdb_game) {
         return Ok(StatusCode::OK);
     }
 

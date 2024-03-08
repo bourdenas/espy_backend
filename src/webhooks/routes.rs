@@ -7,34 +7,45 @@ use crate::{
     documents::{Genre, Keyword},
 };
 
-use super::handlers;
+use super::{filltering::GameEntryClassifier, handlers};
 
 /// Returns a Filter with all available routes.
 pub fn routes(
     igdb: Arc<IgdbApi>,
     firestore: Arc<FirestoreApi>,
+    classifier: Arc<GameEntryClassifier>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-    post_add_game(Arc::clone(&firestore), Arc::clone(&igdb))
-        .or(post_update_game(Arc::clone(&firestore), Arc::clone(&igdb)))
-        .or(post_external_game(Arc::clone(&firestore)))
-        .or(post_genres(Arc::clone(&firestore)))
-        .or(post_keywords(Arc::clone(&firestore)))
-        .or_else(|e| async {
-            warn! {"Rejected route: {:?}", e};
-            Err(e)
-        })
+    post_add_game(
+        Arc::clone(&firestore),
+        Arc::clone(&igdb),
+        Arc::clone(&classifier),
+    )
+    .or(post_update_game(
+        Arc::clone(&firestore),
+        Arc::clone(&igdb),
+        Arc::clone(&classifier),
+    ))
+    .or(post_external_game(Arc::clone(&firestore)))
+    .or(post_genres(Arc::clone(&firestore)))
+    .or(post_keywords(Arc::clone(&firestore)))
+    .or_else(|e| async {
+        warn! {"Rejected route: {:?}", e};
+        Err(e)
+    })
 }
 
 /// POST /add_game
 fn post_add_game(
     firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
+    classifier: Arc<GameEntryClassifier>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("add_game")
         .and(warp::post())
         .and(json_body::<IgdbGame>())
         .and(with_firestore(firestore))
         .and(with_igdb(igdb))
+        .and(with_classifier(classifier))
         .and_then(handlers::add_game_webhook)
 }
 
@@ -42,12 +53,14 @@ fn post_add_game(
 fn post_update_game(
     firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
+    classifier: Arc<GameEntryClassifier>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("update_game")
         .and(warp::post())
         .and(json_body::<IgdbGame>())
         .and(with_firestore(firestore))
         .and(with_igdb(igdb))
+        .and(with_classifier(classifier))
         .and_then(handlers::update_game_webhook)
 }
 
@@ -99,4 +112,10 @@ pub fn with_firestore(
     firestore: Arc<FirestoreApi>,
 ) -> impl Filter<Extract = (Arc<FirestoreApi>,), Error = Infallible> + Clone {
     warp::any().map(move || Arc::clone(&firestore))
+}
+
+pub fn with_classifier(
+    classifier: Arc<GameEntryClassifier>,
+) -> impl Filter<Extract = (Arc<GameEntryClassifier>,), Error = Infallible> + Clone {
+    warp::any().map(move || Arc::clone(&classifier))
 }
