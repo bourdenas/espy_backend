@@ -229,6 +229,28 @@ impl IgdbApi {
         firestore: Arc<FirestoreApi>,
         igdb_game: IgdbGame,
     ) -> Result<GameEntry, Status> {
+        let mut game_entry = self.resolve_only(Arc::clone(&firestore), igdb_game).await?;
+
+        if let Err(e) = firestore::games::write(&firestore, &mut game_entry).await {
+            warn!("Failed to save '{}' in Firestore: {e}", game_entry.name);
+        }
+
+        Ok(game_entry)
+    }
+
+    #[instrument(
+        level = "trace",
+        skip(self, firestore, igdb_game),
+        fields(
+            game_id = %igdb_game.id,
+            title = %igdb_game.name
+        )
+    )]
+    pub async fn resolve_only(
+        &self,
+        firestore: Arc<FirestoreApi>,
+        igdb_game: IgdbGame,
+    ) -> Result<GameEntry, Status> {
         let connection = self.connection()?;
 
         let counter = IgdbResolveCounter::new();
@@ -245,10 +267,6 @@ impl IgdbApi {
                 counter.log_error(&status);
                 return Err(status);
             }
-        }
-
-        if let Err(e) = firestore::games::write(&firestore, &mut game_entry).await {
-            warn!("Failed to save '{}' in Firestore: {e}", game_entry.name);
         }
 
         counter.log(&game_entry);
