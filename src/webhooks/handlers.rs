@@ -22,11 +22,13 @@ pub async fn add_game_webhook(
     igdb: Arc<IgdbApi>,
     classifier: Arc<GameEntryClassifier>,
 ) -> Result<impl warp::Reply, Infallible> {
-    if !classifier.pre_filter(&igdb_game) {
+    let event = AddGameEvent::new(igdb_game.id, igdb_game.name.clone());
+
+    if !classifier.prefilter(&igdb_game) {
+        event.log_prefilter_reject(classifier.explain_prefilter(&igdb_game));
         return Ok(StatusCode::OK);
     }
 
-    let event = AddGameEvent::new(igdb_game.id, igdb_game.name.clone());
     match igdb.resolve_only(Arc::clone(&firestore), igdb_game).await {
         Ok(mut game_entry) => {
             if !classifier.filter(&game_entry) {
@@ -50,11 +52,13 @@ pub async fn update_game_webhook(
     igdb: Arc<IgdbApi>,
     classifier: Arc<GameEntryClassifier>,
 ) -> Result<impl warp::Reply, Infallible> {
-    if !classifier.pre_filter(&igdb_game) {
+    let event = UpdateGameEvent::new(igdb_game.id, igdb_game.name.clone());
+
+    if !classifier.prefilter(&igdb_game) {
+        event.log_prefilter_reject(classifier.explain_prefilter(&igdb_game));
         return Ok(StatusCode::OK);
     }
 
-    let event = UpdateGameEvent::new(igdb_game.id, igdb_game.name.clone());
     let game_entry = firestore::games::read(&firestore, igdb_game.id).await;
 
     match game_entry {
