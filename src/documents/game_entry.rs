@@ -158,7 +158,7 @@ impl GameEntry {
     }
 
     pub fn is_released(&self) -> bool {
-        self.release_date == 0 || self.release_date < Utc::now().naive_utc().timestamp()
+        self.release_date > 0 && self.release_date < Utc::now().naive_utc().timestamp()
     }
 
     fn extract_category(igdb_game: &IgdbGame) -> GameCategory {
