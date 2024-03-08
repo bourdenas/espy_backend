@@ -31,7 +31,7 @@ impl GameEntryClassifier {
         }
     }
 
-    pub fn pre_filter(&self, igdb_game: &IgdbGame) -> bool {
+    pub fn prefilter(&self, igdb_game: &IgdbGame) -> bool {
         igdb_game.is_pc_game()
             && igdb_game.is_main_category()
             && (igdb_game.follows.unwrap_or_default() > 0
@@ -96,6 +96,21 @@ impl GameEntryClassifier {
             RejectionReason::Unknown
         }
     }
+
+    pub fn explain_prefilter(&self, igdb_game: &IgdbGame) -> PrefilterRejectionReason {
+        if !igdb_game.is_pc_game() {
+            PrefilterRejectionReason::NotPcGame
+        } else if !igdb_game.is_main_category() {
+            PrefilterRejectionReason::NotMainCategory
+        } else if igdb_game.follows.unwrap_or_default() == 0
+            && igdb_game.hypes.unwrap_or_default() == 0
+            && igdb_game.aggregated_rating.is_none()
+        {
+            PrefilterRejectionReason::NoUserMetrics
+        } else {
+            PrefilterRejectionReason::Unknown
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -109,6 +124,20 @@ pub enum RejectionReason {
 }
 
 impl std::fmt::Display for RejectionReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum PrefilterRejectionReason {
+    NotPcGame,
+    NotMainCategory,
+    NoUserMetrics,
+    Unknown,
+}
+
+impl std::fmt::Display for PrefilterRejectionReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
