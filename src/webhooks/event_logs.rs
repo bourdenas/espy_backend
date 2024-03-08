@@ -30,7 +30,7 @@ impl AddGameEvent {
     }
 
     pub fn log_reject(self, rejection: RejectionReason) {
-        error!(
+        info!(
             labels.log_type = WEBHOOK_LOGS,
             labels.handler = UPDATE_GAME_HANDLER,
             labels.rejection = rejection.to_string(),
@@ -91,7 +91,7 @@ impl UpdateGameEvent {
     }
 
     pub fn log_reject(self, rejection: RejectionReason) {
-        error!(
+        info!(
             labels.log_type = WEBHOOK_LOGS,
             labels.handler = UPDATE_GAME_HANDLER,
             labels.rejection = rejection.to_string(),
