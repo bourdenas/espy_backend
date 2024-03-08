@@ -19,7 +19,7 @@ pub struct GameEntry {
     pub status: GameStatus,
 
     #[serde(default)]
-    pub last_updated: u64,
+    pub last_updated: i64,
 
     #[serde(default)]
     pub release_date: i64,

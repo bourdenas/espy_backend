@@ -72,7 +72,7 @@ pub async fn write(firestore: &FirestoreApi, game_entry: &mut GameEntry) -> Resu
     game_entry.last_updated = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
-        .as_secs();
+        .as_secs() as i64;
 
     firestore
         .db()

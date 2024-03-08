@@ -5,11 +5,8 @@ use crate::{
     library::firestore,
     Status,
 };
-use std::{
-    convert::Infallible,
-    sync::Arc,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use chrono::Utc;
+use std::{convert::Infallible, sync::Arc};
 use tracing::{instrument, trace_span, warn, Instrument};
 use warp::http::StatusCode;
 
@@ -63,14 +60,7 @@ pub async fn update_game_webhook(
     match game_entry {
         Ok(mut game_entry) => match game_entry.igdb_game.diff(&igdb_game) {
             diff if diff.empty() => {
-                if game_entry.last_updated == 0
-                    || SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .checked_sub(Duration::from_secs(game_entry.last_updated))
-                        .unwrap()
-                        > Duration::from_secs(1 * DAY_SECS)
-                {
+                if needs_update(&game_entry) {
                     match update_steam_data(firestore, &mut game_entry, igdb_game).await {
                         Ok(()) => event.log(Some(diff)),
                         Err(status) => event.log_error(status),
@@ -110,7 +100,18 @@ pub async fn update_game_webhook(
     Ok(StatusCode::OK)
 }
 
-const DAY_SECS: u64 = 24 * 60 * 60;
+fn needs_update(game_entry: &GameEntry) -> bool {
+    let today = Utc::now().naive_utc().timestamp();
+    let close_to_release = (today - game_entry.release_date).abs() < 8 * DAY_SECS;
+
+    // Update if never updated || was not updated in the last 7 days ago ||
+    // it is close to release and was not updated last 24hrs.
+    game_entry.last_updated == 0
+        || today - game_entry.last_updated > 7 * DAY_SECS
+        || (close_to_release && today - game_entry.last_updated > 1 * DAY_SECS)
+}
+
+const DAY_SECS: i64 = 24 * 60 * 60;
 
 async fn update_steam_data(
     firestore: Arc<FirestoreApi>,
