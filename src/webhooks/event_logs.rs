@@ -6,7 +6,7 @@ use crate::{
     Status,
 };
 
-use super::filltering::{PrefilterRejectionReason, RejectionReason};
+use super::{filtering::RejectionReason, prefiltering::PrefilterRejectionReason};
 
 pub struct AddGameEvent {
     id: u64,

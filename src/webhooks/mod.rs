@@ -1,5 +1,6 @@
 mod event_logs;
 mod handlers;
 
-pub mod filltering;
+pub mod filtering;
+pub mod prefiltering;
 pub mod routes;

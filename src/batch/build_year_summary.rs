@@ -10,7 +10,7 @@ use espy_backend::{
     api::FirestoreApi,
     documents::*,
     library::firestore::{timeline, year},
-    webhooks::filltering::{GameEntryClass, GameEntryClassifier},
+    webhooks::filtering::{GameEntryClass, GameFilter},
     *,
 };
 use firestore::{path, FirestoreQueryDirection, FirestoreResult};

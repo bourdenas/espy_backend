@@ -3,7 +3,7 @@ use espy_backend::{
     api::{FirestoreApi, IgdbApi},
     library::firestore::timeline,
     util,
-    webhooks::{self, filltering::GameEntryClassifier},
+    webhooks::{self, filtering::GameFilter},
     Status, Tracing,
 };
 use std::{env, sync::Arc};
@@ -50,7 +50,7 @@ async fn main() -> Result<(), Status> {
     };
 
     let notable = timeline::read_notable(&firestore).await?;
-    let classifier = GameEntryClassifier::new(notable);
+    let classifier = GameFilter::new(notable);
 
     info!("webhooks handler started");
 

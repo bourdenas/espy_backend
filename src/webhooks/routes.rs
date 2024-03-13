@@ -7,13 +7,13 @@ use crate::{
     documents::{Genre, Keyword},
 };
 
-use super::{filltering::GameEntryClassifier, handlers};
+use super::{filtering::GameFilter, handlers};
 
 /// Returns a Filter with all available routes.
 pub fn routes(
     igdb: Arc<IgdbApi>,
     firestore: Arc<FirestoreApi>,
-    classifier: Arc<GameEntryClassifier>,
+    classifier: Arc<GameFilter>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     post_add_game(
         Arc::clone(&firestore),
@@ -38,7 +38,7 @@ pub fn routes(
 fn post_add_game(
     firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
-    classifier: Arc<GameEntryClassifier>,
+    classifier: Arc<GameFilter>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("add_game")
         .and(warp::post())
@@ -53,7 +53,7 @@ fn post_add_game(
 fn post_update_game(
     firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
-    classifier: Arc<GameEntryClassifier>,
+    classifier: Arc<GameFilter>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("update_game")
         .and(warp::post())
@@ -115,7 +115,7 @@ pub fn with_firestore(
 }
 
 pub fn with_classifier(
-    classifier: Arc<GameEntryClassifier>,
-) -> impl Filter<Extract = (Arc<GameEntryClassifier>,), Error = Infallible> + Clone {
+    classifier: Arc<GameFilter>,
+) -> impl Filter<Extract = (Arc<GameFilter>,), Error = Infallible> + Clone {
     warp::any().map(move || Arc::clone(&classifier))
 }

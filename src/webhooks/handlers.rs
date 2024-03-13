@@ -12,27 +12,28 @@ use warp::http::StatusCode;
 
 use super::{
     event_logs::{AddGameEvent, ExternalGameEvent, GenresEvent, KeywordsEvent, UpdateGameEvent},
-    filltering::GameEntryClassifier,
+    filtering::GameFilter,
+    prefiltering::IgdbPrefilter,
 };
 
-#[instrument(level = "trace", skip(igdb_game, firestore, igdb, classifier))]
+#[instrument(level = "trace", skip(igdb_game, firestore, igdb, game_filter))]
 pub async fn add_game_webhook(
     igdb_game: IgdbGame,
     firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
-    classifier: Arc<GameEntryClassifier>,
+    game_filter: Arc<GameFilter>,
 ) -> Result<impl warp::Reply, Infallible> {
     let event = AddGameEvent::new(igdb_game.id, igdb_game.name.clone());
 
-    if !classifier.prefilter(&igdb_game) {
-        event.log_prefilter_reject(classifier.explain_prefilter(&igdb_game));
+    if !IgdbPrefilter::filter(&igdb_game) {
+        event.log_prefilter_reject(IgdbPrefilter::explain(&igdb_game));
         return Ok(StatusCode::OK);
     }
 
     match igdb.resolve_only(Arc::clone(&firestore), igdb_game).await {
         Ok(mut game_entry) => {
-            if !classifier.filter(&game_entry) {
-                event.log_reject(classifier.explain(&game_entry));
+            if !game_filter.filter(&game_entry) {
+                event.log_reject(game_filter.explain(&game_entry));
             } else if let Err(status) = firestore::games::write(&firestore, &mut game_entry).await {
                 event.log_error(status);
             } else {
@@ -45,17 +46,17 @@ pub async fn add_game_webhook(
     Ok(StatusCode::OK)
 }
 
-#[instrument(level = "trace", skip(igdb_game, firestore, igdb, classifier))]
+#[instrument(level = "trace", skip(igdb_game, firestore, igdb, game_filter))]
 pub async fn update_game_webhook(
     igdb_game: IgdbGame,
     firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
-    classifier: Arc<GameEntryClassifier>,
+    game_filter: Arc<GameFilter>,
 ) -> Result<impl warp::Reply, Infallible> {
     let event = UpdateGameEvent::new(igdb_game.id, igdb_game.name.clone());
 
-    if !classifier.prefilter(&igdb_game) {
-        event.log_prefilter_reject(classifier.explain_prefilter(&igdb_game));
+    if !IgdbPrefilter::filter(&igdb_game) {
+        event.log_prefilter_reject(IgdbPrefilter::explain(&igdb_game));
         return Ok(StatusCode::OK);
     }
 
@@ -85,8 +86,8 @@ pub async fn update_game_webhook(
         Err(Status::NotFound(_)) => {
             match igdb.resolve_only(Arc::clone(&firestore), igdb_game).await {
                 Ok(mut game_entry) => {
-                    if !classifier.filter(&game_entry) {
-                        event.log_reject(classifier.explain(&game_entry));
+                    if !game_filter.filter(&game_entry) {
+                        event.log_reject(game_filter.explain(&game_entry));
                     } else if let Err(status) =
                         firestore::games::write(&firestore, &mut game_entry).await
                     {

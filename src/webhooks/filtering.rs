@@ -1,10 +1,7 @@
 use std::collections::HashSet;
 
-use crate::{
-    api::IgdbGame,
-    documents::{
-        EspyGenre, GameCategory, GameEntry, GameStatus, Notable, SteamData, WebsiteAuthority,
-    },
+use crate::documents::{
+    EspyGenre, GameCategory, GameEntry, GameStatus, Notable, SteamData, WebsiteAuthority,
 };
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -18,25 +15,17 @@ pub enum GameEntryClass {
     Ignore,
 }
 
-pub struct GameEntryClassifier {
+pub struct GameFilter {
     companies: HashSet<String>,
     collections: HashSet<String>,
 }
 
-impl GameEntryClassifier {
+impl GameFilter {
     pub fn new(notable: Notable) -> Self {
         Self {
             companies: HashSet::<String>::from_iter(notable.legacy_companies.into_iter()),
             collections: HashSet::<String>::from_iter(notable.collections.into_iter()),
         }
-    }
-
-    pub fn prefilter(&self, igdb_game: &IgdbGame) -> bool {
-        igdb_game.is_pc_game()
-            && igdb_game.is_main_category()
-            && (igdb_game.follows.unwrap_or_default() > 0
-                || igdb_game.hypes.unwrap_or_default() > 0
-                || igdb_game.aggregated_rating.unwrap_or_default() > 0.0)
     }
 
     pub fn filter(&self, game: &GameEntry) -> bool {
@@ -96,21 +85,6 @@ impl GameEntryClassifier {
             RejectionReason::Unknown
         }
     }
-
-    pub fn explain_prefilter(&self, igdb_game: &IgdbGame) -> PrefilterRejectionReason {
-        if !igdb_game.is_pc_game() {
-            PrefilterRejectionReason::NotPcGame
-        } else if !igdb_game.is_main_category() {
-            PrefilterRejectionReason::NotMainCategory
-        } else if igdb_game.follows.unwrap_or_default() == 0
-            && igdb_game.hypes.unwrap_or_default() == 0
-            && igdb_game.aggregated_rating.is_none()
-        {
-            PrefilterRejectionReason::NoUserMetrics
-        } else {
-            PrefilterRejectionReason::Unknown
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -124,20 +98,6 @@ pub enum RejectionReason {
 }
 
 impl std::fmt::Display for RejectionReason {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum PrefilterRejectionReason {
-    NotPcGame,
-    NotMainCategory,
-    NoUserMetrics,
-    Unknown,
-}
-
-impl std::fmt::Display for PrefilterRejectionReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
