@@ -30,10 +30,13 @@ pub async fn add_game_webhook(
         return Ok(StatusCode::OK);
     }
 
-    match igdb.resolve_only(Arc::clone(&firestore), igdb_game).await {
-        Ok(mut game_entry) => {
-            if !game_filter.filter(&game_entry) {
-                event.log_reject(game_filter.explain(&game_entry));
+    match igdb
+        .resolve_only(Arc::clone(&firestore), igdb_game, &game_filter)
+        .await
+    {
+        Ok((mut game_entry, rejection)) => {
+            if let Some(rejection) = rejection {
+                event.log_reject(rejection);
             } else if let Err(status) = firestore::games::write(&firestore, &mut game_entry).await {
                 event.log_error(status);
             } else {
@@ -84,10 +87,13 @@ pub async fn update_game_webhook(
             },
         },
         Err(Status::NotFound(_)) => {
-            match igdb.resolve_only(Arc::clone(&firestore), igdb_game).await {
-                Ok(mut game_entry) => {
-                    if !game_filter.filter(&game_entry) {
-                        event.log_reject(game_filter.explain(&game_entry));
+            match igdb
+                .resolve_only(Arc::clone(&firestore), igdb_game, &game_filter)
+                .await
+            {
+                Ok((mut game_entry, rejection)) => {
+                    if let Some(rejection) = rejection {
+                        event.log_reject(rejection);
                     } else if let Err(status) =
                         firestore::games::write(&firestore, &mut game_entry).await
                     {

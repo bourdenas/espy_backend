@@ -4,6 +4,7 @@ use crate::{
     library::firestore,
     logging::{IgdbCounters, IgdbResolveCounter},
     util::rate_limiter::RateLimiter,
+    webhooks::filtering::{GameFilter, RejectionReason},
     Status,
 };
 use serde::{Deserialize, Serialize};
@@ -229,28 +230,6 @@ impl IgdbApi {
         firestore: Arc<FirestoreApi>,
         igdb_game: IgdbGame,
     ) -> Result<GameEntry, Status> {
-        let mut game_entry = self.resolve_only(Arc::clone(&firestore), igdb_game).await?;
-
-        if let Err(e) = firestore::games::write(&firestore, &mut game_entry).await {
-            warn!("Failed to save '{}' in Firestore: {e}", game_entry.name);
-        }
-
-        Ok(game_entry)
-    }
-
-    #[instrument(
-        level = "trace",
-        skip(self, firestore, igdb_game),
-        fields(
-            game_id = %igdb_game.id,
-            title = %igdb_game.name
-        )
-    )]
-    pub async fn resolve_only(
-        &self,
-        firestore: Arc<FirestoreApi>,
-        igdb_game: IgdbGame,
-    ) -> Result<GameEntry, Status> {
         let connection = self.connection()?;
 
         let counter = IgdbResolveCounter::new();
@@ -268,10 +247,56 @@ impl IgdbApi {
                 return Err(status);
             }
         }
-
         counter.log(&game_entry);
 
+        if let Err(e) = firestore::games::write(&firestore, &mut game_entry).await {
+            warn!("Failed to save '{}' in Firestore: {e}", game_entry.name);
+        }
+
         Ok(game_entry)
+    }
+
+    #[instrument(
+        level = "trace",
+        skip(self, firestore, igdb_game, game_filter),
+        fields(
+            game_id = %igdb_game.id,
+            title = %igdb_game.name
+        )
+    )]
+    pub async fn resolve_only(
+        &self,
+        firestore: Arc<FirestoreApi>,
+        igdb_game: IgdbGame,
+        game_filter: &GameFilter,
+    ) -> Result<(GameEntry, Option<RejectionReason>), Status> {
+        let connection = self.connection()?;
+
+        let counter = IgdbResolveCounter::new();
+        let mut game_entry = match resolve_game_digest(&connection, &firestore, igdb_game).await {
+            Ok(entry) => entry,
+            Err(status) => {
+                counter.log_error(&status);
+                return Err(status);
+            }
+        };
+
+        if !game_filter.filter(&game_entry) {
+            counter.log(&game_entry);
+            let rejection = game_filter.explain(&game_entry);
+            return Ok((game_entry, Some(rejection)));
+        }
+
+        match resolve_game_info(&connection, &firestore, &mut game_entry).await {
+            Ok(()) => {}
+            Err(status) => {
+                counter.log_error(&status);
+                return Err(status);
+            }
+        }
+        counter.log(&game_entry);
+
+        Ok((game_entry, None))
     }
 }
 
