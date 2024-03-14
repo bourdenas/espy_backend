@@ -43,6 +43,11 @@ impl GameFilter {
             GameEntryClass::EarlyAccess
         } else if is_expansion(&game) && game.scores.metacritic.is_none() {
             GameEntryClass::Expansion
+        } else if is_remaster(game) {
+            match is_casual(game) {
+                true => GameEntryClass::Casual,
+                false => GameEntryClass::Remaster,
+            }
         } else if is_indie(&game) {
             if game.scores.metacritic.is_some() || is_popular(game) {
                 match is_casual(game) {
@@ -51,11 +56,6 @@ impl GameFilter {
                 }
             } else {
                 GameEntryClass::Ignore
-            }
-        } else if is_remaster(game) {
-            match is_casual(game) {
-                true => GameEntryClass::Casual,
-                false => GameEntryClass::Remaster,
             }
         } else if game.scores.metacritic.is_some()
             || is_popular(game)
