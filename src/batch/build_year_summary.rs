@@ -99,7 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // }
 
     let notable = timeline::read_notable(&firestore).await?;
-    let classifier = GameEntryClassifier::new(notable);
+    let classifier = GameFilter::new(notable);
 
     let mut partitions = games
         .into_iter()
@@ -131,6 +131,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .collect(),
         indies: partitions
             .remove(&GameEntryClass::Indie)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|game| GameDigest::from(game))
+            .collect(),
+        remasters: partitions
+            .remove(&GameEntryClass::Remaster)
             .unwrap_or_default()
             .into_iter()
             .map(|game| GameDigest::from(game))

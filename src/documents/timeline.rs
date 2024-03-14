@@ -42,6 +42,10 @@ pub struct AnnualReview {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub remasters: Vec<GameDigest>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub expansions: Vec<GameDigest>,
 
     #[serde(default)]

@@ -8,6 +8,7 @@ use crate::documents::{
 pub enum GameEntryClass {
     Main,
     Expansion,
+    Remaster,
     EarlyAccess,
     Indie,
     Casual,
@@ -51,9 +52,13 @@ impl GameFilter {
             } else {
                 GameEntryClass::Ignore
             }
+        } else if is_remaster(game) {
+            match is_casual(game) {
+                true => GameEntryClass::Casual,
+                false => GameEntryClass::Remaster,
+            }
         } else if game.scores.metacritic.is_some()
             || is_popular(game)
-            || is_remaster(game)
             || is_notable(game, &self.companies, &self.collections)
             || is_gog_classic(&game)
         {
