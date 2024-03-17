@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use crate::{
-    api::{FirestoreApi, MetacriticApi},
+    api::{FirestoreApi, MetacriticApi, SteamScrape},
     documents::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
         GameDigest, GameEntry, Image, SteamData, Website, WebsiteAuthority,
@@ -166,6 +166,20 @@ pub async fn resolve_game_info(
 ) -> Result<(), Status> {
     let igdb_game = &game_entry.igdb_game;
 
+    let steam_handle = match &game_entry.steam_data {
+        Some(steam_data) => {
+            let website = format!(
+                "https://store.steampowered.com/app/{}/",
+                steam_data.steam_appid
+            );
+            Some(tokio::spawn(
+                async move { SteamScrape::scrape(&website).await }
+                    .instrument(trace_span!("spawn_steam_scrape")),
+            ))
+        }
+        None => None,
+    };
+
     if !igdb_game.keywords.is_empty() {
         game_entry.keywords = get_keywords(firestore, &igdb_game.keywords).await?;
     }
@@ -194,22 +208,6 @@ pub async fn resolve_game_info(
             );
         }
     }
-
-    // Another attempt to retrieve steam data in case the steam appid can be
-    // extracted IGDB links.
-    let handle = match game_entry.steam_data {
-        Some(_) => None,
-        None => match game_entry.get_steam_appid() {
-            Some(steam_appid) => Some(tokio::spawn(
-                async move {
-                    let steam = SteamDataApi::new();
-                    steam.retrieve_steam_data(&steam_appid).await
-                }
-                .instrument(trace_span!("spawn_steam_request")),
-            )),
-            None => None,
-        },
-    };
 
     // Skip screenshots if they already exist from steam data.
     if !igdb_game.screenshots.is_empty() && game_entry.steam_data.is_none() {
@@ -264,12 +262,15 @@ pub async fn resolve_game_info(
         }
     }
 
-    if let Some(handle) = handle {
+    if let Some(handle) = steam_handle {
         match handle.await {
-            Ok(result) => match result {
-                Ok(steam_data) => game_entry.add_steam_data(steam_data),
-                Err(status) => warn!("{status}"),
-            },
+            Ok(result) => {
+                if let Some(steam_scrape_data) = result {
+                    if let Some(steam_data) = &mut game_entry.steam_data {
+                        steam_data.user_tags = steam_scrape_data.user_tags;
+                    }
+                }
+            }
             Err(status) => warn!("{status}"),
         }
     }

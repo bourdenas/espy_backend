@@ -50,6 +50,10 @@ pub struct SteamData {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub user_tags: Vec<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub screenshots: Vec<Screenshot>,
 
     #[serde(default)]

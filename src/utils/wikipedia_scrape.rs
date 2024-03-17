@@ -33,7 +33,7 @@ async fn main() -> Result<(), Status> {
         .iter()
         .find(|e| matches!(e.authority, WebsiteAuthority::Wikipedia));
     if let Some(website) = website {
-        let response = WikipediaScrape::get_score(&website.url).await;
+        let response = WikipediaScrape::scrape(&website.url).await;
         if let Some(response) = response {
             game.scores.add_wikipedia(response);
             library::firestore::games::write(&firestore, &mut game).await?;
