@@ -2,14 +2,14 @@ use soup::prelude::*;
 use tracing::warn;
 
 #[derive(Default, Clone, Debug)]
-pub struct WikipediaData {
+pub struct WikipediaScrapeData {
     pub score: u64,
 }
 
 pub struct WikipediaScrape {}
 
 impl WikipediaScrape {
-    pub async fn get_score(uri: &str) -> Option<WikipediaData> {
+    pub async fn get_score(uri: &str) -> Option<WikipediaScrapeData> {
         let resp = match reqwest::get(uri).await {
             Ok(resp) => resp,
             Err(status) => {
@@ -30,7 +30,7 @@ impl WikipediaScrape {
             for td in table.tag("td").find_all() {
                 println!("{}", td.text());
                 if let Some(score) = extract_score(&td.text()) {
-                    return Some(WikipediaData { score });
+                    return Some(WikipediaScrapeData { score });
                 }
             }
             return None;
@@ -66,11 +66,7 @@ impl WikipediaScrape {
         let score = scores.into_iter().reduce(|acc, e| acc + e).unwrap() / total;
         println!("total: {score}");
 
-        Some(WikipediaData { score })
-    }
-
-    pub fn guess_id(igdb_url: &str) -> &str {
-        igdb_url.split('/').last().unwrap_or("")
+        Some(WikipediaScrapeData { score })
     }
 }
 
