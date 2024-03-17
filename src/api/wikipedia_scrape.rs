@@ -9,7 +9,7 @@ pub struct WikipediaScrapeData {
 pub struct WikipediaScrape {}
 
 impl WikipediaScrape {
-    pub async fn get_score(uri: &str) -> Option<WikipediaScrapeData> {
+    pub async fn scrape(uri: &str) -> Option<WikipediaScrapeData> {
         let resp = match reqwest::get(uri).await {
             Ok(resp) => resp,
             Err(status) => {

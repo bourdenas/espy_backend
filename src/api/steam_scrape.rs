@@ -1,3 +1,4 @@
+use reqwest::{header, ClientBuilder};
 use soup::prelude::*;
 use tracing::warn;
 
@@ -9,8 +10,20 @@ pub struct SteamScrapeData {
 pub struct SteamScrape {}
 
 impl SteamScrape {
-    pub async fn scrape(uri: &str) -> Option<SteamScrapeData> {
-        let resp = match reqwest::get(uri).await {
+    pub async fn scrape(url: &str) -> Option<SteamScrapeData> {
+        let mut request_headers = header::HeaderMap::new();
+        request_headers.insert(
+            header::COOKIE,
+            header::HeaderValue::from_static("birthtime=0; path=/; max-age=315360000"),
+        );
+
+        let client = ClientBuilder::new()
+            .default_headers(request_headers)
+            .cookie_store(true)
+            .build()
+            .unwrap();
+
+        let resp = match client.get(url).send().await {
             Ok(resp) => resp,
             Err(status) => {
                 warn!("{status}");
