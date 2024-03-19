@@ -55,7 +55,7 @@ async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<UserTags, Statu
 
     match doc {
         Some(doc) => Ok(doc),
-        None => Ok(UserTags { classes: vec![] }),
+        None => Ok(UserTags::default()),
     }
 }
 

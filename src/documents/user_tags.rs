@@ -4,7 +4,24 @@ use serde::{Deserialize, Serialize};
 pub struct UserTags {
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub genres: Vec<Genre>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub classes: Vec<TagClass>,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug)]
+pub struct Genre {
+    #[serde(default)]
+    pub root: String,
+
+    #[serde(default)]
+    pub name: String,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub game_ids: Vec<u64>,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug)]
@@ -30,6 +47,7 @@ pub struct Tag {
 impl UserTags {
     pub fn new() -> Self {
         UserTags {
+            genres: vec![],
             classes: vec![TagClass {
                 name: None,
                 tags: vec![],
@@ -72,7 +90,7 @@ impl UserTags {
 
     /// Returns true if `tag` was removed from `game_id`, false if it did not exist.
     pub fn remove(&mut self, game_id: u64, tag_name: &str, class_name: Option<&str>) -> bool {
-        let Some(class) = self.get_class(class_name)else {
+        let Some(class) = self.get_class(class_name) else {
             return false;
         };
         let Some(tag) = class.tags.iter_mut().find(|tag| tag.name == tag_name) else {
