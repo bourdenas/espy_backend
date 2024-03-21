@@ -41,7 +41,7 @@ impl GameFilter {
             }
         } else if is_popular_early_access(&game) {
             GameEntryClass::EarlyAccess
-        } else if is_expansion(&game) && game.scores.metacritic.is_none() {
+        } else if is_expansion(&game) {
             GameEntryClass::Expansion
         } else if is_remaster(game) {
             match is_casual(game) {
