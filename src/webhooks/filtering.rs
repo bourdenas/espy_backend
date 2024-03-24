@@ -158,9 +158,10 @@ fn is_casual(game: &GameEntry) -> bool {
     game.steam_data
         .as_ref()
         .unwrap_or(&SteamData::default())
-        .genres
+        .user_tags
         .iter()
-        .any(|genre| genre.description == "Casual")
+        .take(5)
+        .any(|tag| tag == "Casual")
 }
 
 fn is_gog_classic(game: &GameEntry) -> bool {
