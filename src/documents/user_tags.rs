@@ -14,9 +14,6 @@ pub struct UserTags {
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct Genre {
     #[serde(default)]
-    pub root: String,
-
-    #[serde(default)]
     pub name: String,
 
     #[serde(default)]
