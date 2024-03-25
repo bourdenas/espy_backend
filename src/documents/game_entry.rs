@@ -33,11 +33,7 @@ pub struct GameEntry {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub espy_genres: Vec<EspyGenre>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub espy_subgenres: Vec<EspySubGenre>,
+    pub igdb_genres: Vec<IgdbGenre>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -101,21 +97,11 @@ pub struct GameEntry {
 
 impl GameEntry {
     pub fn resolve_genres(&mut self) {
-        self.espy_genres = self
+        self.igdb_genres = self
             .igdb_game
             .genres
             .iter()
             .filter_map(|igdb_genre_id| match GENRES_BY_ID.get(&igdb_genre_id) {
-                Some(genre) => Some(*genre),
-                None => None,
-            })
-            .collect();
-
-        self.espy_subgenres = self
-            .igdb_game
-            .genres
-            .iter()
-            .filter_map(|igdb_genre_id| match SUBGENRES_BY_ID.get(&igdb_genre_id) {
                 Some(genre) => Some(*genre),
                 None => None,
             })
@@ -386,124 +372,56 @@ impl Default for WebsiteAuthority {
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
-pub enum EspyGenre {
-    Adventure,
-    Arcade,
-    Online,
-    Platformer,
-    RPG,
+pub enum IgdbGenre {
+    PointAndClick,
+    Fighting,
     Shooter,
+    Music,
+    Platformer,
+    Puzzle,
+    Racing,
+    RealTimeStrategy,
+    RPG,
     Simulator,
+    Sports,
     Strategy,
+    TurnBasedStrategy,
+    Tactical,
+    HackAndSlash,
+    Quiz,
+    Pinball,
+    Adventure,
     Indie,
+    Arcade,
+    VisualNovel,
+    CardAndBoard,
+    MOBA,
 }
 
 use phf::phf_map;
 
-static GENRES_BY_ID: phf::Map<u64, EspyGenre> = phf_map! {
-    2u64 => EspyGenre::Adventure,
-    4u64 => EspyGenre::Arcade,
-    5u64 => EspyGenre::Shooter,
-    8u64 => EspyGenre::Platformer,
-    10u64 => EspyGenre::Simulator,
-    11u64 => EspyGenre::Strategy,
-    12u64 => EspyGenre::RPG,
-    13u64 => EspyGenre::Simulator,
-    14u64 => EspyGenre::Simulator,
-    15u64 => EspyGenre::Strategy,
-    16u64 => EspyGenre::Strategy,
-    24u64 => EspyGenre::Strategy,
-    25u64 => EspyGenre::Arcade,
-    30u64 => EspyGenre::Arcade,
-    31u64 => EspyGenre::Adventure,
-    32u64 => EspyGenre::Indie,
-    33u64 => EspyGenre::Arcade,
-    35u64 => EspyGenre::Arcade,
-    36u64 => EspyGenre::Online,
+static GENRES_BY_ID: phf::Map<u64, IgdbGenre> = phf_map! {
+    2u64 => IgdbGenre::PointAndClick,
+    4u64 => IgdbGenre::Fighting,
+    5u64 => IgdbGenre::Shooter,
+    7u64 => IgdbGenre::Music,
+    8u64 => IgdbGenre::Platformer,
+    9u64 => IgdbGenre::Puzzle,
+    10u64 => IgdbGenre::Racing,
+    11u64 => IgdbGenre::RealTimeStrategy,
+    12u64 => IgdbGenre::RPG,
+    13u64 => IgdbGenre::Simulator,
+    14u64 => IgdbGenre::Sports,
+    15u64 => IgdbGenre::Strategy,
+    16u64 => IgdbGenre::TurnBasedStrategy,
+    24u64 => IgdbGenre::Tactical,
+    25u64 => IgdbGenre::HackAndSlash,
+    26u64 => IgdbGenre::Quiz,
+    30u64 => IgdbGenre::Pinball,
+    31u64 => IgdbGenre::Adventure,
+    32u64 => IgdbGenre::Indie,
+    33u64 => IgdbGenre::Arcade,
+    34u64 => IgdbGenre::VisualNovel,
+    35u64 => IgdbGenre::CardAndBoard,
+    36u64 => IgdbGenre::MOBA,
 };
-
-static SUBGENRES_BY_ID: phf::Map<u64, EspySubGenre> = phf_map! {
-    2u64 => EspySubGenre::PointAndClick,
-    4u64 => EspySubGenre::Fighting,
-    5u64 => EspySubGenre::FirstPersonShooter,
-    10u64 => EspySubGenre::Racing,
-    11u64 => EspySubGenre::RealTimeStrategy,
-    14u64 => EspySubGenre::Sport,
-    16u64 => EspySubGenre::TurnBasedStrategy,
-    24u64 => EspySubGenre::TurnBasedTactics,
-    25u64 => EspySubGenre::HackAndSlash,
-    30u64 => EspySubGenre::Pinball,
-    35u64 => EspySubGenre::CardBoardGame,
-    36u64 => EspySubGenre::Moba,
-};
-
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
-pub enum EspySubGenre {
-    //  Adventure
-    PointAndClick,
-    Action,
-    IsometricAction,
-    IsometricAdventure,
-    FirstPersonAdventure,
-    NarrativeAdventure,
-    PuzzleAdventure,
-
-    // RPG
-    CRpg,
-    IsometricRpg,
-    TurnBasedRpg,
-    RTwPRpg,
-    FirstPersonRpg,
-    ActionRpg,
-    HackAndSlash,
-    JRpg,
-
-    // Strategy
-    TurnBasedStrategy,
-    RealTimeStrategy,
-    TurnBasedTactics,
-    RealTimeTactics,
-    IsometricTactics,
-    GrandStrategy,
-    XXXX,
-
-    // Arcade
-    Fighting,
-    Pinball,
-    BeatemUp,
-    Puzzle,
-    TowerDefense,
-    EndlessRunner,
-    CardBoardGame,
-
-    // Online
-    MMORPG,
-    Moba,
-    BattleRoyale,
-    Coop,
-    PvP,
-
-    // Platformer
-    SideScroller,
-    Metroidvania,
-    ThreeDPlatformer,
-    ShooterPlatformer,
-    PuzzlePlatformer,
-
-    // Shooter
-    FirstPersonShooter,
-    TopDownShooter,
-    ThirdPersonShooter,
-    SpaceShooter,
-    StealthShooter,
-    FirstPersonMelee,
-
-    // Simulator
-    CityBuilder,
-    GodGame,
-    Racing,
-    Sport,
-    FlightSimulator,
-    Management,
-    Survival,
-}

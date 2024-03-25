@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::documents::{
-    EspyGenre, GameCategory, GameEntry, GameStatus, Notable, SteamData, WebsiteAuthority,
+    GameCategory, GameEntry, GameStatus, IgdbGenre, Notable, SteamData, WebsiteAuthority,
 };
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -129,9 +129,9 @@ fn is_hyped_tbd(game: &GameEntry) -> bool {
 fn is_indie(game: &GameEntry) -> bool {
     game.release_year() > 2007
         && game
-            .espy_genres
+            .igdb_genres
             .iter()
-            .any(|genre| matches!(genre, EspyGenre::Indie))
+            .any(|genre| matches!(genre, IgdbGenre::Indie))
 }
 
 fn is_early_access(game: &GameEntry) -> bool {
