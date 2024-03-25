@@ -1,5 +1,5 @@
 use crate::{
-    api::{FirestoreApi, IgdbApi, IgdbExternalGame, IgdbGame, MetacriticApi},
+    api::{FirestoreApi, IgdbApi, IgdbExternalGame, IgdbGame, MetacriticApi, SteamScrape},
     documents::{ExternalGame, GameEntry, Genre, Keyword},
     games::SteamDataApi,
     library::firestore,
@@ -147,6 +147,21 @@ async fn update_steam_data(
             }
         };
 
+    // Spawn a task to scrape steam user tags.
+    let steam_tags_handle = match &game_entry.steam_data {
+        Some(steam_data) => {
+            let website = format!(
+                "https://store.steampowered.com/app/{}/",
+                steam_data.steam_appid
+            );
+            Some(tokio::spawn(
+                async move { SteamScrape::scrape(&website).await }
+                    .instrument(trace_span!("spawn_steam_scrape")),
+            ))
+        }
+        None => None,
+    };
+
     // Spawn a task to retrieve metacritic score.
     let slug = MetacriticApi::guess_id(&game_entry.igdb_game.url).to_owned();
     let metacritic_handle = tokio::spawn(
@@ -160,6 +175,19 @@ async fn update_steam_data(
                 Ok(steam_data) => game_entry.add_steam_data(steam_data),
                 Err(status) => warn!("{status}"),
             },
+            Err(status) => warn!("{status}"),
+        }
+    }
+
+    if let Some(handle) = steam_tags_handle {
+        match handle.await {
+            Ok(result) => {
+                if let Some(steam_scrape_data) = result {
+                    if let Some(steam_data) = &mut game_entry.steam_data {
+                        steam_data.user_tags = steam_scrape_data.user_tags;
+                    }
+                }
+            }
             Err(status) => warn!("{status}"),
         }
     }
