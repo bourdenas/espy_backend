@@ -49,6 +49,14 @@ pub struct GameDigest {
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub igdb_genres: Vec<IgdbGenre>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub genres: Vec<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub keywords: Vec<String>,
 }
 
 impl From<GameEntry> for GameDigest {
@@ -108,6 +116,18 @@ impl From<GameEntry> for GameDigest {
                 .collect(),
 
             igdb_genres: game_entry.igdb_genres,
+            genres: match &game_entry.steam_data {
+                Some(steam_data) => steam_data
+                    .genres
+                    .iter()
+                    .map(|genre| genre.description.clone())
+                    .collect(),
+                None => vec![],
+            },
+            keywords: match game_entry.steam_data {
+                Some(steam_data) => steam_data.user_tags,
+                None => vec![],
+            },
         }
     }
 }
