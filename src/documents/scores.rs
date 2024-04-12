@@ -6,7 +6,7 @@ use crate::api::{IgdbGame, MetacriticData, WikipediaScrapeData};
 
 use super::SteamData;
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+#[derive(Eq, PartialEq, Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Scores {
     // Thumbs up percentage from Steam.
     #[serde(default)]
@@ -41,6 +41,22 @@ pub struct Scores {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(skip_deserializing)]
     pub espy_tier: Option<EspyTier>,
+}
+
+impl Ord for Scores {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.espy_score
+            .cmp(&other.espy_score)
+            .then(self.popularity.cmp(&other.popularity))
+            .then(self.thumbs.cmp(&other.thumbs))
+            .then(self.hype.cmp(&other.hype))
+    }
+}
+
+impl PartialOrd for Scores {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl Scores {
@@ -116,7 +132,7 @@ impl Scores {
     }
 }
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+#[derive(Eq, PartialEq, Serialize, Deserialize, Default, Clone, Debug)]
 pub enum MetacrtitcSource {
     #[default]
     Metacritic,
@@ -138,7 +154,7 @@ fn is_classic(release_date: i64) -> bool {
     release < SystemTime::from(y2011)
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Eq, PartialEq, Serialize, Deserialize, Clone, Debug)]
 pub enum EspyTier {
     Masterpiece = 95,
     Excellent = 90,
