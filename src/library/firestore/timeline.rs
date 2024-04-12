@@ -1,10 +1,6 @@
 use tracing::instrument;
 
-use crate::{
-    api::FirestoreApi,
-    documents::{Notable, Timeline},
-    Status,
-};
+use crate::{api::FirestoreApi, documents::Timeline, Status};
 
 #[instrument(name = "timeline::write", level = "trace", skip(firestore))]
 pub async fn write(firestore: &FirestoreApi, timeline: &Timeline) -> Result<(), Status> {
@@ -15,33 +11,6 @@ pub async fn write(firestore: &FirestoreApi, timeline: &Timeline) -> Result<(), 
         .in_col("espy")
         .document_id("timeline")
         .object(timeline)
-        .execute()
-        .await?;
-    Ok(())
-}
-
-#[instrument(name = "timeline::read_notable", level = "trace", skip(firestore))]
-pub async fn read_notable(firestore: &FirestoreApi) -> Result<Notable, Status> {
-    Ok(firestore
-        .db()
-        .fluent()
-        .select()
-        .by_id_in("espy")
-        .obj()
-        .one("notable")
-        .await?
-        .unwrap_or_default())
-}
-
-#[instrument(name = "timeline::write_notable", level = "trace", skip(firestore))]
-pub async fn write_notable(firestore: &FirestoreApi, notable: &Notable) -> Result<(), Status> {
-    firestore
-        .db()
-        .fluent()
-        .update()
-        .in_col("espy")
-        .document_id("notable")
-        .object(notable)
         .execute()
         .await?;
     Ok(())

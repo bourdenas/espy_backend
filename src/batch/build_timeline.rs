@@ -8,8 +8,10 @@ use chrono::{Datelike, NaiveDateTime, Utc};
 use clap::Parser;
 use espy_backend::{
     api::{self, FirestoreApi},
-    documents::{GameCategory, GameDigest, GameEntry, GameStatus, ReleaseEvent, Timeline},
-    library::firestore::timeline,
+    documents::{
+        Frontpage, GameCategory, GameDigest, GameEntry, GameStatus, ReleaseEvent, Timeline,
+    },
+    library::firestore::{frontpage, notable, timeline},
     util, Status, Tracing,
 };
 use firestore::{path, FirestoreQueryDirection, FirestoreResult};
@@ -45,7 +47,7 @@ async fn main() -> Result<(), Status> {
         .unwrap()
         .as_secs();
     let recent_past = SystemTime::now()
-        .checked_sub(Duration::from_secs(12 * 30 * 24 * 60 * 60))
+        .checked_sub(Duration::from_secs(25 * MONTH_IN_SECONDS))
         .unwrap()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -53,7 +55,7 @@ async fn main() -> Result<(), Status> {
 
     let firestore = FirestoreApi::connect().await?;
 
-    let notable = timeline::read_notable(&firestore).await?;
+    let notable = notable::read(&firestore).await?;
     let notable = HashSet::<String>::from_iter(notable.companies.into_iter());
 
     let upcoming: BoxStream<FirestoreResult<GameEntry>> = firestore
@@ -160,6 +162,78 @@ async fn main() -> Result<(), Status> {
         .collect_vec();
     info!("recent after filtering = {}", recent.len());
 
+    build_frontpage(&firestore, &upcoming, &recent).await?;
+    build_timeline(&firestore, &upcoming, &recent).await?;
+
+    Ok(())
+}
+
+async fn build_frontpage(
+    firestore: &FirestoreApi,
+    future: &[GameEntry],
+    past: &[GameEntry],
+) -> Result<(), Status> {
+    let today = Utc::now().naive_utc();
+
+    let games = future.iter().chain(past.iter()).filter(|game_entry| {
+        let release_date = NaiveDateTime::from_timestamp_opt(game_entry.release_date, 0).unwrap();
+        let diff = today.signed_duration_since(release_date);
+        diff.num_days().abs() <= 30
+    });
+
+    let release_group = |entry: &GameEntry| -> (String, String) {
+        let release_date = NaiveDateTime::from_timestamp_opt(entry.release_date, 0).unwrap();
+        (
+            release_date.format("%-d %b").to_string(),
+            release_date.format("%Y").to_string(),
+        )
+    };
+
+    let releases = games
+        .into_iter()
+        .group_by(|entry| release_group(entry))
+        .into_iter()
+        .map(|(key, games)| {
+            let mut games = games
+                .map(|game| GameDigest::from(game.clone()))
+                .collect_vec();
+            games.sort_by(|a, b| b.scores.cmp(&a.scores));
+            ReleaseEvent {
+                label: key.0,
+                year: key.1,
+                games,
+            }
+        })
+        .collect_vec();
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let frontpage = Frontpage {
+        last_updated: now,
+        releases,
+        today: vec![],
+        recent: vec![],
+        upcoming: vec![],
+        new: vec![],
+        hyped: vec![],
+    };
+
+    frontpage::write(&firestore, &frontpage).await?;
+
+    let serialized = serde_json::to_string(&frontpage)?;
+    info!("created timeline size: {}KB", serialized.len() / 1024);
+
+    Ok(())
+}
+
+async fn build_timeline(
+    firestore: &FirestoreApi,
+    future: &[GameEntry],
+    past: &[GameEntry],
+) -> Result<(), Status> {
     let today = Utc::now().naive_utc();
     let release_group = |entry: &GameEntry| -> (String, String) {
         let release_date = NaiveDateTime::from_timestamp_opt(entry.release_date, 0).unwrap();
@@ -183,7 +257,7 @@ async fn main() -> Result<(), Status> {
         (label, release_date.format("%Y").to_string())
     };
 
-    let mut releases = upcoming
+    let mut releases = future
         .into_iter()
         .group_by(|entry| release_group(&entry))
         .into_iter()
@@ -201,8 +275,7 @@ async fn main() -> Result<(), Status> {
         .collect_vec();
 
     releases.extend(
-        recent
-            .into_iter()
+        past.into_iter()
             .group_by(|entry| release_group(&entry))
             .into_iter()
             .map(|(key, games)| {
@@ -217,6 +290,11 @@ async fn main() -> Result<(), Status> {
                 }
             }),
     );
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
 
     let timeline = Timeline {
         last_updated: now,
@@ -233,7 +311,7 @@ async fn main() -> Result<(), Status> {
 
 async fn update_recent(keys_path: &str, recent: &mut [GameEntry]) -> Result<(), Status> {
     let d7 = SystemTime::now()
-        .checked_sub(Duration::from_secs(7 * 24 * 60 * 60))
+        .checked_sub(Duration::from_secs(7 * DAY_IN_SECONDS))
         .unwrap()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -261,6 +339,9 @@ async fn update_recent(keys_path: &str, recent: &mut [GameEntry]) -> Result<(), 
 
     Ok(())
 }
+
+const DAY_IN_SECONDS: u64 = 24 * 60 * 60;
+const MONTH_IN_SECONDS: u64 = 30 * 24 * 60 * 60;
 
 const UPCOMING_HYPE_THRESHOLD: u64 = 1;
 const EARLY_ACCESS_POPULARITY_THRESHOLD: u64 = 5000;

@@ -1,7 +1,7 @@
 use clap::Parser;
 use espy_backend::{
     api::{FirestoreApi, IgdbApi},
-    library::firestore::timeline,
+    library::firestore::notable,
     util,
     webhooks::{self, filtering::GameFilter},
     Status, Tracing,
@@ -49,7 +49,7 @@ async fn main() -> Result<(), Status> {
         Err(_) => opts.port,
     };
 
-    let notable = timeline::read_notable(&firestore).await?;
+    let notable = notable::read(&firestore).await?;
     let classifier = GameFilter::new(notable);
 
     info!("webhooks handler started");

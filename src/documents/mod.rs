@@ -1,6 +1,8 @@
+mod annual_review;
 mod collection;
 mod company;
 mod external_game;
+mod frontpage;
 mod game_digest;
 mod game_entry;
 mod genre;
@@ -16,9 +18,11 @@ mod timeline;
 mod user_data;
 mod user_tags;
 
+pub use annual_review::AnnualReview;
 pub use collection::Collection;
 pub use company::Company;
 pub use external_game::ExternalGame;
+pub use frontpage::Frontpage;
 pub use game_digest::GameDigest;
 pub use game_entry::*;
 pub use genre::Genre;
