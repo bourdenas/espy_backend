@@ -17,3 +17,5 @@ Cargo.lock
 *.json
 
 *.ps1
+
+*.csv
