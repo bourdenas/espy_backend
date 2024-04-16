@@ -30,10 +30,10 @@ name = "build_year_summary"
 path = "src/batch/build_year_summary.rs"
 
 
-# Tools for building a genre classifier
+# Tools for exporting data for analysis / training.
 [[bin]]
 name = "export_labeled_data"
-path = "src/classifier/export_labeled_data.rs"
+path = "src/export/export_labeled_data.rs"
 
 
 # Command line utils

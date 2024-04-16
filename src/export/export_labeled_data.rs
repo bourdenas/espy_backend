@@ -23,7 +23,7 @@ struct Opts {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    Tracing::setup("classifier/export_labeled_daqta")?;
+    Tracing::setup("export/export_labeled_data")?;
 
     let opts: Opts = Opts::parse();
 
