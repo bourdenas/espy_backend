@@ -63,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     .into_iter()
                     .map(|img| {
                         format!(
-                            "https://images.igdb.com/igdb/image/upload/t_cover_big/{}.png",
+                            "https://images.igdb.com/igdb/image/upload/t_720p/{}.png",
                             img.image_id
                         )
                     })
