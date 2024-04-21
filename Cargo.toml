@@ -32,11 +32,11 @@ path = "src/batch/build_year_summary.rs"
 
 # Tools for exporting data for analysis / training.
 [[bin]]
-name = "export_labeled_data"
+name = "export_labeled_entries"
 path = "src/export/export_labeled_entries.rs"
 
 [[bin]]
-name = "export_unlabeled_data"
+name = "export_unlabeled_entries"
 path = "src/export/export_unlabeled_entries.rs"
 
 

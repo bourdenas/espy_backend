@@ -25,7 +25,7 @@ pub use external_game::ExternalGame;
 pub use frontpage::Frontpage;
 pub use game_digest::GameDigest;
 pub use game_entry::*;
-pub use genre::Genre;
+pub use genre::*;
 pub use keyword::Keyword;
 pub use library_entry::{Library, LibraryEntry};
 pub use notable::Notable;
