@@ -34,12 +34,7 @@ impl GameFilter {
     }
 
     pub fn classify(&self, game: &GameEntry) -> GameEntryClass {
-        if !game.is_released() {
-            match is_hyped_tbd(&game) {
-                true => GameEntryClass::Main,
-                false => GameEntryClass::Ignore,
-            }
-        } else if is_popular_early_access(&game) {
+        if is_popular_early_access(&game) {
             GameEntryClass::EarlyAccess
         } else if is_expansion(&game) {
             GameEntryClass::Expansion
@@ -59,6 +54,7 @@ impl GameFilter {
             }
         } else if game.scores.metacritic.is_some()
             || is_popular(game)
+            || is_hyped(&game)
             || is_notable(game, &self.companies, &self.collections)
             || is_gog_classic(&game)
         {
@@ -117,13 +113,16 @@ fn is_popular_early_access(game: &GameEntry) -> bool {
     is_early_access(game) && game.scores.popularity.unwrap_or_default() >= 5000
 }
 
-fn is_hyped_tbd(game: &GameEntry) -> bool {
-    !matches!(
-        game.status,
-        GameStatus::Cancelled | GameStatus::Alpha | GameStatus::Beta
-    ) && game.scores.hype.unwrap_or_default() > 0
-        && game.scores.thumbs.is_none()
-        && !is_casual(&game)
+/// Returns true if game is/was hyped and is either future or recently released.
+/// The intention is to prevent games from disappearing as soon as they release
+/// if they don't get popular fast.
+fn is_hyped(game: &GameEntry) -> bool {
+    game.scores.hype.unwrap_or_default() > 0
+        && (game.release_year() >= 2023 || game.release_date == 0)
+        && !matches!(
+            game.status,
+            GameStatus::Cancelled | GameStatus::Alpha | GameStatus::Beta
+        )
 }
 
 fn is_indie(game: &GameEntry) -> bool {
