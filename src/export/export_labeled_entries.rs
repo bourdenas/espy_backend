@@ -4,6 +4,7 @@ use clap::Parser;
 use csv::Writer;
 use espy_backend::{
     api::FirestoreApi,
+    documents::EspyGenre,
     library::firestore::{games, user_tags},
     Tracing,
 };
@@ -13,9 +14,8 @@ use serde::{Deserialize, Serialize};
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
 #[derive(Parser)]
 struct Opts {
-    /// JSON file that contains application keys for espy service.
-    #[clap(long, default_value = "keys.json")]
-    key_store: String,
+    #[clap(long)]
+    user: String,
 
     #[clap(long, default_value = "labeled_entries.csv")]
     output: String,
@@ -28,15 +28,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let opts: Opts = Opts::parse();
 
     let firestore = Arc::new(FirestoreApi::connect().await?);
-    let tags = user_tags::read(&firestore, "njOIDk47gfQ81o5bW8pBe6hLlDZ2").await?;
+    let tags = user_tags::read(&firestore, &opts.user).await?;
 
-    let mut game_to_genre = HashMap::<u64, Vec<String>>::new();
+    let mut game_to_genre = HashMap::<u64, Vec<EspyGenre>>::new();
     for genre in tags.genres {
         for id in genre.game_ids {
             game_to_genre
                 .entry(id)
-                .and_modify(|genres| genres.push(genre.name.clone()))
-                .or_insert(vec![genre.name.clone()]);
+                .and_modify(|genres| genres.push(EspyGenre::from(genre.name.as_str())))
+                .or_insert(vec![EspyGenre::from(genre.name.as_str())]);
         }
     }
 
@@ -51,7 +51,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             genres: game_to_genre
                 .remove(&entry.id)
                 .unwrap_or_default()
+                .into_iter()
+                .map(|genre| format!("{:?}", genre))
                 .join("|"),
+            igdb_genres: entry
+                .igdb_genres
+                .iter()
+                .map(|genre| format!("{:?}", genre))
+                .join("|"),
+            steam_tags: match &entry.steam_data {
+                Some(steam_data) => steam_data.user_tags.join("|"),
+                None => String::default(),
+            },
             images: match entry.steam_data {
                 Some(steam_data) => steam_data
                     .screenshots
@@ -87,5 +98,7 @@ struct LabeledExample {
     id: u64,
     name: String,
     genres: String,
+    igdb_genres: String,
+    steam_tags: String,
     images: String,
 }
