@@ -14,7 +14,7 @@ pub struct Genre {
     pub url: String,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub enum EspyGenre {
     #[default]
     Unknown,

@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-use super::{GameCategory, GameEntry, GameStatus, IgdbGenre, Scores};
+use super::{EspyGenre, GameCategory, GameEntry, GameStatus, IgdbGenre, Scores};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct GameDigest {
@@ -48,11 +48,11 @@ pub struct GameDigest {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub igdb_genres: Vec<IgdbGenre>,
+    pub espy_genres: Vec<EspyGenre>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub genres: Vec<String>,
+    pub igdb_genres: Vec<IgdbGenre>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -115,15 +115,8 @@ impl From<GameEntry> for GameDigest {
                 .into_iter()
                 .collect(),
 
+            espy_genres: game_entry.espy_genres,
             igdb_genres: game_entry.igdb_genres,
-            genres: match &game_entry.steam_data {
-                Some(steam_data) => steam_data
-                    .genres
-                    .iter()
-                    .map(|genre| genre.description.clone())
-                    .collect(),
-                None => vec![],
-            },
             keywords: match game_entry.steam_data {
                 Some(steam_data) => steam_data.user_tags,
                 None => vec![],

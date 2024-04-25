@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::IgdbGame;
 
-use super::{GameDigest, Scores, SteamData};
+use super::{EspyGenre, GameDigest, Scores, SteamData};
 
 /// Document type under 'users/{user_id}/games' that represents an espy game
 /// entry.
@@ -30,6 +30,10 @@ pub struct GameEntry {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cover: Option<Image>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub espy_genres: Vec<EspyGenre>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
