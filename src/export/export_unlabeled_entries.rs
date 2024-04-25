@@ -82,6 +82,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .map(|entry| UnlabeledExample {
             id: entry.id,
             name: entry.name,
+            genres: String::default(),
+            igdb_genres: entry
+                .igdb_genres
+                .iter()
+                .map(|genre| format!("{:?}", genre))
+                .join("|"),
+            steam_tags: match &entry.steam_data {
+                Some(steam_data) => steam_data.user_tags.join("|"),
+                None => String::default(),
+            },
             images: match entry.steam_data {
                 Some(steam_data) => steam_data
                     .screenshots
@@ -116,5 +126,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 struct UnlabeledExample {
     id: u64,
     name: String,
+    genres: String,
+    igdb_genres: String,
+    steam_tags: String,
     images: String,
 }
