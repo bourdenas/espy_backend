@@ -35,8 +35,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         for id in genre.game_ids {
             game_to_genre
                 .entry(id)
-                .and_modify(|genres| genres.push(EspyGenre::from(genre.name.as_str())))
-                .or_insert(vec![EspyGenre::from(genre.name.as_str())]);
+                .and_modify(|genres| genres.push(EspyGenre::from_description(genre.name.as_str())))
+                .or_insert(vec![EspyGenre::from_description(genre.name.as_str())]);
         }
     }
 

@@ -39,6 +39,10 @@ path = "src/export/export_labeled_entries.rs"
 name = "export_unlabeled_entries"
 path = "src/export/export_unlabeled_entries.rs"
 
+[[bin]]
+name = "import_predictions"
+path = "src/export/import_predictions.rs"
+
 
 # Command line utils
 [[bin]]

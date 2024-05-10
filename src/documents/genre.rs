@@ -98,8 +98,8 @@ pub enum EspyGenre {
     MOBA,
 }
 
-impl From<&str> for EspyGenre {
-    fn from(description: &str) -> Self {
+impl EspyGenre {
+    pub fn from_description(description: &str) -> Self {
         match description {
             "Point & Click" => EspyGenre::PointAndClick,
             "Action" => EspyGenre::Action,
@@ -162,6 +162,76 @@ impl From<&str> for EspyGenre {
             "Grand Strategy" => EspyGenre::GradStrategy,
             "4X" => EspyGenre::FourX,
             "Tower Defense" => EspyGenre::TowerDefense,
+            "MOBA" => EspyGenre::MOBA,
+            _ => EspyGenre::Unknown,
+        }
+    }
+}
+
+impl From<&str> for EspyGenre {
+    fn from(s: &str) -> Self {
+        match s {
+            "PointAndClick" => EspyGenre::PointAndClick,
+            "Action" => EspyGenre::Action,
+            "IsometricAction" => EspyGenre::IsometricAction,
+            "NarrativeAdventure" => EspyGenre::NarrativeAdventure,
+            "SurvivalAdventure" => EspyGenre::SurvivalAdventure,
+            "PuzzleAdventure" => EspyGenre::PuzzleAdventure,
+            "WalkingSimulator" => EspyGenre::WalkingSimulator,
+            "Fighting" => EspyGenre::Fighting,
+            "BeatEmUp" => EspyGenre::BeatEmUp,
+            "Pinball" => EspyGenre::Pinball,
+            "CardAndBoard" => EspyGenre::CardAndBoard,
+            "Deckbuilder" => EspyGenre::Deckbuilder,
+            "LifeSim" => EspyGenre::LifeSim,
+            "FarmingSim" => EspyGenre::FarmingSim,
+            "FishingSim" => EspyGenre::FishingSim,
+            "SailingSim" => EspyGenre::SailingSim,
+            "DatingSim" => EspyGenre::DatingSim,
+            "Puzzle" => EspyGenre::Puzzle,
+            "EndlessRunner" => EspyGenre::EndlessRunner,
+            "Rhythm" => EspyGenre::Rhythm,
+            "PartyGame" => EspyGenre::PartyGame,
+            "VisualNovel" => EspyGenre::VisualNovel,
+            "Exploration" => EspyGenre::Exploration,
+            "SideScroller" => EspyGenre::SideScroller,
+            "Metroidvania" => EspyGenre::Metroidvania,
+            "Platformer3d" => EspyGenre::Platformer3d,
+            "ShooterPlatformer" => EspyGenre::ShooterPlatformer,
+            "PrecisionPlatformer" => EspyGenre::PrecisionPlatformer,
+            "PuzzlePlatformer" => EspyGenre::PuzzlePlatformer,
+            "CRPG" => EspyGenre::CRPG,
+            "ARPG" => EspyGenre::ARPG,
+            "ActionRpg" => EspyGenre::ActionRpg,
+            "JRPG" => EspyGenre::JRPG,
+            "FirstPersonRpg" => EspyGenre::FirstPersonRpg,
+            "TurnBasedRpg" => EspyGenre::TurnBasedRpg,
+            "RTwPRPG" => EspyGenre::RTwPRPG,
+            "DungeonCrawler" => EspyGenre::DungeonCrawler,
+            "MMORPG" => EspyGenre::MMORPG,
+            "FirstPersonShooter" => EspyGenre::FirstPersonShooter,
+            "TopDownShooter" => EspyGenre::TopDownShooter,
+            "ThirdPersonShooter" => EspyGenre::ThirdPersonShooter,
+            "SpaceShooter" => EspyGenre::SpaceShooter,
+            "Shmup" => EspyGenre::Shmup,
+            "BattleRoyale" => EspyGenre::BattleRoyale,
+            "CityBuilder" => EspyGenre::CityBuilder,
+            "Tycoon" => EspyGenre::Tycoon,
+            "GodGame" => EspyGenre::GodGame,
+            "Racing" => EspyGenre::Racing,
+            "Sports" => EspyGenre::Sports,
+            "FlightSimulator" => EspyGenre::FlightSimulator,
+            "CombatSimulator" => EspyGenre::CombatSimulator,
+            "NavalSimulator" => EspyGenre::NavalSimulator,
+            "DrivingSimulator" => EspyGenre::DrivingSimulator,
+            "Survival" => EspyGenre::Survival,
+            "TurnBasedStrategy" => EspyGenre::TurnBasedStrategy,
+            "RealTimeStrategy" => EspyGenre::RealTimeStrategy,
+            "TurnBasedTactics" => EspyGenre::TurnBasedTactics,
+            "RealTimeTactics" => EspyGenre::RealTimeTactics,
+            "GradStrategy" => EspyGenre::GradStrategy,
+            "FourX" => EspyGenre::FourX,
+            "TowerDefense" => EspyGenre::TowerDefense,
             "MOBA" => EspyGenre::MOBA,
             _ => EspyGenre::Unknown,
         }
