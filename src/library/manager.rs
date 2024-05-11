@@ -174,7 +174,9 @@ impl LibraryManager {
         firestore::library::remove_entry(&firestore, &self.user_id, &store_entry).await?;
         match delete {
             false => firestore::failed::add_entry(&firestore, &self.user_id, store_entry).await,
-            true => firestore::storefront::remove(&firestore, &self.user_id, &store_entry).await,
+            true => {
+                firestore::storefront::remove_entry(&firestore, &self.user_id, &store_entry).await
+            }
         }
     }
 

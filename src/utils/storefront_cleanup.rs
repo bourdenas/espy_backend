@@ -47,21 +47,21 @@ async fn storefront_cleanup(
     user_failed: &[StoreEntry],
     storefront_name: &str,
 ) -> Result<(), Status> {
-    let mut owned_games = firestore::storefront::read(&firestore, user_id, storefront_name).await?;
+    let mut storefront = firestore::storefront::read(&firestore, user_id, storefront_name).await?;
 
     let mut missing = vec![];
-    for game_id in &owned_games {
+    for store_entry in &storefront.games {
         let iter = user_library
             .entries
             .iter()
-            .find(|entry| find_store_entry(entry, game_id, storefront_name));
+            .find(|entry| find_store_entry(entry, &store_entry.id, storefront_name));
         if let None = iter {
-            let iter = user_failed
-                .iter()
-                .find(|entry| entry.id == *game_id && entry.storefront_name == storefront_name);
+            let iter = user_failed.iter().find(|entry| {
+                entry.id == store_entry.id && entry.storefront_name == storefront_name
+            });
 
             if let None = iter {
-                missing.push(game_id.clone());
+                missing.push(store_entry.clone());
             }
         }
     }
@@ -70,8 +70,10 @@ async fn storefront_cleanup(
         missing.len(),
         missing
     );
-    owned_games.retain(|e| !missing.contains(&e));
-    firestore::storefront::write(firestore, user_id, storefront_name, owned_games).await?;
+    storefront
+        .games
+        .retain(|e| !missing.iter().all(|m| m.id != e.id));
+    firestore::storefront::write(firestore, user_id, &storefront).await?;
 
     Ok(())
 }
