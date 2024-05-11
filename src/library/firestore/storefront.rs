@@ -146,7 +146,11 @@ pub async fn add_entries(
     store_entries: Vec<StoreEntry>,
 ) -> Result<(), Status> {
     for (name, store_entries) in group_by(store_entries) {
-        let mut storefront = read(firestore, user_id, &name).await?;
+        let mut storefront = match read(firestore, user_id, &name).await {
+            Ok(doc) => doc,
+            Err(Status::NotFound(_)) => Storefront::default(),
+            Err(status) => return Err(status),
+        };
         storefront.games.extend(store_entries.into_iter());
         write(firestore, user_id, &storefront).await?
     }
@@ -184,7 +188,11 @@ pub async fn add_entry(
     user_id: &str,
     store_entry: StoreEntry,
 ) -> Result<(), Status> {
-    let mut storefront = read(firestore, user_id, &store_entry.storefront_name).await?;
+    let mut storefront = match read(firestore, user_id, &store_entry.storefront_name).await {
+        Ok(doc) => doc,
+        Err(Status::NotFound(_)) => Storefront::default(),
+        Err(status) => return Err(status),
+    };
     storefront.games.push(store_entry);
     write(firestore, user_id, &storefront).await
 }
