@@ -83,7 +83,7 @@ pub async fn diff_entries(
 )]
 async fn get_ids(firestore: &FirestoreApi, user_id: &str) -> Result<HashSet<String>, Status> {
     match read(firestore, user_id).await {
-        Ok(doc) => Ok(HashSet::from_iter(doc.games.into_iter().map(|e| e.id))),
+        Ok(doc) => Ok(HashSet::from_iter(doc.entries.into_iter().map(|e| e.id))),
         Err(Status::NotFound(_)) => Ok(HashSet::default()),
         Err(status) => Err(status),
     }
@@ -100,7 +100,7 @@ pub async fn remove_store(
 ) -> Result<(), Status> {
     let mut storefront = read(firestore, user_id).await?;
     storefront
-        .games
+        .entries
         .retain(|entry| entry.storefront_name != *storefront_name);
     write(firestore, user_id, &storefront).await
 }
@@ -119,7 +119,7 @@ pub async fn add_entries(
     store_entries: Vec<StoreEntry>,
 ) -> Result<(), Status> {
     let mut storefront = read(firestore, user_id).await?;
-    storefront.games.extend(store_entries.into_iter());
+    storefront.entries.extend(store_entries.into_iter());
     write(firestore, user_id, &storefront).await
 }
 
@@ -135,7 +135,7 @@ pub async fn remove_entry(
 ) -> Result<(), Status> {
     let mut storefront = read(firestore, user_id).await?;
     storefront
-        .games
+        .entries
         .retain(|e| e.id != store_entry.id || e.storefront_name != store_entry.storefront_name);
     write(firestore, user_id, &storefront).await
 }

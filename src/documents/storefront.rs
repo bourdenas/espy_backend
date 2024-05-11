@@ -6,5 +6,5 @@ use super::StoreEntry;
 pub struct Storefront {
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub games: Vec<StoreEntry>,
+    pub entries: Vec<StoreEntry>,
 }
