@@ -12,6 +12,7 @@ use crate::{
 };
 use async_recursion::async_recursion;
 use chrono::NaiveDateTime;
+use itertools::Itertools;
 use tracing::{instrument, trace_span, warn, Instrument};
 
 use super::{
@@ -314,19 +315,11 @@ async fn get_digests(
     firestore: &FirestoreApi,
     ids: &[u64],
 ) -> Result<Vec<GameDigest>, Status> {
-    let mut digests = match firestore::games::batch_read(firestore, ids).await {
-        Ok(game_entries) => game_entries
-            .into_iter()
-            .map(|entry| GameDigest::from(entry))
-            .collect(),
-        Err(_) => vec![],
-    };
-
-    let missing = ids
-        .iter()
-        .filter(|id| digests.iter().all(|digest| digest.id != **id))
-        .map(|id| *id)
-        .collect::<Vec<_>>();
+    let (game_entries, missing) = firestore::games::batch_read(firestore, ids).await?;
+    let mut digests = game_entries
+        .into_iter()
+        .map(|entry| GameDigest::from(entry))
+        .collect_vec();
 
     if !missing.is_empty() {
         let games = get_games(connection, &missing).await?;
