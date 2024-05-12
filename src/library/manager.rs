@@ -1,6 +1,9 @@
 use crate::{
     api::{FirestoreApi, IgdbApi},
-    documents::{FailedEntries, GameDigest, Library, LibraryEntry, StoreEntry, Storefront},
+    documents::{
+        FailedEntries, GameCategory, GameDigest, GameEntry, Library, LibraryEntry, StoreEntry,
+        Storefront,
+    },
     games::{ReconReport, Reconciler},
     Status,
 };
@@ -43,26 +46,41 @@ impl LibraryManager {
         .into_iter()
         .collect_vec();
 
-        let (games, not_found_games) = games::batch_read(&firestore, &doc_ids).await?;
+        let (games, _not_found_games) = games::batch_read(&firestore, &doc_ids).await?;
 
-        let mut games = HashMap::<u64, GameDigest>::from_iter(
-            games
-                .into_iter()
-                .map(|game| (game.id, GameDigest::from(game))),
-        );
+        let games =
+            HashMap::<u64, GameEntry>::from_iter(games.into_iter().map(|game| (game.id, game)));
 
         let library_entries = results
             .iter()
             .filter(|r| r.external_game.is_some())
             .filter(|r| games.contains_key(&r.external_game.as_ref().unwrap().igdb_id))
-            .map(|r| LibraryEntry {
-                id: r.external_game.as_ref().unwrap().igdb_id,
-                digest: games
+            .flat_map(|r| {
+                let game_entry = games
                     .get(&r.external_game.as_ref().unwrap().igdb_id)
-                    .unwrap()
-                    .clone(),
-                store_entries: vec![r.store_entry.clone()],
-                added_date: None,
+                    .unwrap();
+
+                let mut entries = vec![LibraryEntry::new(
+                    GameDigest::from(game_entry.clone()),
+                    vec![r.store_entry.clone()],
+                )];
+                entries.extend(
+                    game_entry
+                        .contents
+                        .iter()
+                        .map(|e| LibraryEntry::new(e.clone(), vec![r.store_entry.clone()])),
+                );
+                if matches!(game_entry.category, GameCategory::Version) {
+                    if let Some(parent) = &game_entry.parent {
+                        if entries.iter().all(|e| e.id != parent.id) {
+                            entries.push(LibraryEntry::new(
+                                parent.clone(),
+                                vec![r.store_entry.clone()],
+                            ))
+                        }
+                    }
+                }
+                entries
             })
             .collect_vec();
 
