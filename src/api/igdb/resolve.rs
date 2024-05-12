@@ -4,7 +4,7 @@ use crate::{
     api::{FirestoreApi, MetacriticApi, SteamScrape},
     documents::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
-        GameDigest, GameEntry, Image, SteamData, Website, WebsiteAuthority,
+        GameCategory, GameDigest, GameEntry, Image, SteamData, Website, WebsiteAuthority,
     },
     games::SteamDataApi,
     library::firestore,
@@ -262,6 +262,20 @@ pub async fn resolve_game_info(
             game_entry.remasters = digests;
         }
     }
+    if matches!(
+        game_entry.category,
+        GameCategory::Bundle | GameCategory::Version
+    ) {
+        let game_ids = get_bundle_games_ids(connection, game_entry.id)
+            .await?
+            .into_iter()
+            .map(|e| e.id)
+            .collect_vec();
+
+        if let Ok(digests) = get_digests(connection, firestore, &game_ids).await {
+            game_entry.contents = digests;
+        }
+    }
 
     if let Some(handle) = steam_handle {
         match handle.await {
@@ -277,6 +291,20 @@ pub async fn resolve_game_info(
     }
 
     Ok(())
+}
+
+/// Returns IgdbGames included in the bundle of `bundle_id`.
+#[instrument(level = "trace", skip(connection))]
+async fn get_bundle_games_ids(
+    connection: &IgdbConnection,
+    bundle_id: u64,
+) -> Result<Vec<IgdbGame>, Status> {
+    post::<Vec<IgdbGame>>(
+        &connection,
+        GAMES_ENDPOINT,
+        &format!("fields id, name; where bundles = ({bundle_id});"),
+    )
+    .await
 }
 
 /// Returns game image cover based on id from the igdb/covers endpoint.
@@ -617,7 +645,7 @@ async fn get_release_date(
         connection,
         RELEASE_DATES_ENDPOINT,
         &format!(
-            "fields category, date, status.name; where id = ({}) & platform = (6,13);",
+            "fields category, date, status.name; where id = ({});",
             igdb_game
                 .release_dates
                 .iter()
