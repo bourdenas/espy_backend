@@ -118,7 +118,7 @@ pub async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<FailedEntri
     level = "trace",
     skip(firestore, user_id, failed)
 )]
-async fn write(
+pub async fn write(
     firestore: &FirestoreApi,
     user_id: &str,
     failed: &FailedEntries,

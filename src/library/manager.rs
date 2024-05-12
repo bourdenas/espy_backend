@@ -1,13 +1,18 @@
 use crate::{
     api::{FirestoreApi, IgdbApi},
-    documents::{GameDigest, LibraryEntry, StoreEntry},
+    documents::{FailedEntries, GameDigest, Library, LibraryEntry, StoreEntry, Storefront},
     games::{ReconReport, Reconciler},
     Status,
 };
-use std::{sync::Arc, time::SystemTime};
+use itertools::Itertools;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::SystemTime,
+};
 use tracing::{error, instrument, trace_span, Instrument};
 
-use super::firestore;
+use super::firestore::{self, external_games, games};
 
 pub struct LibraryManager {
     user_id: String,
@@ -19,6 +24,85 @@ impl LibraryManager {
         LibraryManager {
             user_id: String::from(user_id),
         }
+    }
+
+    pub async fn batch_recon_store_entries(
+        &self,
+        firestore: Arc<FirestoreApi>,
+        igdb: Arc<IgdbApi>,
+        store_entries: Vec<StoreEntry>,
+    ) -> Result<(), Status> {
+        let results = external_games::batch_read(&firestore, store_entries).await?;
+
+        let doc_ids = HashSet::<u64>::from_iter(
+            results
+                .iter()
+                .filter(|r| r.external_game.is_some())
+                .map(|r| r.external_game.as_ref().unwrap().igdb_id),
+        )
+        .into_iter()
+        .collect_vec();
+
+        let (games, not_found_games) = games::batch_read(&firestore, &doc_ids).await?;
+
+        let mut games = HashMap::<u64, GameDigest>::from_iter(
+            games
+                .into_iter()
+                .map(|game| (game.id, GameDigest::from(game))),
+        );
+
+        let library_entries = results
+            .iter()
+            .filter(|r| r.external_game.is_some())
+            .filter(|r| games.contains_key(&r.external_game.as_ref().unwrap().igdb_id))
+            .map(|r| LibraryEntry {
+                id: r.external_game.as_ref().unwrap().igdb_id,
+                digest: games
+                    .get(&r.external_game.as_ref().unwrap().igdb_id)
+                    .unwrap()
+                    .clone(),
+                store_entries: vec![r.store_entry.clone()],
+                added_date: None,
+            })
+            .collect_vec();
+
+        let failed_store_entries = results
+            .iter()
+            .filter(|r| {
+                r.external_game.is_none()
+                    || !games.contains_key(&r.external_game.as_ref().unwrap().igdb_id)
+            })
+            .map(|r| r.store_entry.clone())
+            .collect_vec();
+
+        firestore::library::write(
+            &firestore,
+            &self.user_id,
+            Library {
+                entries: library_entries,
+            },
+        )
+        .await?;
+
+        firestore::failed::write(
+            &firestore,
+            &self.user_id,
+            &FailedEntries {
+                entries: failed_store_entries,
+            },
+        )
+        .await?;
+
+        firestore::storefront::write(
+            &firestore,
+            &self.user_id,
+            &Storefront {
+                entries: results.into_iter().map(|r| r.store_entry).collect_vec(),
+            },
+        )
+        .await?;
+
+        Ok(())
     }
 
     /// Reconciles `store_entries` and adds them in the library.
@@ -251,6 +335,6 @@ impl LibraryManager {
     ) -> Result<(), Status> {
         firestore::library::remove_storefront(&firestore, &self.user_id, storefront_id).await?;
         firestore::failed::remove_storefront(&firestore, &self.user_id, storefront_id).await?;
-        firestore::storefront::delete(&firestore, &self.user_id, storefront_id).await
+        firestore::storefront::remove_store(&firestore, &self.user_id, storefront_id).await
     }
 }

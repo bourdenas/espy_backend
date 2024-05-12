@@ -1,7 +1,13 @@
-use crate::{api::FirestoreApi, documents::ExternalGame, Status};
+use std::collections::HashMap;
+
+use crate::{
+    api::FirestoreApi,
+    documents::{ExternalGame, StoreEntry},
+    Status,
+};
 use firestore::{path, FirestoreResult};
-use futures::{stream::BoxStream, TryStreamExt};
-use tracing::instrument;
+use futures::{stream::BoxStream, StreamExt, TryStreamExt};
+use tracing::{instrument, warn};
 
 #[instrument(name = "external_games::read", level = "trace", skip(firestore))]
 pub async fn read(
@@ -26,6 +32,54 @@ pub async fn read(
             "Firestore document '{EXTERNAL_GAMES}/{doc_id}' was not found"
         ))),
     }
+}
+
+/// Batch reads external games by id.
+///
+/// Returns a tuple with two vectors. The first one contains the found
+/// ExternalGame docs and the second contains the StoreEntry docs that were not
+/// found.
+#[instrument(
+    name = "external_games::batch_read",
+    level = "trace",
+    skip(firestore, store_entries)
+)]
+pub async fn batch_read(
+    firestore: &FirestoreApi,
+    store_entries: Vec<StoreEntry>,
+) -> Result<Vec<ExternalGameResult>, Status> {
+    let mut store_entries = HashMap::<String, StoreEntry>::from_iter(
+        store_entries
+            .into_iter()
+            .map(|e| (format!("{}_{}", &e.storefront_name, &e.id), e)),
+    );
+
+    let mut docs: BoxStream<FirestoreResult<(String, Option<ExternalGame>)>> = firestore
+        .db()
+        .fluent()
+        .select()
+        .by_id_in(EXTERNAL_GAMES)
+        .obj()
+        .batch_with_errors(store_entries.keys())
+        .await?;
+
+    let mut results = vec![];
+    while let Some(external_game) = docs.next().await {
+        match external_game {
+            Ok((id, external_game)) => results.push(ExternalGameResult {
+                store_entry: store_entries.remove(&id).unwrap_or_default(),
+                external_game,
+            }),
+            Err(status) => warn!("{status}"),
+        }
+    }
+
+    Ok(results)
+}
+
+pub struct ExternalGameResult {
+    pub store_entry: StoreEntry,
+    pub external_game: Option<ExternalGame>,
 }
 
 #[instrument(
