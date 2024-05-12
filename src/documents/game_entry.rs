@@ -79,6 +79,12 @@ pub struct GameEntry {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub remasters: Vec<GameDigest>,
 
+    // If the GameEntry is a Bundle or Version `contents` includes the digests
+    // of all individual entries it contains.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub contents: Vec<GameDigest>,
+
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub screenshots: Vec<Image>,
