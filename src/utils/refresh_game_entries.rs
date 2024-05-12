@@ -67,6 +67,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         while let Some(game_entry) = game_entries.next().await {
             match game_entry {
                 Ok(game_entry) => {
+                    cursor = game_entry.release_date as u64;
+
                     println!(
                         "#{i} -- {} -- id={} -- release={} ({})",
                         game_entry.name,
@@ -80,8 +82,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         .duration_since(UNIX_EPOCH)
                         .unwrap()
                         .as_millis();
-
-                    cursor = game_entry.release_date as u64;
 
                     let firestore = Arc::clone(&firestore);
                     if let Err(status) = refresh_game(firestore, game_entry, &igdb).await {
@@ -105,7 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 #[instrument(
     level = "info",
-    skip(firestore, igdb),
+    skip(firestore, game_entry, igdb),
     fields(event_span = "resolve_event")
 )]
 async fn refresh_game(
