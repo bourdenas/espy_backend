@@ -1,8 +1,7 @@
 use crate::{
     api::{FirestoreApi, IgdbApi},
     documents::{
-        FailedEntries, GameCategory, GameDigest, GameEntry, Library, LibraryEntry, StoreEntry,
-        Storefront,
+        FailedEntries, GameCategory, GameDigest, GameEntry, LibraryEntry, StoreEntry, Storefront,
     },
     games::{ReconReport, Reconciler},
     Status,
@@ -81,7 +80,7 @@ impl LibraryManager {
             })
             .collect_vec();
 
-        let failed_store_entries = results
+        let unmatched_store_entries = results
             .iter()
             .filter(|r| {
                 r.external_game.is_none()
@@ -90,15 +89,13 @@ impl LibraryManager {
             .map(|r| r.store_entry.clone())
             .collect_vec();
 
-        firestore::library::add_entries(&firestore, &self.user_id, library_entries).await?;
-        firestore::failed::write(
-            &firestore,
-            &self.user_id,
-            &FailedEntries {
-                entries: failed_store_entries,
-            },
-        )
-        .await?;
+        if !library_entries.is_empty() {
+            firestore::library::add_entries(&firestore, &self.user_id, library_entries).await?;
+        }
+        if !unmatched_store_entries.is_empty() {
+            firestore::failed::add_entries(&firestore, &self.user_id, unmatched_store_entries)
+                .await?;
+        }
 
         firestore::storefront::write(
             &firestore,

@@ -24,6 +24,26 @@ pub async fn add_entry(
 }
 
 #[instrument(
+    name = "failed::add_entries",
+    level = "trace",
+    skip(firestore, user_id, store_entries)
+)]
+pub async fn add_entries(
+    firestore: &FirestoreApi,
+    user_id: &str,
+    store_entries: Vec<StoreEntry>,
+) -> Result<(), Status> {
+    let mut failed = read(firestore, user_id).await?;
+
+    if store_entries.into_iter().fold(false, |added, store_entry| {
+        added || add(store_entry, &mut failed)
+    }) {
+        write(firestore, user_id, &failed).await?;
+    }
+    Ok(())
+}
+
+#[instrument(
     name = "failed::remove_entry",
     level = "trace",
     skip(firestore, user_id, store_entry),
@@ -52,7 +72,7 @@ pub async fn remove_storefront(
     storefront_id: &str,
 ) -> Result<(), Status> {
     let mut failed = read(firestore, user_id).await?;
-    remove_store_entries(storefront_id, &mut failed);
+    remove_storefront_entries(storefront_id, &mut failed);
     write(firestore, user_id, &failed).await
 }
 
@@ -60,16 +80,11 @@ pub async fn remove_storefront(
 ///
 /// Returns false if the same `StoreEntry` was already found, true otherwise.
 fn add(store_entry: StoreEntry, failed: &mut FailedEntries) -> bool {
-    match failed
-        .entries
-        .iter()
-        .find(|e| e.id == store_entry.id && e.storefront_name == store_entry.storefront_name)
-    {
-        Some(_) => false,
-        None => {
-            failed.entries.push(store_entry);
-            true
-        }
+    if failed.entries.iter().all(|e| *e != store_entry) {
+        failed.entries.push(store_entry);
+        true
+    } else {
+        false
     }
 }
 
@@ -86,7 +101,7 @@ fn remove(store_entry: &StoreEntry, failed: &mut FailedEntries) -> bool {
 }
 
 /// Remove all failed store entries from specified storefront.
-fn remove_store_entries(storefront_id: &str, failed: &mut FailedEntries) {
+fn remove_storefront_entries(storefront_id: &str, failed: &mut FailedEntries) {
     failed
         .entries
         .retain(|store_entry| store_entry.storefront_name != storefront_id);
