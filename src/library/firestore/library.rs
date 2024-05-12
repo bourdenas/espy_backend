@@ -72,33 +72,25 @@ pub async fn add_entry(
     let mut library = read(firestore, user_id).await?;
 
     for digest in digests {
-        add(digest, store_entry.clone(), &mut library);
+        add(LibraryEntry::new(digest, store_entry.clone()), &mut library);
     }
     write(firestore, user_id, library).await
 }
 
-/// NOTE: This is an odd interface to expose that has to do with particularities
-/// of how batch sync of library is working. It is only meant to be used in one
-/// particular case.
 #[instrument(
-    name = "library::add_entries", 
+    name = "library::add_entries",
     level = "trace",
-    skip(firestore, user_id),
-    fields(
-        entries_len = %entries.len(),
-    ),
+    skip(firestore, user_id, library_entries)
 )]
 pub async fn add_entries(
     firestore: &FirestoreApi,
     user_id: &str,
-    entries: Vec<(Vec<GameDigest>, StoreEntry)>,
+    library_entries: Vec<LibraryEntry>,
 ) -> Result<(), Status> {
     let mut library = read(firestore, user_id).await?;
 
-    for (digests, store_entry) in entries {
-        for digest in digests {
-            add(digest, store_entry.clone(), &mut library);
-        }
+    for library_entry in library_entries {
+        add(library_entry, &mut library);
     }
     write(firestore, user_id, library).await
 }
@@ -158,26 +150,36 @@ pub async fn remove_storefront(
     storefront_id: &str,
 ) -> Result<(), Status> {
     let mut library = read(firestore, user_id).await?;
-    remove_store_entries(storefront_id, &mut library);
+    remove_storefront_entries(storefront_id, &mut library);
     write(firestore, user_id, library).await
 }
 
 /// Adds `LibraryEntry` in the library.
 ///
-/// If an entry exists for the same game, it merges its store entries.
-/// Returns true if the entry is added.
-fn add(digest: GameDigest, store_entry: StoreEntry, library: &mut Library) -> bool {
-    match library.entries.iter_mut().find(|e| e.id == digest.id) {
+/// If an entry exists for the same game, it merges their store entries. Returns
+/// true if the entry is added.
+///
+/// Expects that the LibraryEntry contains exactly one StoreEntry.
+fn add(mut library_entry: LibraryEntry, library: &mut Library) -> bool {
+    match library
+        .entries
+        .iter_mut()
+        .find(|e| e.id == library_entry.id)
+    {
         Some(existing_entry) => {
-            if let None = existing_entry.store_entries.iter().find(|e| {
-                e.id == store_entry.id && e.storefront_name == store_entry.storefront_name
-            }) {
-                existing_entry.store_entries.push(store_entry);
+            if existing_entry
+                .store_entries
+                .iter()
+                .all(|e| e != library_entry.store_entries.first().unwrap())
+            {
+                existing_entry
+                    .store_entries
+                    .push(library_entry.store_entries.remove(0));
+            } else {
+                return false;
             }
         }
-        None => library
-            .entries
-            .push(LibraryEntry::new(digest, vec![store_entry.clone()])),
+        None => library.entries.push(library_entry),
     }
 
     true
@@ -207,7 +209,7 @@ fn remove(store_entry: &StoreEntry, library: &mut Library) -> bool {
 }
 
 /// Removes all entries in `Library` from a specified storefront.
-fn remove_store_entries(storefront_id: &str, library: &mut Library) {
+fn remove_storefront_entries(storefront_id: &str, library: &mut Library) {
     library.entries.retain_mut(|library_entry| {
         library_entry
             .store_entries
@@ -261,7 +263,10 @@ mod tests {
     fn add_in_empty_library() {
         let mut library = Library { entries: vec![] };
 
-        assert!(add(digest(7), StoreEntry::default(), &mut library));
+        assert!(add(
+            LibraryEntry::new(digest(7), StoreEntry::default()),
+            &mut library
+        ));
         assert_eq!(library.entries.len(), 1);
     }
 
@@ -271,7 +276,10 @@ mod tests {
             entries: vec![library_entry(7)],
         };
 
-        assert!(add(digest(7), StoreEntry::default(), &mut library));
+        assert!(add(
+            LibraryEntry::new(digest(7), StoreEntry::default()),
+            &mut library
+        ));
         assert_eq!(library.entries.len(), 1);
         assert_eq!(library.entries[0].store_entries.len(), 2);
     }
@@ -362,7 +370,7 @@ mod tests {
             ],
         };
 
-        remove_store_entries("gog", &mut library);
+        remove_storefront_entries("gog", &mut library);
         assert_eq!(library.entries.len(), 0);
     }
 
@@ -375,7 +383,7 @@ mod tests {
             ],
         };
 
-        remove_store_entries("steam", &mut library);
+        remove_storefront_entries("steam", &mut library);
         assert_eq!(library.entries.len(), 2);
     }
 
@@ -390,7 +398,7 @@ mod tests {
             ],
         };
 
-        remove_store_entries("gog", &mut library);
+        remove_storefront_entries("gog", &mut library);
         assert_eq!(library.entries.len(), 2);
     }
 
@@ -405,7 +413,7 @@ mod tests {
             ],
         };
 
-        remove_store_entries("gog", &mut library);
+        remove_storefront_entries("gog", &mut library);
         assert_eq!(library.entries.len(), 3);
     }
 }

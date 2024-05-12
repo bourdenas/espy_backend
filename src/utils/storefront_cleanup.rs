@@ -50,7 +50,7 @@ async fn storefront_cleanup(
     };
 
     let mut missing = vec![];
-    for store_entry in &storefront.games {
+    for store_entry in &storefront.entries {
         let iter = user_library
             .entries
             .iter()
@@ -71,7 +71,7 @@ async fn storefront_cleanup(
         missing
     );
     storefront
-        .games
+        .entries
         .retain(|e| !missing.iter().all(|m| m.id != e.id));
     firestore::storefront::write(firestore, user_id, &storefront).await?;
 

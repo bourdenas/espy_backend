@@ -70,7 +70,7 @@ async fn refresh_library_entries(
 
     let mut library_entries: HashMap<u64, LibraryEntry> = HashMap::new();
     let mut k = 0;
-    for entry in legacy_library.entries {
+    for mut entry in legacy_library.entries {
         println!(
             "#{k} Get '{title}' ({id})",
             title = entry.digest.name,
@@ -84,7 +84,7 @@ async fn refresh_library_entries(
             library::firestore::games::read(&firestore, entry.id).await
         };
 
-        let game_entry = match game_entry {
+        let digest = match game_entry {
             Ok(game_entry) => GameDigest::from(game_entry),
             Err(_) => match igdb.get(entry.id).await {
                 Ok(igdb_game) => {
@@ -104,14 +104,14 @@ async fn refresh_library_entries(
             },
         };
 
-        let library_entry = LibraryEntry::new(game_entry, entry.store_entries.clone());
+        entry.digest = digest;
         library_entries
-            .entry(library_entry.id)
+            .entry(entry.id)
             .and_modify(|e| {
                 e.store_entries
-                    .extend(library_entry.store_entries.iter().map(|e| e.clone()))
+                    .extend(entry.store_entries.iter().map(|e| e.clone()))
             })
-            .or_insert(library_entry);
+            .or_insert(entry);
         k += 1;
     }
 

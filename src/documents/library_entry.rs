@@ -28,11 +28,11 @@ pub struct LibraryEntry {
 }
 
 impl LibraryEntry {
-    pub fn new(digest: GameDigest, store_entries: Vec<StoreEntry>) -> Self {
+    pub fn new(digest: GameDigest, store_entry: StoreEntry) -> Self {
         LibraryEntry {
             id: digest.id,
             digest,
-            store_entries,
+            store_entries: vec![store_entry],
 
             added_date: Some(
                 SystemTime::now()

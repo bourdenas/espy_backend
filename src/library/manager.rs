@@ -62,21 +62,18 @@ impl LibraryManager {
 
                 let mut entries = vec![LibraryEntry::new(
                     GameDigest::from(game_entry.clone()),
-                    vec![r.store_entry.clone()],
+                    r.store_entry.clone(),
                 )];
                 entries.extend(
                     game_entry
                         .contents
                         .iter()
-                        .map(|e| LibraryEntry::new(e.clone(), vec![r.store_entry.clone()])),
+                        .map(|e| LibraryEntry::new(e.clone(), r.store_entry.clone())),
                 );
                 if matches!(game_entry.category, GameCategory::Version) {
                     if let Some(parent) = &game_entry.parent {
                         if entries.iter().all(|e| e.id != parent.id) {
-                            entries.push(LibraryEntry::new(
-                                parent.clone(),
-                                vec![r.store_entry.clone()],
-                            ))
+                            entries.push(LibraryEntry::new(parent.clone(), r.store_entry.clone()))
                         }
                     }
                 }
@@ -93,15 +90,7 @@ impl LibraryManager {
             .map(|r| r.store_entry.clone())
             .collect_vec();
 
-        firestore::library::write(
-            &firestore,
-            &self.user_id,
-            Library {
-                entries: library_entries,
-            },
-        )
-        .await?;
-
+        firestore::library::add_entries(&firestore, &self.user_id, library_entries).await?;
         firestore::failed::write(
             &firestore,
             &self.user_id,
@@ -208,7 +197,7 @@ impl LibraryManager {
 
         // Adds all resolved entries in the library.
         firestore::wishlist::remove_entries(&firestore, user_id, &game_ids).await?;
-        firestore::library::add_entries(&firestore, user_id, entries).await?;
+        // firestore::library::add_entries(&firestore, user_id, entries).await?;
         firestore::storefront::add_entries(&firestore, user_id, store_entries).await
     }
 
