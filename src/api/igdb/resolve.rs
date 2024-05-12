@@ -645,7 +645,7 @@ async fn get_release_date(
         connection,
         RELEASE_DATES_ENDPOINT,
         &format!(
-            "fields category, date, status.name; where id = ({}) & platform = (6,13);",
+            "fields category, date, status.name; where id = ({});",
             igdb_game
                 .release_dates
                 .iter()
