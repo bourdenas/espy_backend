@@ -306,32 +306,6 @@ pub async fn post_sync(
     Ok(resp)
 }
 
-#[instrument(level = "trace", skip(upload, firestore, igdb))]
-pub async fn post_upload(
-    user_id: String,
-    upload: models::Upload,
-    firestore: Arc<FirestoreApi>,
-    igdb: Arc<IgdbApi>,
-) -> Result<Box<dyn warp::Reply>, Infallible> {
-    let event = UploadEvent::new();
-
-    let manager = LibraryManager::new(&user_id);
-    let report = match manager
-        .recon_store_entries(firestore, igdb, upload.entries)
-        .await
-    {
-        Ok(report) => report,
-        Err(status) => {
-            event.log_error(&user_id, status);
-            return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
-        }
-    };
-
-    event.log(&user_id, &report);
-    let resp: Box<dyn warp::Reply> = Box::new(warp::reply::json(&report));
-    Ok(resp)
-}
-
 #[instrument(level = "trace")]
 pub async fn get_images(
     resolution: String,

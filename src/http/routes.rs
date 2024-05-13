@@ -23,7 +23,6 @@ pub fn routes(
         .or(post_wishlist(Arc::clone(&firestore)))
         .or(post_unlink(Arc::clone(&firestore)))
         .or(post_sync(keys, Arc::clone(&firestore), Arc::clone(&igdb)))
-        .or(post_upload(Arc::clone(&firestore), Arc::clone(&igdb)))
         .or(get_images())
         .or_else(|e| async {
             warn! {"Rejected route: {:?}", e};
@@ -131,19 +130,6 @@ fn post_sync(
         .and(with_firestore(firestore))
         .and(with_igdb(igdb))
         .and_then(handlers::post_sync)
-}
-
-/// POST /library/{user_id}/upload
-fn post_upload(
-    firestore: Arc<FirestoreApi>,
-    igdb: Arc<IgdbApi>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-    warp::path!("library" / String / "upload")
-        .and(warp::post())
-        .and(json_body::<models::Upload>())
-        .and(with_firestore(firestore))
-        .and(with_igdb(igdb))
-        .and_then(handlers::post_upload)
 }
 
 /// GET /images/{resolution}/{image_id}

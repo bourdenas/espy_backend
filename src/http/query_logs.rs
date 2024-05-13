@@ -381,49 +381,6 @@ impl SyncEvent {
     }
 }
 
-pub struct UploadEvent {
-    start: SystemTime,
-}
-
-impl UploadEvent {
-    pub fn new() -> Self {
-        Self {
-            start: SystemTime::now(),
-        }
-    }
-
-    pub fn log(self, user_id: &str, _: &ReconReport) {
-        info!(
-            http_request.request_method = "POST",
-            http_request.request_url = "/library/_/upload",
-            labels.log_type = QUERY_LOGS,
-            labels.handler = UPLOAD_HANDLER,
-            upload.user_id = user_id,
-            upload.latency = SystemTime::now()
-                .duration_since(self.start)
-                .unwrap()
-                .as_millis(),
-            "upload"
-        )
-    }
-
-    pub fn log_error(self, user_id: &str, status: Status) {
-        error!(
-            http_request.request_method = "POST",
-            http_request.request_url = "/library/_/upload",
-            labels.log_type = QUERY_LOGS,
-            labels.handler = UPLOAD_HANDLER,
-            labels.status = status.to_string(),
-            upload.user_id = user_id,
-            upload.latency = SystemTime::now()
-                .duration_since(self.start)
-                .unwrap()
-                .as_millis(),
-            "upload"
-        )
-    }
-}
-
 const QUERY_LOGS: &str = "query_logs";
 const SEARCH_HANDLER: &str = "search";
 const RESOLVE_HANDLER: &str = "resolve";
@@ -432,4 +389,3 @@ const MATCH_HANDLER: &str = "match";
 const WISHLIST_HANDLER: &str = "wishlist";
 const UNLINK_HANDLER: &str = "unlink";
 const SYNC_HANDLER: &str = "sync";
-const UPLOAD_HANDLER: &str = "upload";
