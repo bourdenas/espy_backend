@@ -43,11 +43,7 @@ async fn storefront_cleanup(
     user_library: &Library,
     user_failed: &[StoreEntry],
 ) -> Result<(), Status> {
-    let mut storefront = match firestore::storefront::read(&firestore, user_id).await {
-        Ok(doc) => doc,
-        Err(Status::NotFound(_)) => return Ok(()),
-        Err(status) => return Err(status),
-    };
+    let mut storefront = firestore::storefront::read(&firestore, user_id).await?;
 
     let mut missing = vec![];
     for store_entry in &storefront.entries {

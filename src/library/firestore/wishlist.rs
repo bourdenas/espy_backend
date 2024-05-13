@@ -53,15 +53,14 @@ pub async fn remove_entries(
     game_ids: &[u64],
 ) -> Result<(), Status> {
     let mut wishlist = read(firestore, user_id).await?;
-    let old_size = wishlist.entries.len();
-    for game_id in game_ids {
-        remove(*game_id, &mut wishlist);
-    }
 
-    match wishlist.entries.len() < old_size {
-        true => write(firestore, user_id, wishlist).await,
-        false => Ok(()),
+    if game_ids
+        .into_iter()
+        .fold(false, |dirty, id| dirty || remove(*id, &mut wishlist))
+    {
+        write(firestore, user_id, wishlist).await?;
     }
+    Ok(())
 }
 
 #[instrument(

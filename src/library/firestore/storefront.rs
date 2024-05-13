@@ -21,7 +21,7 @@ pub async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<Storefront,
 
     match doc {
         Some(doc) => Ok(doc),
-        None => Err(Status::not_found(format!("storefronts doc not found"))),
+        None => Ok(Storefront::default()),
     }
 }
 
@@ -82,11 +82,13 @@ pub async fn diff_entries(
     skip(firestore, user_id)
 )]
 async fn get_ids(firestore: &FirestoreApi, user_id: &str) -> Result<HashSet<String>, Status> {
-    match read(firestore, user_id).await {
-        Ok(doc) => Ok(HashSet::from_iter(doc.entries.into_iter().map(|e| e.id))),
-        Err(Status::NotFound(_)) => Ok(HashSet::default()),
-        Err(status) => Err(status),
-    }
+    Ok(HashSet::from_iter(
+        read(firestore, user_id)
+            .await?
+            .entries
+            .into_iter()
+            .map(|e| e.id),
+    ))
 }
 
 /// Deletes all StoreEntries from specified storefront.

@@ -77,6 +77,7 @@ pub async fn batch_read(
     Ok(results)
 }
 
+#[derive(Debug, Clone)]
 pub struct ExternalGameResult {
     pub store_entry: StoreEntry,
     pub external_game: Option<ExternalGame>,
