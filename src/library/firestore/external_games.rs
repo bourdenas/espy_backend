@@ -47,7 +47,7 @@ pub async fn read(
 pub async fn batch_read(
     firestore: &FirestoreApi,
     store_entries: Vec<StoreEntry>,
-) -> Result<Vec<ExternalGameResult>, Status> {
+) -> Result<ExternalGameResult, Status> {
     let mut store_entries = HashMap::<String, StoreEntry>::from_iter(
         store_entries
             .into_iter()
@@ -63,24 +63,34 @@ pub async fn batch_read(
         .batch_with_errors(store_entries.keys())
         .await?;
 
-    let mut results = vec![];
+    let mut matches = vec![];
+    let mut missing = vec![];
     while let Some(external_game) = docs.next().await {
         match external_game {
-            Ok((id, external_game)) => results.push(ExternalGameResult {
-                store_entry: store_entries.remove(&id).unwrap_or_default(),
-                external_game,
-            }),
+            Ok((id, external_game)) => match external_game {
+                Some(external_game) => matches.push(ExternalMatch {
+                    store_entry: store_entries.remove(&id).unwrap_or_default(),
+                    external_game,
+                }),
+                None => missing.push(store_entries.remove(&id).unwrap_or_default()),
+            },
             Err(status) => warn!("{status}"),
         }
     }
 
-    Ok(results)
+    Ok(ExternalGameResult { matches, missing })
 }
 
 #[derive(Debug, Clone)]
 pub struct ExternalGameResult {
+    pub matches: Vec<ExternalMatch>,
+    pub missing: Vec<StoreEntry>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExternalMatch {
     pub store_entry: StoreEntry,
-    pub external_game: Option<ExternalGame>,
+    pub external_game: ExternalGame,
 }
 
 #[instrument(

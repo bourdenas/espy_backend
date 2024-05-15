@@ -31,26 +31,26 @@ impl LibraryManager {
         igdb: Arc<IgdbApi>,
         store_entries: Vec<StoreEntry>,
     ) -> Result<(), Status> {
-        println!("batching {} store entries", store_entries.len());
-        let results = external_games::batch_read(&firestore, store_entries).await?;
+        if store_entries.is_empty() {
+            return Ok(());
+        }
 
-        let doc_ids = HashSet::<u64>::from_iter(
-            results
-                .iter()
-                .filter(|r| r.external_game.is_some())
-                .map(|r| r.external_game.as_ref().unwrap().igdb_id),
-        )
-        .into_iter()
-        .collect_vec();
+        println!("batching {} store entries", store_entries.len());
+        let externals = external_games::batch_read(&firestore, store_entries).await?;
+
+        let doc_ids =
+            HashSet::<u64>::from_iter(externals.matches.iter().map(|m| m.external_game.igdb_id))
+                .into_iter()
+                .collect_vec();
 
         let (games, _not_found_games) = games::batch_read(&firestore, &doc_ids).await?;
         let games =
             HashMap::<u64, GameEntry>::from_iter(games.into_iter().map(|game| (game.id, game)));
-        let not_found_games = results
+        let not_found_games = externals
+            .matches
             .iter()
-            .filter(|r| r.external_game.is_some())
-            .filter(|r| !games.contains_key(&r.external_game.as_ref().unwrap().igdb_id))
-            .map(|r| r.clone())
+            .filter(|m| !games.contains_key(&m.external_game.igdb_id))
+            .map(|m| m.clone())
             .collect_vec();
 
         println!("found {} games", games.len());
@@ -62,9 +62,9 @@ impl LibraryManager {
             tokio::spawn(
                 async move {
                     let mut library_entries = vec![];
-                    for result in not_found_games {
-                        let id = result.external_game.as_ref().unwrap().igdb_id;
-                        println!("Resolving missing '{}' ({id})", &result.store_entry.title);
+                    for m in not_found_games {
+                        let id = m.external_game.igdb_id;
+                        println!("Resolving missing '{}' ({id})", &m.store_entry.title);
                         let igdb_game = match igdb.get(id).await {
                             Ok(game) => game,
                             Err(status) => {
@@ -74,7 +74,7 @@ impl LibraryManager {
                         };
                         library_entries.extend(
                             match igdb.resolve(Arc::clone(&firestore_clone), igdb_game).await {
-                                Ok(game) => LibraryEntry::new_with_expand(game, result.store_entry),
+                                Ok(game) => LibraryEntry::new_with_expand(game, m.store_entry),
                                 Err(status) => {
                                     error!("Failed to resolve IGDB game: {status}");
                                     continue;
@@ -101,25 +101,14 @@ impl LibraryManager {
             );
         }
 
-        let library_entries = results
+        let library_entries = externals
+            .matches
             .iter()
-            .filter(|r| r.external_game.is_some())
-            .filter(|r| games.contains_key(&r.external_game.as_ref().unwrap().igdb_id))
-            .flat_map(|r| {
-                let game_entry = games
-                    .get(&r.external_game.as_ref().unwrap().igdb_id)
-                    .unwrap();
-                LibraryEntry::new_with_expand(game_entry.clone(), r.store_entry.clone())
+            .filter(|m| games.contains_key(&m.external_game.igdb_id))
+            .flat_map(|m| {
+                let game_entry = games.get(&m.external_game.igdb_id).unwrap();
+                LibraryEntry::new_with_expand(game_entry.clone(), m.store_entry.clone())
             })
-            .collect_vec();
-
-        let unmatched_store_entries = results
-            .iter()
-            .filter(|r| {
-                r.external_game.is_none()
-                    || !games.contains_key(&r.external_game.as_ref().unwrap().igdb_id)
-            })
-            .map(|r| r.store_entry.clone())
             .collect_vec();
 
         if !library_entries.is_empty() {
@@ -127,18 +116,22 @@ impl LibraryManager {
             firestore::library::add_entries(&firestore, &self.user_id, library_entries).await?;
             firestore::wishlist::remove_entries(&firestore, &self.user_id, &game_ids).await?;
         }
-        if !unmatched_store_entries.is_empty() {
-            firestore::failed::add_entries(&firestore, &self.user_id, unmatched_store_entries)
+        if !externals.missing.is_empty() {
+            firestore::failed::add_entries(&firestore, &self.user_id, externals.missing.clone())
                 .await?;
         }
-        if !results.is_empty() {
-            firestore::storefront::add_entries(
-                &firestore,
-                &self.user_id,
-                results.into_iter().map(|r| r.store_entry).collect_vec(),
-            )
-            .await?;
-        }
+
+        firestore::storefront::add_entries(
+            &firestore,
+            &self.user_id,
+            externals
+                .matches
+                .into_iter()
+                .map(|m| m.store_entry)
+                .chain(externals.missing)
+                .collect_vec(),
+        )
+        .await?;
 
         Ok(())
     }
@@ -245,10 +238,10 @@ impl LibraryManager {
         let digests = self
             .get_digest(Arc::clone(&firestore), igdb, game_id)
             .await?;
-        let result =
+        let m =
             firestore::library::update_entry(&firestore, &self.user_id, game_id, digests.clone())
                 .await;
-        match result {
+        match m {
             Ok(()) => Ok(()),
             Err(Status::NotFound(_)) => {
                 firestore::wishlist::update_entry(&firestore, &self.user_id, game_id, digests).await
