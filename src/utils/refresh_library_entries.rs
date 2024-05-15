@@ -1,11 +1,13 @@
 use std::{collections::HashMap, sync::Arc};
 
 use clap::Parser;
+use csv::Writer;
 use espy_backend::{
     api::{FirestoreApi, IgdbApi},
-    documents::{GameDigest, Library, LibraryEntry},
+    documents::{GameCategory, GameDigest, Library, LibraryEntry},
     library, util, Status, Tracing,
 };
+use serde::{Deserialize, Serialize};
 use tracing::{error, info, instrument};
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
@@ -23,7 +25,7 @@ struct Opts {
 
     /// Export in a text file the library (for inspection) instead of refreshing it.
     #[clap(long)]
-    export: bool,
+    export_csv: String,
 
     /// Print a summary of the library (for inspection) instead of refreshing it.
     #[clap(long)]
@@ -41,10 +43,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut igdb = IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
     igdb.connect().await?;
 
-    if opts.export {
+    if !opts.export_csv.is_empty() {
         let library = library::firestore::library::read(&firestore, &opts.user).await?;
-        let text = export_library(library);
-        println!("{text}");
+        export_library(library, &opts.export_csv)?;
     } else if opts.summary {
         let library = library::firestore::library::read(&firestore, &opts.user).await?;
         let text = summary_library(library);
@@ -139,34 +140,30 @@ async fn refresh_library_entries(
 }
 
 #[instrument(level = "trace", skip(library))]
-fn export_library(library: Library) -> String {
+fn export_library(
+    library: Library,
+    filename: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     info!("exporting {} titles...", library.entries.len());
     let serialized = serde_json::to_string(&library).unwrap();
     info!("library size: {}KB", serialized.len() / 1024);
-    let mut entries: Vec<_> = library
-        .entries
-        .iter()
-        .map(|entry| {
-            entry
-                .store_entries
-                .iter()
-                .map(|store| {
-                    format!(
-                        "{category:<10} {title} ({id}) -> {store:<5} {store_title}",
-                        category = entry.digest.category.to_string().to_uppercase(),
-                        title = entry.digest.name,
-                        id = entry.id,
-                        store = store.storefront_name.to_uppercase(),
-                        store_title = store.title,
-                    )
-                })
-                .collect::<Vec<_>>()
-        })
-        .flatten()
-        .collect();
-    entries.sort();
 
-    entries.join("\n")
+    let mut writer = Writer::from_path(filename)?;
+    for library_entry in library.entries {
+        for store_entry in library_entry.store_entries {
+            writer.serialize(LibraryRow {
+                id: library_entry.id,
+                name: library_entry.digest.name.clone(),
+                category: library_entry.digest.category,
+                storefront: store_entry.storefront_name,
+                store_title: store_entry.title,
+                store_id: store_entry.id,
+                store_url: store_entry.url,
+            })?;
+        }
+    }
+
+    Ok(())
 }
 
 #[instrument(level = "trace", skip(library))]
@@ -195,4 +192,15 @@ fn group_by_category(library: Library) -> HashMap<String, u64> {
     }
 
     groups
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct LibraryRow {
+    id: u64,
+    name: String,
+    category: GameCategory,
+    storefront: String,
+    store_title: String,
+    store_id: String,
+    store_url: String,
 }
