@@ -1,14 +1,13 @@
 use crate::{
     api::{FirestoreApi, IgdbApi},
-    documents::{GameCategory, GameDigest, GameEntry, LibraryEntry, StoreEntry},
-    games::{ReconReport, Reconciler},
+    documents::{GameDigest, GameEntry, LibraryEntry, StoreEntry},
+    games::Reconciler,
     Status,
 };
 use itertools::Itertools;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
-    time::SystemTime,
 };
 use tracing::{error, instrument, trace_span, Instrument};
 
@@ -32,6 +31,7 @@ impl LibraryManager {
         igdb: Arc<IgdbApi>,
         store_entries: Vec<StoreEntry>,
     ) -> Result<(), Status> {
+        println!("batching {} store entries", store_entries.len());
         let results = external_games::batch_read(&firestore, store_entries).await?;
 
         let doc_ids = HashSet::<u64>::from_iter(
@@ -44,9 +44,62 @@ impl LibraryManager {
         .collect_vec();
 
         let (games, _not_found_games) = games::batch_read(&firestore, &doc_ids).await?;
-
         let games =
             HashMap::<u64, GameEntry>::from_iter(games.into_iter().map(|game| (game.id, game)));
+        let not_found_games = results
+            .iter()
+            .filter(|r| r.external_game.is_some())
+            .filter(|r| !games.contains_key(&r.external_game.as_ref().unwrap().igdb_id))
+            .map(|r| r.clone())
+            .collect_vec();
+
+        println!("found {} games", games.len());
+        println!("did not find {} games", not_found_games.len());
+
+        let firestore_clone = Arc::clone(&firestore);
+        let user_id = self.user_id.clone();
+        if !not_found_games.is_empty() {
+            tokio::spawn(
+                async move {
+                    let mut library_entries = vec![];
+                    for result in not_found_games {
+                        let id = result.external_game.as_ref().unwrap().igdb_id;
+                        println!("Resolving missing '{}' ({id})", &result.store_entry.title);
+                        let igdb_game = match igdb.get(id).await {
+                            Ok(game) => game,
+                            Err(status) => {
+                                error!("Failed to retrieve IGDB game: {status}");
+                                continue;
+                            }
+                        };
+                        library_entries.extend(
+                            match igdb.resolve(Arc::clone(&firestore_clone), igdb_game).await {
+                                Ok(game) => LibraryEntry::new_with_expand(game, result.store_entry),
+                                Err(status) => {
+                                    error!("Failed to resolve IGDB game: {status}");
+                                    continue;
+                                }
+                            },
+                        );
+                    }
+
+                    let game_ids = library_entries.iter().map(|e| e.id).collect_vec();
+                    if let Err(status) =
+                        firestore::library::add_entries(&firestore_clone, &user_id, library_entries)
+                            .await
+                    {
+                        error!("{status}");
+                    }
+                    if let Err(status) =
+                        firestore::wishlist::remove_entries(&firestore_clone, &user_id, &game_ids)
+                            .await
+                    {
+                        error!("{status}");
+                    }
+                }
+                .instrument(trace_span!("spawn_resolve_missing")),
+            );
+        }
 
         let library_entries = results
             .iter()
@@ -56,25 +109,7 @@ impl LibraryManager {
                 let game_entry = games
                     .get(&r.external_game.as_ref().unwrap().igdb_id)
                     .unwrap();
-
-                let mut entries = vec![LibraryEntry::new(
-                    GameDigest::from(game_entry.clone()),
-                    r.store_entry.clone(),
-                )];
-                entries.extend(
-                    game_entry
-                        .contents
-                        .iter()
-                        .map(|e| LibraryEntry::new(e.clone(), r.store_entry.clone())),
-                );
-                if matches!(game_entry.category, GameCategory::Version) {
-                    if let Some(parent) = &game_entry.parent {
-                        if entries.iter().all(|e| e.id != parent.id) {
-                            entries.push(LibraryEntry::new(parent.clone(), r.store_entry.clone()))
-                        }
-                    }
-                }
-                entries
+                LibraryEntry::new_with_expand(game_entry.clone(), r.store_entry.clone())
             })
             .collect_vec();
 
@@ -88,7 +123,9 @@ impl LibraryManager {
             .collect_vec();
 
         if !library_entries.is_empty() {
+            let game_ids = library_entries.iter().map(|e| e.id).collect_vec();
             firestore::library::add_entries(&firestore, &self.user_id, library_entries).await?;
+            firestore::wishlist::remove_entries(&firestore, &self.user_id, &game_ids).await?;
         }
         if !unmatched_store_entries.is_empty() {
             firestore::failed::add_entries(&firestore, &self.user_id, unmatched_store_entries)
@@ -104,95 +141,6 @@ impl LibraryManager {
         }
 
         Ok(())
-    }
-
-    /// Reconciles `store_entries` and adds them in the library.
-    #[instrument(
-        level = "trace",
-        skip(self, firestore, igdb, store_entries),
-        fields(
-            entries_num = %store_entries.len()
-        ),
-    )]
-    pub async fn recon_store_entries(
-        &self,
-        firestore: Arc<FirestoreApi>,
-        igdb: Arc<IgdbApi>,
-        store_entries: Vec<StoreEntry>,
-    ) -> Result<ReconReport, Status> {
-        let mut resolved_entries = vec![];
-        let mut report = ReconReport {
-            lines: vec![format!(
-                "Attempted to match {} new entries.",
-                store_entries.len()
-            )],
-        };
-
-        // TODO: Errors will considered failed entry as resolved. Need to filter
-        // entries with error (beyond failed to match, which is handled
-        // correctly) and retry them.
-        let mut last_updated = SystemTime::now();
-        for store_entry in store_entries {
-            let firestore = Arc::clone(&firestore);
-            let igdb = Arc::clone(&igdb);
-
-            match self
-                .match_entry(Arc::clone(&firestore), igdb, store_entry.clone())
-                .await
-            {
-                Ok(result) => resolved_entries.push(result),
-                Err(e) => {
-                    // TODO: This needs to move somewhere else.
-                    // e.g. inside the upload_entries.
-                    firestore::failed::add_entry(&firestore, &self.user_id, store_entry).await?;
-                    report.lines.push(e.to_string())
-                }
-            }
-
-            // Batch user library updates because writes on larges libraries
-            // become costly.
-            let time_passed = SystemTime::now().duration_since(last_updated).unwrap();
-            if time_passed.as_secs() > 3 {
-                last_updated = SystemTime::now();
-                let entries = resolved_entries.drain(..).collect();
-                let user_id = self.user_id.clone();
-                tokio::spawn(
-                    async move {
-                        if let Err(e) = Self::upload_entries(firestore, &user_id, entries).await {
-                            error!("{e}");
-                        }
-                    }
-                    .instrument(trace_span!("spawn_library_update")),
-                );
-            }
-        }
-
-        Self::upload_entries(firestore, &self.user_id, resolved_entries).await?;
-
-        Ok(report)
-    }
-
-    #[instrument(level = "trace", skip(firestore, user_id, entries))]
-    async fn upload_entries(
-        firestore: Arc<FirestoreApi>,
-        user_id: &str,
-        entries: Vec<(Vec<GameDigest>, StoreEntry)>,
-    ) -> Result<(), Status> {
-        let store_entries = entries
-            .iter()
-            .map(|(_, store_entry)| store_entry.clone())
-            .collect();
-
-        let game_ids = entries
-            .iter()
-            .map(|(digests, _)| digests.iter().map(|digest| digest.id))
-            .flatten()
-            .collect::<Vec<_>>();
-
-        // Adds all resolved entries in the library.
-        firestore::wishlist::remove_entries(&firestore, user_id, &game_ids).await?;
-        // firestore::library::add_entries(&firestore, user_id, entries).await?;
-        firestore::storefront::add_entries(&firestore, user_id, store_entries).await
     }
 
     #[instrument(

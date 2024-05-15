@@ -1,5 +1,6 @@
 use crate::{
     api::{FirestoreApi, IgdbApi},
+    games::ReconReport,
     http::models,
     library::{firestore::games, LibraryManager, User},
     util, Status,
@@ -291,10 +292,12 @@ pub async fn post_sync(
 
     let manager = LibraryManager::new(&user_id);
     let report = match manager
-        .recon_store_entries(firestore, igdb, store_entries)
+        .batch_recon_store_entries(firestore, igdb, store_entries)
         .await
     {
-        Ok(report) => report,
+        Ok(()) => ReconReport {
+            lines: vec!["Done".to_owned()],
+        },
         Err(status) => {
             event.log_error(&user_id, status);
             return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
