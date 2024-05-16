@@ -19,7 +19,7 @@ pub fn routes(
         .or(post_resolve(Arc::clone(&firestore), Arc::clone(&igdb)))
         .or(post_delete(Arc::clone(&firestore)))
         .or(post_match(Arc::clone(&firestore), Arc::clone(&igdb)))
-        .or(post_update(Arc::clone(&firestore), Arc::clone(&igdb)))
+        .or(post_update(Arc::clone(&firestore)))
         .or(post_wishlist(Arc::clone(&firestore)))
         .or(post_unlink(Arc::clone(&firestore)))
         .or(post_sync(keys, Arc::clone(&firestore), Arc::clone(&igdb)))
@@ -86,13 +86,11 @@ fn post_match(
 /// POST /library/{user_id}/update
 fn post_update(
     firestore: Arc<FirestoreApi>,
-    igdb: Arc<IgdbApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("library" / String / "update")
         .and(warp::post())
         .and(json_body::<models::UpdateOp>())
         .and(with_firestore(firestore))
-        .and(with_igdb(igdb))
         .and_then(handlers::post_update)
 }
 

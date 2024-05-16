@@ -1,7 +1,6 @@
 use crate::{
     api::{FirestoreApi, IgdbApi},
     documents::{GameDigest, GameEntry, LibraryEntry, StoreEntry},
-    games::Reconciler,
     Status,
 };
 use itertools::Itertools;
@@ -134,37 +133,7 @@ impl LibraryManager {
 
     #[instrument(
         level = "trace",
-        skip(self, firestore, igdb, store_entry),
-        fields(
-            title = %store_entry.title,
-        )
-    )]
-    async fn match_entry(
-        &self,
-        firestore: Arc<FirestoreApi>,
-        igdb: Arc<IgdbApi>,
-        store_entry: StoreEntry,
-    ) -> Result<(Vec<GameDigest>, StoreEntry), Status> {
-        Ok((
-            Reconciler::get_digest_by_store_entry(Arc::clone(&firestore), &igdb, &store_entry)
-                .await?,
-            store_entry,
-        ))
-    }
-
-    #[instrument(level = "trace", skip(self, firestore, igdb))]
-    pub async fn get_digest(
-        &self,
-        firestore: Arc<FirestoreApi>,
-        igdb: Arc<IgdbApi>,
-        game_id: u64,
-    ) -> Result<Vec<GameDigest>, Status> {
-        Reconciler::get_digest(Arc::clone(&firestore), &igdb, game_id).await
-    }
-
-    #[instrument(
-        level = "trace",
-        skip(self, firestore, store_entry, digests)
+        skip(self, firestore, store_entry, game_entry)
         fields(
             store_game = %store_entry.title,
         ),
@@ -173,13 +142,18 @@ impl LibraryManager {
         &self,
         firestore: Arc<FirestoreApi>,
         store_entry: StoreEntry,
-        digests: Vec<GameDigest>,
+        game_entry: GameEntry,
     ) -> Result<(), Status> {
         firestore::failed::remove_entry(&firestore, &self.user_id, &store_entry).await?;
-        for digest in &digests {
-            firestore::wishlist::remove_entry(&firestore, &self.user_id, digest.id).await?;
-        }
-        firestore::library::add_entry(&firestore, &self.user_id, store_entry, digests).await
+
+        let library_entries = LibraryEntry::new_with_expand(game_entry, store_entry);
+        firestore::wishlist::remove_entries(
+            &firestore,
+            &self.user_id,
+            &library_entries.iter().map(|e| e.id).collect_vec(),
+        )
+        .await?;
+        firestore::library::add_entries(&firestore, &self.user_id, library_entries).await
     }
 
     /// Unmatch a `StoreEntry` from user's library.
@@ -204,7 +178,7 @@ impl LibraryManager {
 
     #[instrument(
         level = "trace",
-        skip(self, firestore, igdb, store_entry)
+        skip(self, firestore, store_entry, game_entry)
         fields(
             store_game = %store_entry.title,
         ),
@@ -212,35 +186,36 @@ impl LibraryManager {
     pub async fn rematch_game(
         &self,
         firestore: Arc<FirestoreApi>,
-        igdb: Arc<IgdbApi>,
         store_entry: StoreEntry,
-        game_id: u64,
+        game_entry: GameEntry,
     ) -> Result<(), Status> {
-        let digests = self
-            .get_digest(Arc::clone(&firestore), igdb, game_id)
-            .await?;
-
-        firestore::library::remove_entry(&firestore, &self.user_id, &store_entry).await?;
-        firestore::library::add_entry(&firestore, &self.user_id, store_entry, digests).await
+        firestore::library::replace_entry(
+            &firestore,
+            &self.user_id,
+            &store_entry,
+            LibraryEntry::new_with_expand(game_entry, store_entry.clone()),
+        )
+        .await
     }
 
-    #[instrument(level = "trace", skip(self, firestore, igdb))]
+    #[instrument(
+        level = "trace",
+        skip(self, firestore, game_entry),
+        fields(
+            game_id = %game_entry.id,
+        )
+    )]
     pub async fn update_game(
         &self,
         firestore: Arc<FirestoreApi>,
-        igdb: Arc<IgdbApi>,
-        game_id: u64,
+        game_entry: GameEntry,
     ) -> Result<(), Status> {
-        let digests = self
-            .get_digest(Arc::clone(&firestore), igdb, game_id)
-            .await?;
-        let m =
-            firestore::library::update_entry(&firestore, &self.user_id, game_id, digests.clone())
-                .await;
-        match m {
+        let game_digest = GameDigest::from(game_entry);
+        match firestore::library::update_entry(&firestore, &self.user_id, game_digest.clone()).await
+        {
             Ok(()) => Ok(()),
             Err(Status::NotFound(_)) => {
-                firestore::wishlist::update_entry(&firestore, &self.user_id, game_id, digests).await
+                firestore::wishlist::update_entry(&firestore, &self.user_id, game_digest).await
             }
             Err(e) => Err(e),
         }

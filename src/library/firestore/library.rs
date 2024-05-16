@@ -113,26 +113,44 @@ pub async fn remove_entry(
 }
 
 #[instrument(
+    name = "library::replace_entry",
+    level = "trace",
+    skip(firestore, user_id, library_entries)
+)]
+pub async fn replace_entry(
+    firestore: &FirestoreApi,
+    user_id: &str,
+    store_entry: &StoreEntry,
+    library_entries: Vec<LibraryEntry>,
+) -> Result<(), Status> {
+    let mut library = read(firestore, user_id).await?;
+
+    remove(store_entry, &mut library);
+    for library_entry in library_entries {
+        add(library_entry, &mut library);
+    }
+
+    write(firestore, user_id, library).await?;
+
+    Ok(())
+}
+
+#[instrument(
     name = "library::update_entry",
     level = "trace",
-    skip(firestore, user_id, digests)
+    skip(firestore, user_id, game_digest)
 )]
 pub async fn update_entry(
     firestore: &FirestoreApi,
     user_id: &str,
-    game_id: u64,
-    digests: Vec<GameDigest>,
+    game_digest: GameDigest,
 ) -> Result<(), Status> {
     let mut library = read(firestore, user_id).await?;
 
-    for digest in digests {
-        match library.entries.iter_mut().find(|e| e.id == digest.id) {
-            Some(existing_entry) => existing_entry.digest = digest,
-            None => {
-                return Err(Status::not_found(format!(
-                    "update_entry() called for game_id={game_id} but entry was not found in library."
-                )));
-            }
+    match library.entries.iter_mut().find(|e| e.id == game_digest.id) {
+        Some(existing_entry) => existing_entry.digest = game_digest,
+        None => {
+            return Err(Status::not_found("not in library"));
         }
     }
 
