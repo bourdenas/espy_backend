@@ -35,12 +35,8 @@ pub async fn add_entries(
 ) -> Result<(), Status> {
     let mut failed = read(firestore, user_id).await?;
 
-    if store_entries.into_iter().fold(false, |added, store_entry| {
-        added || add(store_entry, &mut failed)
-    }) {
-        write(firestore, user_id, &failed).await?;
-    }
-    Ok(())
+    failed.entries.extend(store_entries);
+    write(firestore, user_id, &failed).await
 }
 
 #[instrument(

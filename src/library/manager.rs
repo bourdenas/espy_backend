@@ -35,7 +35,6 @@ impl LibraryManager {
             return Ok(());
         }
 
-        println!("batching {} store entries", store_entries.len());
         let externals = external_games::batch_read(&firestore, store_entries).await?;
 
         let doc_ids =
@@ -53,9 +52,6 @@ impl LibraryManager {
             .map(|m| m.clone())
             .collect_vec();
 
-        println!("found {} games", games.len());
-        println!("did not find {} games", not_found_games.len());
-
         let firestore_clone = Arc::clone(&firestore);
         let user_id = self.user_id.clone();
         if !not_found_games.is_empty() {
@@ -64,7 +60,6 @@ impl LibraryManager {
                     let mut library_entries = vec![];
                     for m in not_found_games {
                         let id = m.external_game.igdb_id;
-                        println!("Resolving missing '{}' ({id})", &m.store_entry.title);
                         let igdb_game = match igdb.get(id).await {
                             Ok(game) => game,
                             Err(status) => {
@@ -116,6 +111,7 @@ impl LibraryManager {
             firestore::library::add_entries(&firestore, &self.user_id, library_entries).await?;
             firestore::wishlist::remove_entries(&firestore, &self.user_id, &game_ids).await?;
         }
+        // TODO: For missing generate candidates by searching by title and create a new doc with these.
         if !externals.missing.is_empty() {
             firestore::failed::add_entries(&firestore, &self.user_id, externals.missing.clone())
                 .await?;
