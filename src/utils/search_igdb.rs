@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use clap::Parser;
-use espy_backend::{documents::StoreEntry, *};
+use espy_backend::{api::IgdbSearch, documents::StoreEntry, *};
 use itertools::Itertools;
 
 /// IGDB search utility.
@@ -26,11 +26,6 @@ struct Opts {
     /// If set retrieves all available information for the top candidate of the
     /// search.
     #[clap(long)]
-    expand: bool,
-
-    /// If set retrieves all available information for the top candidate of the
-    /// search.
-    #[clap(long)]
     resolve: bool,
 
     /// JSON file that contains application keys for espy service.
@@ -48,6 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let mut igdb = api::IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
     igdb.connect().await?;
+    let igdb = Arc::new(igdb);
 
     if !&opts.external.is_empty() {
         let game = igdb
@@ -62,7 +58,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     let games = match opts.id {
-        0 => igdb.search_by_title(&opts.search).await?,
+        0 => {
+            let igdb = Arc::clone(&igdb);
+            let igdb_search = IgdbSearch::new(igdb);
+            igdb_search.search_by_title(&opts.search).await?
+        }
         id => vec![igdb.get(id).await?],
     };
 
@@ -72,18 +72,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         games.iter().map(|game| &game.name).join("\n")
     );
 
-    if opts.expand && !games.is_empty() {
-        let igdb_game = games.first().unwrap();
-
-        println!("{:?}", igdb_game);
-        if igdb_game.category == 3 || igdb_game.version_parent.is_some() {
-            let games = igdb.expand_bundle(igdb_game.id).await?;
-            println!("\nincludes:");
-            for igdb_game in games {
-                println!("{:?}", igdb_game);
-            }
-        }
-    } else if opts.resolve && !games.is_empty() {
+    if opts.resolve && !games.is_empty() {
         let firestore = Arc::new(api::FirestoreApi::connect().await?);
         let igdb_game = games.first().unwrap();
         let game_entry = igdb.resolve(firestore, igdb_game.clone()).await?;

@@ -1,5 +1,5 @@
 use crate::{
-    api::{FirestoreApi, IgdbApi},
+    api::{FirestoreApi, IgdbApi, IgdbSearch},
     games::ReconReport,
     http::models,
     library::{firestore::games, LibraryManager, User},
@@ -29,7 +29,8 @@ pub async fn post_search(
     igdb: Arc<IgdbApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
     let event = SearchEvent::new(&search);
-    match igdb
+    let igdb_search = IgdbSearch::new(igdb);
+    match igdb_search
         .search_by_title_with_cover(&search.title, search.base_game_only)
         .await
     {
