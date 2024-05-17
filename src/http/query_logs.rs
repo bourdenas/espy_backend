@@ -2,7 +2,7 @@ use std::time::SystemTime;
 
 use tracing::{error, info};
 
-use crate::{documents::GameEntry, games::ReconReport, Status};
+use crate::{documents::GameEntry, Status};
 
 use super::models;
 
@@ -349,7 +349,7 @@ impl SyncEvent {
         }
     }
 
-    pub fn log(self, user_id: &str, _: &ReconReport) {
+    pub fn log(self, user_id: &str) {
         info!(
             http_request.request_method = "POST",
             http_request.request_url = "/library/_/sync",

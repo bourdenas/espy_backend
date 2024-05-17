@@ -1,6 +1,5 @@
 use crate::{
     api::{FirestoreApi, IgdbApi, IgdbSearch},
-    games::ReconReport,
     http::models,
     library::{firestore::games, LibraryManager, User},
     util, Status,
@@ -281,40 +280,36 @@ pub async fn post_sync(
     api_keys: Arc<util::keys::Keys>,
     firestore: Arc<FirestoreApi>,
     igdb: Arc<IgdbApi>,
-) -> Result<Box<dyn warp::Reply>, Infallible> {
+) -> Result<impl warp::Reply, Infallible> {
     let event = SyncEvent::new();
 
     let store_entries = match User::fetch(Arc::clone(&firestore), &user_id).await {
-        Ok(mut user) => match user.sync_accounts(&api_keys).await {
-            Ok(entries) => entries,
-            Err(status) => {
-                event.log_error(&user_id, status);
-                return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
-            }
-        },
+        Ok(mut user) => user.sync_accounts(&api_keys).await,
+        Err(status) => Err(status),
+    };
+
+    let store_entries = match store_entries {
+        Ok(store_entries) => store_entries,
         Err(status) => {
             event.log_error(&user_id, status);
-            return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
+            return Ok(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
 
     let manager = LibraryManager::new(&user_id);
-    let report = match manager
+    match manager
         .batch_recon_store_entries(firestore, igdb, store_entries)
         .await
     {
-        Ok(()) => ReconReport {
-            lines: vec!["Done".to_owned()],
-        },
+        Ok(()) => {
+            event.log(&user_id);
+            Ok(StatusCode::OK)
+        }
         Err(status) => {
             event.log_error(&user_id, status);
-            return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
+            Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
-    };
-
-    event.log(&user_id, &report);
-    let resp: Box<dyn warp::Reply> = Box::new(warp::reply::json(&report));
-    Ok(resp)
+    }
 }
 
 #[instrument(level = "trace")]
