@@ -1,12 +1,11 @@
 use std::cmp::Ordering;
 
 use crate::{
-    api::{FirestoreApi, MetacriticApi, SteamScrape},
+    api::{FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
     documents::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
         GameCategory, GameDigest, GameEntry, Image, SteamData, Website, WebsiteAuthority,
     },
-    games::SteamDataApi,
     library::firestore,
     Status,
 };
