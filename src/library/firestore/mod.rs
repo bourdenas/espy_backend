@@ -1,7 +1,6 @@
 pub mod collections;
 pub mod companies;
 pub mod external_games;
-pub mod failed;
 pub mod franchises;
 pub mod frontpage;
 pub mod games;
@@ -11,6 +10,7 @@ pub mod library;
 pub mod notable;
 pub mod storefront;
 pub mod timeline;
+pub mod unresolved;
 pub mod user_data;
 pub mod user_tags;
 pub mod wishlist;

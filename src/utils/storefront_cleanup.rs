@@ -14,9 +14,9 @@ struct Opts {
 }
 
 /// Verifies that all game ids that exist in in /users/{id}/strorefront/{store}
-/// document are also included in the user library of matched or failed entries.
-/// If a game id is missing from the library it is deleted in order to be picked
-/// up again for recon on the next storefront sync.
+/// document are also included in the user library of matched or unresolved
+/// entries. If a game id is missing from the library it is deleted in order to
+/// be picked up again for recon on the next storefront sync.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Tracing::setup("util/storefront_cleanup")?;
@@ -26,13 +26,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let firestore = FirestoreApi::connect().await?;
 
     let user_library = firestore::library::read(&firestore, &opts.user).await?;
-    let failed = firestore::failed::read(&firestore, &opts.user)
+    let unresolved = firestore::unresolved::read(&firestore, &opts.user)
         .await?
-        .entries;
+        .unknown;
 
-    storefront_cleanup(&firestore, &opts.user, &user_library, &failed)
+    storefront_cleanup(&firestore, &opts.user, &user_library, &unresolved)
         .await
-        .expect("Failed to cleanup GOG");
+        .expect("Unresolved to cleanup");
 
     Ok(())
 }
@@ -41,7 +41,7 @@ async fn storefront_cleanup(
     firestore: &FirestoreApi,
     user_id: &str,
     user_library: &Library,
-    user_failed: &[StoreEntry],
+    user_unresolved: &[StoreEntry],
 ) -> Result<(), Status> {
     let mut storefront = firestore::storefront::read(&firestore, user_id).await?;
 
@@ -52,7 +52,7 @@ async fn storefront_cleanup(
             .iter()
             .find(|entry| find_store_entry(entry, &store_entry.id, &store_entry.storefront_name));
         if let None = iter {
-            let iter = user_failed.iter().find(|entry| {
+            let iter = user_unresolved.iter().find(|entry| {
                 entry.id == store_entry.id && entry.storefront_name == store_entry.storefront_name
             });
 

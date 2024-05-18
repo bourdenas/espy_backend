@@ -110,10 +110,15 @@ impl LibraryManager {
             firestore::library::add_entries(&firestore, &self.user_id, library_entries).await?;
             firestore::wishlist::remove_entries(&firestore, &self.user_id, &game_ids).await?;
         }
+
         // TODO: For missing generate candidates by searching by title and create a new doc with these.
         if !externals.missing.is_empty() {
-            firestore::failed::add_entries(&firestore, &self.user_id, externals.missing.clone())
-                .await?;
+            firestore::unresolved::add_unknown(
+                &firestore,
+                &self.user_id,
+                externals.missing.clone(),
+            )
+            .await?;
         }
 
         firestore::storefront::add_entries(
@@ -144,7 +149,7 @@ impl LibraryManager {
         store_entry: StoreEntry,
         game_entry: GameEntry,
     ) -> Result<(), Status> {
-        firestore::failed::remove_entry(&firestore, &self.user_id, &store_entry).await?;
+        firestore::unresolved::remove_entry(&firestore, &self.user_id, &store_entry).await?;
 
         let library_entries = LibraryEntry::new_with_expand(game_entry, store_entry);
         firestore::wishlist::remove_entries(
@@ -168,11 +173,10 @@ impl LibraryManager {
         delete: bool,
     ) -> Result<(), Status> {
         firestore::library::remove_entry(&firestore, &self.user_id, &store_entry).await?;
-        match delete {
-            false => firestore::failed::add_entry(&firestore, &self.user_id, store_entry).await,
-            true => {
-                firestore::storefront::remove_entry(&firestore, &self.user_id, &store_entry).await
-            }
+        if delete {
+            firestore::storefront::remove_entry(&firestore, &self.user_id, &store_entry).await
+        } else {
+            firestore::unresolved::add_unknown(&firestore, &self.user_id, vec![store_entry]).await
         }
     }
 
@@ -247,7 +251,7 @@ impl LibraryManager {
         storefront_id: &str,
     ) -> Result<(), Status> {
         firestore::library::remove_storefront(&firestore, &self.user_id, storefront_id).await?;
-        firestore::failed::remove_storefront(&firestore, &self.user_id, storefront_id).await?;
+        firestore::unresolved::remove_storefront(&firestore, &self.user_id, storefront_id).await?;
         firestore::storefront::remove_store(&firestore, &self.user_id, storefront_id).await
     }
 }
