@@ -6,7 +6,8 @@ use crate::{
     library::firestore,
     Status,
 };
-use tracing::{info, instrument, trace_span, warn, Instrument};
+use itertools::Itertools;
+use tracing::{instrument, trace_span, warn, Instrument};
 
 use super::{
     backend::post,
@@ -24,31 +25,32 @@ impl IgdbSearch {
         IgdbSearch { igdb }
     }
 
-    /// Returns a `GameDigest` from IGDB matching the `title`.
-    #[instrument(level = "trace", skip(self, firestore, igdb))]
+    /// Returns `GameDigest` for candidates matching the `title` in IGDB.
+    #[instrument(level = "trace", skip(self, firestore))]
     pub async fn match_by_title(
         &self,
-        firestore: Arc<FirestoreApi>,
-        igdb: &IgdbApi,
+        firestore: &FirestoreApi,
         title: &str,
-    ) -> Result<Option<GameDigest>, Status> {
-        info!("Searching by title '{}'", title);
-
+    ) -> Result<Vec<GameDigest>, Status> {
         let candidates = self.search_by_title(title).await?;
-        match candidates.into_iter().next() {
-            Some(igdb_game) => match firestore::games::read(&firestore, igdb_game.id).await {
-                Ok(game_entry) => Ok(Some(GameDigest::from(game_entry))),
-                Err(Status::NotFound(_)) => {
-                    match igdb.resolve_digest(&firestore, igdb_game).await {
-                        Ok(digest) => Ok(Some(digest)),
-                        Err(Status::NotFound(_)) => Ok(None),
-                        Err(e) => Err(e),
-                    }
+        let candidate_ids = candidates.iter().map(|e| e.id).collect_vec();
+
+        let (games, _not_found_games) =
+            firestore::games::batch_read(&firestore, &candidate_ids).await?;
+
+        Ok(candidates
+            .into_iter()
+            .map(|igdb_game| {
+                if let Some(game) = games
+                    .iter()
+                    .find(|game_entry| game_entry.id == igdb_game.id)
+                {
+                    GameDigest::from(game.clone())
+                } else {
+                    GameDigest::from(GameEntry::from(igdb_game))
                 }
-                Err(e) => Err(e),
-            },
-            None => Ok(None),
-        }
+            })
+            .collect_vec())
     }
 
     /// Returns IgdbGames that match the `title` by searching in IGDB.

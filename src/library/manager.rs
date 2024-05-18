@@ -1,6 +1,6 @@
 use crate::{
-    api::{FirestoreApi, IgdbApi},
-    documents::{GameDigest, GameEntry, LibraryEntry, StoreEntry},
+    api::{FirestoreApi, IgdbApi, IgdbSearch},
+    documents::{GameDigest, GameEntry, LibraryEntry, StoreEntry, Unresolved},
     Status,
 };
 use itertools::Itertools;
@@ -51,47 +51,16 @@ impl LibraryManager {
             .map(|m| m.clone())
             .collect_vec();
 
-        let firestore_clone = Arc::clone(&firestore);
-        let user_id = self.user_id.clone();
+        // Resolve from IGDB games that were not found.
         if !not_found_games.is_empty() {
+            let igdb = Arc::clone(&igdb);
+            let firestore = Arc::clone(&firestore);
+            let user_id = self.user_id.clone();
             tokio::spawn(
                 async move {
-                    let mut library_entries = vec![];
-                    for m in not_found_games {
-                        let id = m.external_game.igdb_id;
-                        let igdb_game = match igdb.get(id).await {
-                            Ok(game) => game,
-                            Err(status) => {
-                                error!("Failed to retrieve IGDB game: {status}");
-                                continue;
-                            }
-                        };
-                        library_entries.extend(
-                            match igdb.resolve(Arc::clone(&firestore_clone), igdb_game).await {
-                                Ok(game) => LibraryEntry::new_with_expand(game, m.store_entry),
-                                Err(status) => {
-                                    error!("Failed to resolve IGDB game: {status}");
-                                    continue;
-                                }
-                            },
-                        );
-                    }
-
-                    let game_ids = library_entries.iter().map(|e| e.id).collect_vec();
-                    if let Err(status) =
-                        firestore::library::add_entries(&firestore_clone, &user_id, library_entries)
-                            .await
-                    {
-                        error!("{status}");
-                    }
-                    if let Err(status) =
-                        firestore::wishlist::remove_entries(&firestore_clone, &user_id, &game_ids)
-                            .await
-                    {
-                        error!("{status}");
-                    }
+                    igdb_resolve(igdb, firestore, user_id, not_found_games).await;
                 }
-                .instrument(trace_span!("spawn_resolve_missing")),
+                .instrument(trace_span!("spawn_igdb_resolve")),
             );
         }
 
@@ -111,14 +80,18 @@ impl LibraryManager {
             firestore::wishlist::remove_entries(&firestore, &self.user_id, &game_ids).await?;
         }
 
-        // TODO: For missing generate candidates by searching by title and create a new doc with these.
+        // For games that were not found in ExternalGames generate candidates
+        // by searching their titles in IGDB.
         if !externals.missing.is_empty() {
-            firestore::unresolved::add_unknown(
-                &firestore,
-                &self.user_id,
-                externals.missing.clone(),
-            )
-            .await?;
+            let firestore = Arc::clone(&firestore);
+            let user_id = self.user_id.clone();
+            let missing = externals.missing.clone();
+            tokio::spawn(
+                async move {
+                    search_candidates(igdb, firestore, user_id, missing).await;
+                }
+                .instrument(trace_span!("spawn_search_candidates")),
+            );
         }
 
         firestore::storefront::add_entries(
@@ -253,5 +226,78 @@ impl LibraryManager {
         firestore::library::remove_storefront(&firestore, &self.user_id, storefront_id).await?;
         firestore::unresolved::remove_storefront(&firestore, &self.user_id, storefront_id).await?;
         firestore::storefront::remove_store(&firestore, &self.user_id, storefront_id).await
+    }
+}
+
+async fn igdb_resolve(
+    igdb: Arc<IgdbApi>,
+    firestore: Arc<FirestoreApi>,
+    user_id: String,
+    externals: Vec<external_games::ExternalMatch>,
+) {
+    let mut library_entries = vec![];
+    for m in externals {
+        let id = m.external_game.igdb_id;
+        let igdb_game = match igdb.get(id).await {
+            Ok(game) => game,
+            Err(status) => {
+                error!("Failed to retrieve IGDB game: {status}");
+                continue;
+            }
+        };
+        let game_entry = match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
+            Ok(game) => game,
+            Err(status) => {
+                error!("Failed to resolve IGDB game: {status}");
+                continue;
+            }
+        };
+        library_entries.extend(LibraryEntry::new_with_expand(game_entry, m.store_entry));
+    }
+
+    let game_ids = library_entries.iter().map(|e| e.id).collect_vec();
+    if let Err(e) = firestore::library::add_entries(&firestore, &user_id, library_entries).await {
+        error!("{e}");
+    }
+    if let Err(e) = firestore::wishlist::remove_entries(&firestore, &user_id, &game_ids).await {
+        error!("{e}");
+    }
+}
+
+async fn search_candidates(
+    igdb: Arc<IgdbApi>,
+    firestore: Arc<FirestoreApi>,
+    user_id: String,
+    missing: Vec<StoreEntry>,
+) {
+    let igdb_search = IgdbSearch::new(igdb);
+
+    let mut unresolved = vec![];
+    let mut unknown = vec![];
+    for store_entry in missing {
+        match igdb_search
+            .match_by_title(&firestore, &store_entry.title)
+            .await
+        {
+            Ok(candidates) => {
+                if !candidates.is_empty() {
+                    unresolved.push(Unresolved {
+                        store_entry,
+                        candidates,
+                    });
+                } else {
+                    unknown.push(store_entry);
+                }
+            }
+            Err(status) => {
+                error!("{status}");
+            }
+        }
+    }
+
+    if let Err(status) =
+        firestore::unresolved::add_unresolved(&firestore, &user_id, unresolved, unknown).await
+    {
+        error!("{status}");
     }
 }

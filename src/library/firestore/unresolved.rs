@@ -1,9 +1,26 @@
 use crate::{
     api::FirestoreApi,
-    documents::{StoreEntry, UnresolvedEntries},
+    documents::{StoreEntry, Unresolved, UnresolvedEntries},
     Status,
 };
 use tracing::instrument;
+
+#[instrument(
+    name = "unresolved::add_unresolved",
+    level = "trace",
+    skip(firestore, user_id, unresolved, unknown)
+)]
+pub async fn add_unresolved(
+    firestore: &FirestoreApi,
+    user_id: &str,
+    unresolved: Vec<Unresolved>,
+    unknown: Vec<StoreEntry>,
+) -> Result<(), Status> {
+    let mut doc = read(firestore, user_id).await?;
+    doc.need_approval.extend(unresolved);
+    doc.unknown.extend(unknown);
+    write(firestore, user_id, &doc).await
+}
 
 #[instrument(
     name = "unresolved::add_unknown",
@@ -144,48 +161,6 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn add_in_empty_library() {
-    //     let mut unresolved = UnresolvedEntries::default();
-
-    //     assert_eq!(add(new_store_entry("123", "gog"), &mut unresolved), true);
-    //     assert_eq!(unresolved.entries.len(), 1);
-    // }
-
-    // #[test]
-    // fn add_in_non_empty_library() {
-    //     let mut unresolved = UnresolvedEntries {
-    //         entries: vec![new_store_entry("213", "gog")],
-    //     };
-
-    //     assert_eq!(add(new_store_entry("123", "gog"), &mut unresolved), true);
-    //     assert_eq!(unresolved.entries.len(), 2);
-    // }
-
-    // #[test]
-    // fn add_same_entry_twice() {
-    //     let mut unresolved = UnresolvedEntries {
-    //         entries: vec![new_store_entry("213", "gog")],
-    //     };
-
-    //     assert_eq!(add(new_store_entry("123", "gog"), &mut unresolved), true);
-    //     assert_eq!(unresolved.entries.len(), 2);
-    //     assert_eq!(add(new_store_entry("123", "gog"), &mut unresolved), false);
-    //     assert_eq!(unresolved.entries.len(), 2);
-    // }
-
-    // #[test]
-    // fn add_same_id_different_store() {
-    //     let mut unresolved = UnresolvedEntries {
-    //         entries: vec![new_store_entry("213", "gog")],
-    //     };
-
-    //     assert_eq!(add(new_store_entry("123", "gog"), &mut unresolved), true);
-    //     assert_eq!(unresolved.entries.len(), 2);
-    //     assert_eq!(add(new_store_entry("123", "steam"), &mut unresolved), true);
-    //     assert_eq!(unresolved.entries.len(), 3);
-    // }
-
     #[test]
     fn remove_from_empty() {
         let mut unresolved = UnresolvedEntries::default();
@@ -214,7 +189,31 @@ mod tests {
     }
 
     #[test]
-    fn remove_found() {
+    fn remove_found_in_need_approval() {
+        let mut unresolved = UnresolvedEntries {
+            need_approval: vec![
+                Unresolved {
+                    store_entry: new_store_entry("123", "gog"),
+                    candidates: vec![],
+                },
+                Unresolved {
+                    store_entry: new_store_entry("123", "steam"),
+                    candidates: vec![],
+                },
+            ],
+            unknown: vec![new_store_entry("213", "gog")],
+        };
+
+        assert_eq!(
+            remove(&new_store_entry("123", "gog"), &mut unresolved),
+            true
+        );
+        assert_eq!(unresolved.need_approval.len(), 1);
+        assert_eq!(unresolved.unknown.len(), 1);
+    }
+
+    #[test]
+    fn remove_found_in_unknown() {
         let mut unresolved = UnresolvedEntries {
             need_approval: vec![],
             unknown: vec![new_store_entry("213", "gog"), new_store_entry("123", "gog")],
