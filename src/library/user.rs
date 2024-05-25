@@ -1,7 +1,8 @@
 use crate::{
     api::{FirestoreApi, GogApi, GogToken, SteamApi},
     documents::{StoreEntry, UserData},
-    traits, util, Status,
+    traits::Storefront,
+    util, Status,
 };
 use std::sync::Arc;
 use tracing::{error, info, instrument, warn};
@@ -60,7 +61,7 @@ impl User {
             None => None,
         };
         if let Some(api) = gog_api {
-            store_entries.extend(self.sync_storefront(&api).await?);
+            store_entries.extend(api.get_owned_games().await?);
         }
 
         let steam_api = match self.steam_user_id() {
@@ -68,20 +69,9 @@ impl User {
             None => None,
         };
         if let Some(api) = steam_api {
-            store_entries.extend(self.sync_storefront(&api).await?);
+            store_entries.extend(api.get_owned_games().await?);
         }
 
-        Ok(store_entries)
-    }
-
-    /// Retrieves StoreEntries from remote storefront and returns StoreEntries
-    /// that are not already on user's library.
-    #[instrument(level = "trace", skip(self, api))]
-    async fn sync_storefront<T: traits::Storefront>(
-        &self,
-        api: &T,
-    ) -> Result<Vec<StoreEntry>, Status> {
-        let store_entries = api.get_owned_games().await?;
         firestore::storefront::diff_entries(&self.firestore, &self.data.uid, store_entries).await
     }
 

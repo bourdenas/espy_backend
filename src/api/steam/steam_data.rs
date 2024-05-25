@@ -1,9 +1,10 @@
 use crate::{
-    api::SteamApi, documents::SteamData, logging::SteamFetchCounter,
-    util::rate_limiter::RateLimiter, Status,
+    documents::SteamData, logging::SteamFetchCounter, util::rate_limiter::RateLimiter, Status,
 };
 use std::time::Duration;
 use tracing::instrument;
+
+use super::SteamApi;
 
 pub struct SteamDataApi {
     qps: RateLimiter,

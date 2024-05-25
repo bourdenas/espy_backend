@@ -39,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let manager = library::LibraryManager::new(&opts.user);
     manager
-        .recon_store_entries(firestore, igdb, store_entries)
+        .batch_recon_store_entries(firestore, igdb, store_entries)
         .await?;
     Ok(())
 }

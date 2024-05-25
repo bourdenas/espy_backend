@@ -53,38 +53,32 @@ pub async fn remove_entries(
     game_ids: &[u64],
 ) -> Result<(), Status> {
     let mut wishlist = read(firestore, user_id).await?;
-    let old_size = wishlist.entries.len();
-    for game_id in game_ids {
-        remove(*game_id, &mut wishlist);
-    }
 
-    match wishlist.entries.len() < old_size {
-        true => write(firestore, user_id, wishlist).await,
-        false => Ok(()),
+    if game_ids
+        .into_iter()
+        .fold(false, |dirty, id| dirty || remove(*id, &mut wishlist))
+    {
+        write(firestore, user_id, wishlist).await?;
     }
+    Ok(())
 }
 
 #[instrument(
     name = "wishlist::update_entry",
     level = "trace",
-    skip(firestore, user_id, digests)
+    skip(firestore, user_id, game_digest)
 )]
 pub async fn update_entry(
     firestore: &FirestoreApi,
     user_id: &str,
-    game_id: u64,
-    digests: Vec<GameDigest>,
+    game_digest: GameDigest,
 ) -> Result<(), Status> {
     let mut wishlist = read(firestore, user_id).await?;
 
-    for digest in digests {
-        match wishlist.entries.iter_mut().find(|e| e.id == digest.id) {
-            Some(existing_entry) => existing_entry.digest = digest,
-            None => {
-                return Err(Status::not_found(format!(
-                    "update_entry() called for game_id={game_id} but entry was not found in library."
-                )));
-            }
+    match wishlist.entries.iter_mut().find(|e| e.id == game_digest.id) {
+        Some(existing_entry) => existing_entry.digest = game_digest,
+        None => {
+            return Err(Status::not_found("not in wishlist"));
         }
     }
 

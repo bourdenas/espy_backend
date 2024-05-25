@@ -15,6 +15,7 @@ mod steam_data;
 mod store_entry;
 mod storefront;
 mod timeline;
+mod unresolved;
 mod user_data;
 mod user_tags;
 
@@ -35,5 +36,6 @@ pub use steam_data::{SteamData, SteamScore};
 pub use store_entry::{FailedEntries, StoreEntry};
 pub use storefront::Storefront;
 pub use timeline::*;
+pub use unresolved::{Unresolved, UnresolvedEntries};
 pub use user_data::{Keys, UserData};
 pub use user_tags::{Tag, UserTags};

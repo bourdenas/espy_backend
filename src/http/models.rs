@@ -62,8 +62,3 @@ pub struct WishlistOp {
 pub struct Unlink {
     pub storefront_id: String,
 }
-
-#[derive(Debug, Default, Deserialize, Serialize)]
-pub struct Upload {
-    pub entries: Vec<documents::StoreEntry>,
-}

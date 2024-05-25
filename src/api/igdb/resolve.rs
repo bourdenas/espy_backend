@@ -1,17 +1,17 @@
 use std::cmp::Ordering;
 
 use crate::{
-    api::{FirestoreApi, MetacriticApi, SteamScrape},
+    api::{FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
     documents::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
-        GameDigest, GameEntry, Image, SteamData, Website, WebsiteAuthority,
+        GameCategory, GameDigest, GameEntry, Image, SteamData, Website, WebsiteAuthority,
     },
-    games::SteamDataApi,
     library::firestore,
     Status,
 };
 use async_recursion::async_recursion;
 use chrono::NaiveDateTime;
+use itertools::Itertools;
 use tracing::{instrument, trace_span, warn, Instrument};
 
 use super::{
@@ -261,6 +261,20 @@ pub async fn resolve_game_info(
             game_entry.remasters = digests;
         }
     }
+    if matches!(
+        game_entry.category,
+        GameCategory::Bundle | GameCategory::Version
+    ) {
+        let game_ids = get_bundle_games_ids(connection, game_entry.id)
+            .await?
+            .into_iter()
+            .map(|e| e.id)
+            .collect_vec();
+
+        if let Ok(digests) = get_digests(connection, firestore, &game_ids).await {
+            game_entry.contents = digests;
+        }
+    }
 
     if let Some(handle) = steam_handle {
         match handle.await {
@@ -276,6 +290,20 @@ pub async fn resolve_game_info(
     }
 
     Ok(())
+}
+
+/// Returns IgdbGames included in the bundle of `bundle_id`.
+#[instrument(level = "trace", skip(connection))]
+async fn get_bundle_games_ids(
+    connection: &IgdbConnection,
+    bundle_id: u64,
+) -> Result<Vec<IgdbGame>, Status> {
+    post::<Vec<IgdbGame>>(
+        &connection,
+        GAMES_ENDPOINT,
+        &format!("fields id, name; where bundles = ({bundle_id});"),
+    )
+    .await
 }
 
 /// Returns game image cover based on id from the igdb/covers endpoint.
@@ -314,19 +342,11 @@ async fn get_digests(
     firestore: &FirestoreApi,
     ids: &[u64],
 ) -> Result<Vec<GameDigest>, Status> {
-    let mut digests = match firestore::games::batch_read(firestore, ids).await {
-        Ok(game_entries) => game_entries
-            .into_iter()
-            .map(|entry| GameDigest::from(entry))
-            .collect(),
-        Err(_) => vec![],
-    };
-
-    let missing = ids
-        .iter()
-        .filter(|id| digests.iter().all(|digest| digest.id != **id))
-        .map(|id| *id)
-        .collect::<Vec<_>>();
+    let (game_entries, missing) = firestore::games::batch_read(firestore, ids).await?;
+    let mut digests = game_entries
+        .into_iter()
+        .map(|entry| GameDigest::from(entry))
+        .collect_vec();
 
     if !missing.is_empty() {
         let games = get_games(connection, &missing).await?;
@@ -624,7 +644,7 @@ async fn get_release_date(
         connection,
         RELEASE_DATES_ENDPOINT,
         &format!(
-            "fields category, date, status.name; where id = ({}) & platform = (6,13);",
+            "fields category, date, status.name; where id = ({});",
             igdb_game
                 .release_dates
                 .iter()

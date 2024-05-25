@@ -14,9 +14,9 @@ struct Opts {
 }
 
 /// Verifies that all game ids that exist in in /users/{id}/strorefront/{store}
-/// document are also included in the user library of matched or failed entries.
-/// If a game id is missing from the library it is deleted in order to be picked
-/// up again for recon on the next storefront sync.
+/// document are also included in the user library of matched or unresolved
+/// entries. If a game id is missing from the library it is deleted in order to
+/// be picked up again for recon on the next storefront sync.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Tracing::setup("util/storefront_cleanup")?;
@@ -26,16 +26,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let firestore = FirestoreApi::connect().await?;
 
     let user_library = firestore::library::read(&firestore, &opts.user).await?;
-    let failed = firestore::failed::read(&firestore, &opts.user)
+    let unresolved = firestore::unresolved::read(&firestore, &opts.user)
         .await?
-        .entries;
+        .unknown;
 
-    storefront_cleanup(&firestore, &opts.user, &user_library, &failed, "gog")
+    storefront_cleanup(&firestore, &opts.user, &user_library, &unresolved)
         .await
-        .expect("Failed to cleanup GOG");
-    storefront_cleanup(&firestore, &opts.user, &user_library, &failed, "steam")
-        .await
-        .expect("Failed to cleanup Steam");
+        .expect("Unresolved to cleanup");
 
     Ok(())
 }
@@ -44,34 +41,35 @@ async fn storefront_cleanup(
     firestore: &FirestoreApi,
     user_id: &str,
     user_library: &Library,
-    user_failed: &[StoreEntry],
-    storefront_name: &str,
+    user_unresolved: &[StoreEntry],
 ) -> Result<(), Status> {
-    let mut owned_games = firestore::storefront::read(&firestore, user_id, storefront_name).await?;
+    let mut storefront = firestore::storefront::read(&firestore, user_id).await?;
 
     let mut missing = vec![];
-    for game_id in &owned_games {
+    for store_entry in &storefront.entries {
         let iter = user_library
             .entries
             .iter()
-            .find(|entry| find_store_entry(entry, game_id, storefront_name));
+            .find(|entry| find_store_entry(entry, &store_entry.id, &store_entry.storefront_name));
         if let None = iter {
-            let iter = user_failed
-                .iter()
-                .find(|entry| entry.id == *game_id && entry.storefront_name == storefront_name);
+            let iter = user_unresolved.iter().find(|entry| {
+                entry.id == store_entry.id && entry.storefront_name == store_entry.storefront_name
+            });
 
             if let None = iter {
-                missing.push(game_id.clone());
+                missing.push(store_entry.clone());
             }
         }
     }
     println!(
-        "Missing {} {storefront_name} games from user library\nids={:?}",
+        "Missing {} games from user library\nids={:?}",
         missing.len(),
         missing
     );
-    owned_games.retain(|e| !missing.contains(&e));
-    firestore::storefront::write(firestore, user_id, storefront_name, owned_games).await?;
+    storefront
+        .entries
+        .retain(|e| !missing.iter().all(|m| m.id != e.id));
+    firestore::storefront::write(firestore, user_id, &storefront).await?;
 
     Ok(())
 }

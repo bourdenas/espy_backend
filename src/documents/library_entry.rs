@@ -4,7 +4,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use super::{GameDigest, StoreEntry};
+use super::{GameCategory, GameDigest, GameEntry, StoreEntry};
 
 /// Document type under 'users/{user_id}/games/library' that includes user's
 /// library with games matched with an IGDB entry.
@@ -28,11 +28,11 @@ pub struct LibraryEntry {
 }
 
 impl LibraryEntry {
-    pub fn new(digest: GameDigest, store_entries: Vec<StoreEntry>) -> Self {
+    pub fn new(digest: GameDigest, store_entry: StoreEntry) -> Self {
         LibraryEntry {
             id: digest.id,
             digest,
-            store_entries,
+            store_entries: vec![store_entry],
 
             added_date: Some(
                 SystemTime::now()
@@ -41,6 +41,27 @@ impl LibraryEntry {
                     .as_secs(),
             ),
         }
+    }
+
+    pub fn new_with_expand(game_entry: GameEntry, store_entry: StoreEntry) -> Vec<Self> {
+        let mut entries = vec![LibraryEntry::new(
+            GameDigest::from(game_entry.clone()),
+            store_entry.clone(),
+        )];
+        entries.extend(
+            game_entry
+                .contents
+                .iter()
+                .map(|e| LibraryEntry::new(e.clone(), store_entry.clone())),
+        );
+        if matches!(game_entry.category, GameCategory::Version) {
+            if let Some(parent) = &game_entry.parent {
+                if entries.iter().all(|e| e.id != parent.id) {
+                    entries.push(LibraryEntry::new(parent.clone(), store_entry.clone()))
+                }
+            }
+        }
+        entries
     }
 }
 

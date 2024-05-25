@@ -9,7 +9,7 @@ pub struct FailedEntries {
 /// Document type under 'users/{user_id}/unknown/{entry_id}' that represents
 /// user ownership of a title in a storefront that has not yet been matched with
 /// an IGDB entry.
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Eq)]
 pub struct StoreEntry {
     pub id: String,
     pub title: String,
@@ -31,5 +31,11 @@ impl fmt::Display for StoreEntry {
             "StoreEntry({}): '{}' -- {}",
             &self.id, &self.title, &self.storefront_name
         )
+    }
+}
+
+impl PartialEq<StoreEntry> for StoreEntry {
+    fn eq(&self, other: &StoreEntry) -> bool {
+        self.id == other.id && self.storefront_name == other.storefront_name
     }
 }

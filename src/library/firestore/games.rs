@@ -39,11 +39,15 @@ pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<GameEntry, St
     }
 }
 
-#[instrument(name = "games::batch_read", level = "trace", skip(firestore))]
+/// Batch reads games by id.
+///
+/// Returns a tuple with two vectors. The first one contains the found GameEntry
+/// docs and the second contains the doc ids that were not found.
+#[instrument(name = "games::batch_read", level = "trace", skip(firestore, doc_ids))]
 pub async fn batch_read(
     firestore: &FirestoreApi,
     doc_ids: &[u64],
-) -> Result<Vec<GameEntry>, Status> {
+) -> Result<(Vec<GameEntry>, Vec<u64>), Status> {
     let mut docs: BoxStream<FirestoreResult<(String, Option<GameEntry>)>> = firestore
         .db()
         .fluent()
@@ -53,18 +57,19 @@ pub async fn batch_read(
         .batch_with_errors(doc_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>())
         .await?;
 
-    let mut games: Vec<GameEntry> = vec![];
+    let mut games = vec![];
+    let mut not_found = vec![];
     while let Some(game) = docs.next().await {
         match game {
-            Ok((_, game)) => match game {
+            Ok((id, game)) => match game {
                 Some(game) => games.push(game),
-                None => {}
+                None => not_found.push(id.parse().unwrap_or_default()),
             },
             Err(status) => warn!("{status}"),
         }
     }
 
-    Ok(games)
+    Ok((games, not_found))
 }
 
 #[instrument(name = "games::write", level = "trace", skip(firestore, game_entry))]

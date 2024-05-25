@@ -50,7 +50,6 @@ pub struct IgdbGame {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_rating: Option<f64>,
 
-    // TODO: Needs backfill.
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_rating_count: Option<f64>,
