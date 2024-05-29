@@ -132,7 +132,7 @@ fn post_sync(
 
 /// GET /images/{resolution}/{image_id}
 fn get_images() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-    warp::path!("images" / String / String)
+    warp::path!("images" / String)
         .and(warp::get())
         .and_then(handlers::get_images)
 }

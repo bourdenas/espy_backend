@@ -313,21 +313,17 @@ pub async fn post_sync(
 }
 
 #[instrument(level = "trace")]
-pub async fn get_images(
-    resolution: String,
-    image: String,
-) -> Result<Box<dyn warp::Reply>, Infallible> {
-    let uri = format!("{IGDB_IMAGES_URL}/{resolution}/{image}");
+pub async fn get_images(uri: String) -> Result<Box<dyn warp::Reply>, Infallible> {
     let resp = match reqwest::Client::new().get(&uri).send().await {
         Ok(resp) => resp,
         Err(err) => {
-            warn! {"{err}"}
+            warn!("{err}");
             return Ok(Box::new(StatusCode::NOT_FOUND));
         }
     };
 
     if resp.status() != StatusCode::OK {
-        warn! {"Failed to retrieve image: {uri} \nerr: {}", resp.status()}
+        warn!("Failed to retrieve image: {uri} \nerr: {}", resp.status());
         return Ok(Box::new(resp.status()));
     }
 
@@ -336,5 +332,3 @@ pub async fn get_images(
         Err(_) => Ok(Box::new(StatusCode::NOT_FOUND)),
     }
 }
-
-const IGDB_IMAGES_URL: &str = "https://images.igdb.com/igdb/image/upload";
