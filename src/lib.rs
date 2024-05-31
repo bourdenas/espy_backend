@@ -2,6 +2,7 @@
 
 pub mod api;
 pub mod documents;
+pub mod genres;
 pub mod http;
 pub mod library;
 pub mod logging;

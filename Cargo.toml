@@ -43,6 +43,10 @@ path = "src/genres/utils/export_unlabeled_entries.rs"
 name = "import_predictions"
 path = "src/genres/utils/import_predictions.rs"
 
+[[bin]]
+name = "predict"
+path = "src/genres/utils/predict.rs"
+
 
 # Command line utils
 [[bin]]
