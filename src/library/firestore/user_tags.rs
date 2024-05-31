@@ -40,7 +40,7 @@ pub async fn remove_user_tag(
 }
 
 #[instrument(name = "user_tags::read", level = "trace", skip(firestore, user_id))]
-async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<UserTags, Status> {
+pub async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<UserTags, Status> {
     let parent_path = firestore.db().parent_path(USERS, user_id)?;
 
     let doc = firestore
