@@ -38,8 +38,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let genres = example
             .prediction
             .split(",")
+            .filter(|e| !e.is_empty())
             .map(|e| EspyGenre::from(e))
             .collect_vec();
+
+        if genres.is_empty() {
+            continue;
+        }
         game_entry.espy_genres = genres;
 
         println!("Updating {}", &game_entry.name);

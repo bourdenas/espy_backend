@@ -30,18 +30,22 @@ name = "build_year_summary"
 path = "src/batch/build_year_summary.rs"
 
 
-# Tools for exporting data for analysis / training.
+# Tools for genre analysis / training.
 [[bin]]
 name = "export_labeled_entries"
-path = "src/export/export_labeled_entries.rs"
+path = "src/genres/utils/export_labeled_entries.rs"
 
 [[bin]]
 name = "export_unlabeled_entries"
-path = "src/export/export_unlabeled_entries.rs"
+path = "src/genres/utils/export_unlabeled_entries.rs"
 
 [[bin]]
 name = "import_predictions"
-path = "src/export/import_predictions.rs"
+path = "src/genres/utils/import_predictions.rs"
+
+[[bin]]
+name = "predict"
+path = "src/genres/utils/predict.rs"
 
 
 # Command line utils
