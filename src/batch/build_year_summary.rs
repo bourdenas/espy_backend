@@ -9,7 +9,7 @@ use clap::Parser;
 use espy_backend::{
     api::FirestoreApi,
     documents::*,
-    library::firestore::{timeline, year},
+    library::firestore::{notable, year},
     webhooks::filtering::{GameEntryClass, GameFilter},
     *,
 };
@@ -27,6 +27,9 @@ struct Opts {
 
     #[clap(long, default_value = "2023")]
     year: u64,
+
+    #[clap(long, default_value = "false")]
+    cleanup: bool,
 }
 
 #[tokio::main]
@@ -86,19 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     });
     println!("Retained {} titles.", games.len());
 
-    // let mut i = 0;
-    // for game in &mut games {
-    //     println!(
-    //         "#{i} -- {} -- id={} -- release={} ({})",
-    //         game.name,
-    //         game.id,
-    //         game.release_date,
-    //         NaiveDateTime::from_timestamp_millis(game.release_date * 1000).unwrap()
-    //     );
-    //     i += 1;
-    // }
-
-    let notable = timeline::read_notable(&firestore).await?;
+    let notable = notable::read(&firestore).await?;
     let classifier = GameFilter::new(notable);
 
     let mut partitions = games
@@ -106,16 +97,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .into_group_map_by(|game| classifier.classify(&game));
 
     for (_, digests) in &mut partitions {
-        digests.sort_by(|a, b| match b.scores.espy_score.cmp(&a.scores.espy_score) {
-            std::cmp::Ordering::Equal => match b.scores.popularity.cmp(&a.scores.popularity) {
-                std::cmp::Ordering::Equal => match b.scores.thumbs.cmp(&a.scores.thumbs) {
-                    std::cmp::Ordering::Equal => b.scores.hype.cmp(&a.scores.hype),
-                    other => other,
-                },
-                other => other,
-            },
-            other => other,
-        })
+        digests.sort_by(|a, b| b.scores.cmp(&a.scores))
     }
 
     let review = AnnualReview {
@@ -167,20 +149,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .collect(),
     };
 
-    let mut i = 0;
-    for game in partitions
-        .remove(&GameEntryClass::Ignore)
-        .unwrap_or_default()
-        .iter()
-    {
-        println!(
-            "#{i} deleting {}({}) -- {}",
-            game.name,
-            game.id,
-            classifier.explain(&game)
-        );
-        i += 1;
-        library::firestore::games::delete(&firestore, game.id).await?;
+    if opts.cleanup {
+        println!("Cleaning up the obsolete entries...");
+        let mut i = 0;
+        for game in partitions
+            .remove(&GameEntryClass::Ignore)
+            .unwrap_or_default()
+            .iter()
+        {
+            println!(
+                "#{i} deleting {}({}) -- {}",
+                game.name,
+                game.id,
+                classifier.explain(&game)
+            );
+            i += 1;
+            library::firestore::games::delete(&firestore, game.id).await?;
+        }
     }
 
     year::write(&firestore, &review, opts.year).await?;
