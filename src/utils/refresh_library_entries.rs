@@ -24,7 +24,7 @@ struct Opts {
     resolve: bool,
 
     /// Export in a text file the library (for inspection) instead of refreshing it.
-    #[clap(long)]
+    #[clap(long, default_value = "")]
     export_csv: String,
 
     /// Print a summary of the library (for inspection) instead of refreshing it.
