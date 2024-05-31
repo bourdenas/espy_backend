@@ -30,6 +30,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let firestore = Arc::new(FirestoreApi::connect().await?);
     let tags = user_tags::read(&firestore, &opts.user).await?;
 
+    for genre in &tags.genres {
+        println!("{} -- {} examples", &genre.name, genre.game_ids.len());
+    }
+
     let mut game_to_genre = HashMap::<u64, Vec<EspyGenre>>::new();
     for genre in tags.genres {
         for id in genre.game_ids {
