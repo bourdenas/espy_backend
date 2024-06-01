@@ -112,7 +112,7 @@ impl EspyGenre {
 
             // Arcade
             "Fighting" => EspyGenre::Fighting,
-            "Beat\"em Up" => EspyGenre::BeatEmUp,
+            "Beat'em Up" => EspyGenre::BeatEmUp,
             "Pinball" => EspyGenre::Pinball,
             "Card & Board Game" => EspyGenre::CardAndBoard,
             "Deckbuilder" => EspyGenre::Deckbuilder,
