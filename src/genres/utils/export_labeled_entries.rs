@@ -5,7 +5,7 @@ use csv::Writer;
 use espy_backend::{
     api::FirestoreApi,
     documents::EspyGenre,
-    library::firestore::{games, user_tags},
+    library::firestore::{games, user_annotations},
     Tracing,
 };
 use itertools::Itertools;
@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let opts: Opts = Opts::parse();
 
     let firestore = Arc::new(FirestoreApi::connect().await?);
-    let tags = user_tags::read(&firestore, &opts.user).await?;
+    let tags = user_annotations::read(&firestore, &opts.user).await?;
 
     for genre in &tags.genres {
         println!("{} -- {} examples", &genre.name, genre.game_ids.len());
@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .map(|entry| LabeledExample {
             id: entry.id,
             name: entry.name,
-            genres: game_to_genre
+            espy_genres: game_to_genre
                 .remove(&entry.id)
                 .unwrap_or_default()
                 .into_iter()
@@ -63,6 +63,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .iter()
                 .map(|genre| format!("{:?}", genre))
                 .join("|"),
+            steam_genres: match &entry.steam_data {
+                Some(steam_data) => steam_data.genres.iter().map(|e| &e.description).join("|"),
+                None => String::default(),
+            },
+            igdb_keywords: entry.keywords.join("|"),
             steam_tags: match &entry.steam_data {
                 Some(steam_data) => steam_data.user_tags.join("|"),
                 None => String::default(),
@@ -101,8 +106,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 struct LabeledExample {
     id: u64,
     name: String,
-    genres: String,
+    espy_genres: String,
     igdb_genres: String,
+    steam_genres: String,
+    igdb_keywords: String,
     steam_tags: String,
     images: String,
 }

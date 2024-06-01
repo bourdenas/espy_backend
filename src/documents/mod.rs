@@ -38,4 +38,4 @@ pub use storefront::Storefront;
 pub use timeline::*;
 pub use unresolved::{Unresolved, UnresolvedEntries};
 pub use user_data::{Keys, UserData};
-pub use user_tags::{Tag, UserTags};
+pub use user_tags::{UserAnnotations, UserTag};
