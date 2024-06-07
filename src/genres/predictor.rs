@@ -10,7 +10,7 @@ pub struct GenrePredictor;
 
 impl GenrePredictor {
     #[instrument(level = "trace", skip(game_entry))]
-    pub async fn annotate(game_entry: &GameEntry) -> Result<Vec<EspyGenre>, Status> {
+    pub async fn predict(game_entry: &GameEntry) -> Result<Vec<EspyGenre>, Status> {
         let client = reqwest::Client::new();
         let resp = client
             .post(GENRES_PREDICT_URL)
@@ -77,4 +77,5 @@ struct GenrePredictResponse {
     espy_genres: Vec<String>,
 }
 
-const GENRES_PREDICT_URL: &str = "http://localhost:5000/genres";
+const GENRES_PREDICT_URL: &str = "https://genrelearner-fjxkoqq4wq-ew.a.run.app/genres";
+// const GENRES_PREDICT_URL: &str = "http://localhost:8080/genres";

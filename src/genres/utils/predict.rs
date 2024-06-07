@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let firestore = Arc::new(FirestoreApi::connect().await?);
 
     let game_entry = games::read(&firestore, opts.id).await?;
-    let genres = GenrePredictor::annotate(&game_entry).await?;
+    let genres = GenrePredictor::predict(&game_entry).await?;
     println!(
         "'{}' ({}) -- espy genres: {:?}",
         &game_entry.name, game_entry.id, &genres

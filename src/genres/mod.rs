@@ -1,3 +1,3 @@
-mod genres;
+mod predictor;
 
-pub use genres::GenrePredictor;
+pub use predictor::GenrePredictor;
