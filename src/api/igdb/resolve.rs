@@ -6,6 +6,7 @@ use crate::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
         GameCategory, GameDigest, GameEntry, Image, SteamData, Website, WebsiteAuthority,
     },
+    genres::GenrePredictor,
     library::firestore,
     Status,
 };
@@ -184,6 +185,25 @@ pub async fn resolve_game_info(
         game_entry.keywords = get_keywords(firestore, &igdb_game.keywords).await?;
     }
 
+    if let Some(handle) = steam_handle {
+        match handle.await {
+            Ok(result) => {
+                if let Some(steam_scrape_data) = result {
+                    if let Some(steam_data) = &mut game_entry.steam_data {
+                        steam_data.user_tags = steam_scrape_data.user_tags;
+                    }
+                }
+            }
+            Err(status) => warn!("Steam scrape failed: {status}"),
+        }
+    }
+
+    let game_entry_clone = game_entry.clone();
+    let predictor_handle = tokio::spawn(
+        async move { GenrePredictor::predict(&game_entry_clone).await }
+            .instrument(trace_span!("spawn_genre_predict")),
+    );
+
     if igdb_game.websites.len() > 0 {
         if let Ok(websites) = get_websites(connection, &igdb_game.websites).await {
             game_entry.websites.extend(
@@ -276,17 +296,12 @@ pub async fn resolve_game_info(
         }
     }
 
-    if let Some(handle) = steam_handle {
-        match handle.await {
-            Ok(result) => {
-                if let Some(steam_scrape_data) = result {
-                    if let Some(steam_data) = &mut game_entry.steam_data {
-                        steam_data.user_tags = steam_scrape_data.user_tags;
-                    }
-                }
-            }
-            Err(status) => warn!("{status}"),
-        }
+    match predictor_handle.await {
+        Ok(result) => match result {
+            Ok(genres) => game_entry.espy_genres = genres,
+            Err(status) => warn!("GenrePredictor failed: {status}"),
+        },
+        Err(status) => warn!("spawn_genre_predict failed: {status}"),
     }
 
     Ok(())
