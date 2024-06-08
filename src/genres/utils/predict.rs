@@ -8,6 +8,9 @@ use espy_backend::{api::FirestoreApi, genres::GenrePredictor, library::firestore
 struct Opts {
     #[clap(long)]
     id: u64,
+
+    #[clap(long)]
+    debug: bool,
 }
 
 #[tokio::main]
@@ -19,11 +22,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let firestore = Arc::new(FirestoreApi::connect().await?);
 
     let game_entry = games::read(&firestore, opts.id).await?;
-    let genres = GenrePredictor::predict(&game_entry).await?;
-    println!(
-        "'{}' ({}) -- espy genres: {:?}",
-        &game_entry.name, game_entry.id, &genres
-    );
+
+    if opts.debug {
+        let debug_info = GenrePredictor::debug(&game_entry).await?;
+        println!(
+            "'{}' ({}) -- debug_info:\n{:?}",
+            &game_entry.name, game_entry.id, &debug_info
+        );
+    } else {
+        let genres = GenrePredictor::predict(&game_entry).await?;
+        println!(
+            "'{}' ({}) -- espy genres: {:?}",
+            &game_entry.name, game_entry.id, &genres
+        );
+    }
 
     Ok(())
 }

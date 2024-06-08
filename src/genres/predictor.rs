@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
@@ -30,6 +32,25 @@ impl GenrePredictor {
             .iter()
             .map(|label| EspyGenre::from(label.as_str()))
             .collect())
+    }
+
+    #[instrument(level = "trace", skip(game_entry))]
+    pub async fn debug(game_entry: &GameEntry) -> Result<GenreDebugInfo, Status> {
+        let client = reqwest::Client::new();
+        let resp = client
+            .post(GENRES_DEBUG_URL)
+            .json(&GenrePredictRequest::new(game_entry))
+            .send()
+            .await?;
+
+        let text = resp.text().await?;
+        let resp = serde_json::from_str::<GenrePredictResponse>(&text).map_err(|e| {
+            Status::internal(format!(
+                "Parse error: {e}\n GenrePredictor response: {text}"
+            ))
+        })?;
+
+        Ok(resp.debug_info)
     }
 }
 
@@ -75,7 +96,16 @@ struct GenrePredictResponse {
     id: u64,
     name: String,
     espy_genres: Vec<String>,
+
+    #[serde(default)]
+    debug_info: GenreDebugInfo,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct GenreDebugInfo {
+    pub labels: HashMap<String, String>,
 }
 
 const GENRES_PREDICT_URL: &str = "https://genrelearner-fjxkoqq4wq-ew.a.run.app/genres";
+const GENRES_DEBUG_URL: &str = "http://localhost:8080/genres_debug";
 // const GENRES_PREDICT_URL: &str = "http://localhost:8080/genres";
