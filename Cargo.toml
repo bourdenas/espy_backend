@@ -32,6 +32,10 @@ path = "src/batch/build_year_summary.rs"
 
 # Tools for genre analysis / training.
 [[bin]]
+name = "batch_predictor"
+path = "src/genres/utils/batch_predictor.rs"
+
+[[bin]]
 name = "export_labeled_entries"
 path = "src/genres/utils/export_labeled_entries.rs"
 

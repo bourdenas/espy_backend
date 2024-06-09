@@ -8,14 +8,20 @@ use crate::{
     Status,
 };
 
-pub struct GenrePredictor;
+pub struct GenrePredictor {
+    url: String,
+}
 
 impl GenrePredictor {
-    #[instrument(level = "trace", skip(game_entry))]
-    pub async fn predict(game_entry: &GameEntry) -> Result<Vec<EspyGenre>, Status> {
+    pub fn new(url: String) -> Self {
+        GenrePredictor { url }
+    }
+
+    #[instrument(level = "trace", skip(self, game_entry))]
+    pub async fn predict(&self, game_entry: &GameEntry) -> Result<Vec<EspyGenre>, Status> {
         let client = reqwest::Client::new();
         let resp = client
-            .post(GENRES_PREDICT_URL)
+            .post(format!("{}/genres", &self.url))
             .json(&GenrePredictRequest::new(game_entry))
             .send()
             .await?;
@@ -34,11 +40,11 @@ impl GenrePredictor {
             .collect())
     }
 
-    #[instrument(level = "trace", skip(game_entry))]
-    pub async fn debug(game_entry: &GameEntry) -> Result<GenreDebugInfo, Status> {
+    #[instrument(level = "trace", skip(self, game_entry))]
+    pub async fn debug(&self, game_entry: &GameEntry) -> Result<GenreDebugInfo, Status> {
         let client = reqwest::Client::new();
         let resp = client
-            .post(GENRES_DEBUG_URL)
+            .post(format!("{}/genres_debug", &self.url))
             .json(&GenrePredictRequest::new(game_entry))
             .send()
             .await?;
@@ -103,9 +109,9 @@ struct GenrePredictResponse {
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct GenreDebugInfo {
+    #[serde(default)]
     pub labels: HashMap<String, String>,
 }
 
 const GENRES_PREDICT_URL: &str = "https://genrelearner-fjxkoqq4wq-ew.a.run.app/genres";
 const GENRES_DEBUG_URL: &str = "http://localhost:8080/genres_debug";
-// const GENRES_PREDICT_URL: &str = "http://localhost:8080/genres";
