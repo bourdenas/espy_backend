@@ -13,12 +13,13 @@ pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<Genre, Status
         .one(doc_id.to_string())
         .await?;
 
-    match doc {
-        Some(doc) => Ok(doc),
-        None => Err(Status::not_found(format!(
-            "Firestore document '{GENRES}/{doc_id}' was not found"
-        ))),
-    }
+    Ok(match doc {
+        Some(doc) => doc,
+        None => Genre {
+            game_id: doc_id,
+            ..Default::default()
+        },
+    })
 }
 
 #[instrument(name = "genres::write", level = "trace", skip(firestore))]
