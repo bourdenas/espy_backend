@@ -28,7 +28,7 @@ pub async fn write(firestore: &FirestoreApi, genre: &Genre) -> Result<(), Status
         .fluent()
         .update()
         .in_col(GENRES)
-        .document_id(genre.id.to_string())
+        .document_id(genre.game_id.to_string())
         .object(genre)
         .execute()
         .await?;
