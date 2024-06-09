@@ -2,7 +2,7 @@ use crate::{
     api::{
         FirestoreApi, IgdbApi, IgdbExternalGame, IgdbGame, MetacriticApi, SteamDataApi, SteamScrape,
     },
-    documents::{ExternalGame, GameEntry, Genre, Keyword},
+    documents::{ExternalGame, GameEntry, Keyword},
     library::firestore,
     Status,
 };
@@ -12,7 +12,7 @@ use tracing::{instrument, trace_span, warn, Instrument};
 use warp::http::StatusCode;
 
 use super::{
-    event_logs::{AddGameEvent, ExternalGameEvent, GenresEvent, KeywordsEvent, UpdateGameEvent},
+    event_logs::{AddGameEvent, ExternalGameEvent, KeywordsEvent, UpdateGameEvent},
     filtering::GameFilter,
     prefiltering::IgdbPrefilter,
 };
@@ -219,22 +219,6 @@ pub async fn external_games_webhook(
     let external_game = ExternalGame::from(external_game);
     let result = firestore::external_games::write(&firestore, &external_game).await;
     let event = ExternalGameEvent::new(external_game);
-
-    match result {
-        Ok(()) => event.log(),
-        Err(status) => event.log_error(status),
-    }
-
-    Ok(StatusCode::OK)
-}
-
-#[instrument(level = "trace", skip(genre, firestore))]
-pub async fn genres_webhook(
-    genre: Genre,
-    firestore: Arc<FirestoreApi>,
-) -> Result<impl warp::Reply, Infallible> {
-    let result = firestore::genres::write(&firestore, &genre).await;
-    let event = GenresEvent::new(genre);
 
     match result {
         Ok(()) => event.log(),

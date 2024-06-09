@@ -4,7 +4,7 @@ use warp::{self, Filter};
 
 use crate::{
     api::{FirestoreApi, IgdbApi, IgdbExternalGame, IgdbGame},
-    documents::{Genre, Keyword},
+    documents::Keyword,
 };
 
 use super::{filtering::GameFilter, handlers};
@@ -26,7 +26,6 @@ pub fn routes(
         Arc::clone(&classifier),
     ))
     .or(post_external_game(Arc::clone(&firestore)))
-    .or(post_genres(Arc::clone(&firestore)))
     .or(post_keywords(Arc::clone(&firestore)))
     .or_else(|e| async {
         warn! {"Rejected route: {:?}", e};
@@ -73,17 +72,6 @@ fn post_external_game(
         .and(json_body::<IgdbExternalGame>())
         .and(with_firestore(firestore))
         .and_then(handlers::external_games_webhook)
-}
-
-/// POST /genres
-fn post_genres(
-    firestore: Arc<FirestoreApi>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-    warp::path!("genres")
-        .and(warp::post())
-        .and(json_body::<Genre>())
-        .and(with_firestore(firestore))
-        .and_then(handlers::genres_webhook)
 }
 
 /// POST /keywords

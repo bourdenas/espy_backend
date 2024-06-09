@@ -305,6 +305,20 @@ pub struct IgdbCollection {
     pub games: Vec<u64>,
 }
 
+#[derive(Deserialize, Default, Debug)]
+pub struct IgdbGenre {
+    pub id: u64,
+
+    #[serde(default)]
+    pub name: String,
+
+    #[serde(default)]
+    pub slug: String,
+
+    #[serde(default)]
+    pub url: String,
+}
+
 #[derive(Deserialize, Default, Debug, Clone)]
 pub struct IgdbWebsite {
     pub id: u64,
