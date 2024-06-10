@@ -19,6 +19,9 @@ use tracing::{error, warn};
 struct Opts {
     #[clap(long, default_value = "0")]
     cursor: u64,
+
+    #[clap(long)]
+    franchises: bool,
 }
 
 #[tokio::main]
@@ -36,7 +39,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .db()
             .fluent()
             .select()
-            .from("collections")
+            .from(match opts.franchises {
+                false => "collections",
+                true => "franchises",
+            })
             .filter(|q| q.for_all([q.field(path!(Collection::id)).greater_than_or_equal(cursor)]))
             .order_by([(path!(Collection::id), FirestoreQueryDirection::Ascending)])
             .limit(BATCH_SIZE)
@@ -88,7 +94,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         url: collection.url,
                         games: games.into_iter().map(|e| GameDigest::from(e)).collect_vec(),
                     };
-                    library::firestore::collections::write(&firestore, &collection).await?;
+                    if opts.franchises {
+                        library::firestore::franchises::write(&firestore, &collection).await?
+                    } else {
+                        library::firestore::collections::write(&firestore, &collection).await?
+                    }
 
                     let finish = SystemTime::now()
                         .duration_since(UNIX_EPOCH)
