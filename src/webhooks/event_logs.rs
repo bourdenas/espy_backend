@@ -2,7 +2,7 @@ use tracing::{error, info};
 
 use crate::{
     api::IgdbGameDiff,
-    documents::{ExternalGame, Genre, Keyword},
+    documents::{ExternalGame, Keyword},
     Status,
 };
 
@@ -173,37 +173,6 @@ impl ExternalGameEvent {
     }
 }
 
-pub struct GenresEvent {
-    genre: Genre,
-}
-
-impl GenresEvent {
-    pub fn new(genre: Genre) -> Self {
-        GenresEvent { genre }
-    }
-
-    pub fn log(self) {
-        info!(
-            labels.log_type = WEBHOOK_LOGS,
-            labels.handler = GENRES_HANDLER,
-            genre.id = self.genre.id,
-            genre.slug = self.genre.slug,
-            "genre updated"
-        )
-    }
-
-    pub fn log_error(self, status: Status) {
-        error!(
-            labels.log_type = WEBHOOK_LOGS,
-            labels.handler = GENRES_HANDLER,
-            labels.status = status.to_string(),
-            genre.id = self.genre.id,
-            genre.slug = self.genre.slug,
-            "failed to update external genre"
-        )
-    }
-}
-
 pub struct KeywordsEvent {
     keyword: Keyword,
 }
@@ -234,9 +203,9 @@ impl KeywordsEvent {
         )
     }
 }
+
 const WEBHOOK_LOGS: &str = "webhook_logs";
 const ADD_GAME_HANDLER: &str = "post_add_game";
 const UPDATE_GAME_HANDLER: &str = "post_update_game";
 const EXTERNAL_GAME_HANDLER: &str = "post_external_game";
-const GENRES_HANDLER: &str = "post_genres";
 const KEYWORDS_HANDLER: &str = "post_keywords";

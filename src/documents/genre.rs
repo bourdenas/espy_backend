@@ -1,17 +1,14 @@
 use serde::{Deserialize, Serialize};
 
+/// Document type under 'genres' collection for quick lookup for
+/// game_id -> EspyGenres.
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct Genre {
-    pub id: u64,
+    pub game_id: u64,
 
     #[serde(default)]
-    pub name: String,
-
-    #[serde(default)]
-    pub slug: String,
-
-    #[serde(default)]
-    pub url: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub espy_genres: Vec<EspyGenre>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]

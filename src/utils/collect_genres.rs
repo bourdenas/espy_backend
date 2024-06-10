@@ -1,6 +1,5 @@
 use clap::Parser;
-use espy_backend::{api, library::firestore, util, Tracing};
-use tracing::{error, info};
+use espy_backend::{api, util, Tracing};
 
 /// Espy util for refreshing IGDB data for Genres.
 #[derive(Parser)]
@@ -31,18 +30,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     igdb.connect().await?;
     let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
 
-    let firestore = api::FirestoreApi::connect().await?;
-
-    let mut k = opts.offset;
     let genres = igdb_batch.collect_genres().await?;
-
     for genre in genres {
-        if let Err(e) = firestore::genres::write(&firestore, &genre).await {
-            error!("Failed to save '{}' in Firestore: {e}", &genre.name);
-        }
-        info!("#{k} Saved genre '{}' ({})", genre.name, genre.id);
-
-        k += 1;
+        println!("{:?}", genre);
     }
 
     Ok(())

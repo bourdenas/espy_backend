@@ -5,8 +5,7 @@ use crate::api::IgdbGame;
 
 use super::{EspyGenre, GameDigest, Scores, SteamData};
 
-/// Document type under 'users/{user_id}/games' that represents an espy game
-/// entry.
+/// Document type under 'games' collection that represents an espy game entry.
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct GameEntry {
     pub id: u64,
@@ -223,6 +222,7 @@ pub enum GameCategory {
     Remaster,
     Version,
     Ignore,
+    Unknown,
 }
 
 impl From<u64> for GameCategory {
@@ -244,7 +244,7 @@ impl From<u64> for GameCategory {
 
 impl Default for GameCategory {
     fn default() -> Self {
-        GameCategory::Main
+        GameCategory::Unknown
     }
 }
 
