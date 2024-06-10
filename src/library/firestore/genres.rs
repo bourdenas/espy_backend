@@ -1,25 +1,21 @@
 use tracing::instrument;
 
-use crate::{api::FirestoreApi, documents::Genre, Status};
+use crate::{
+    api::FirestoreApi,
+    documents::{GameEntry, Genre},
+    Status,
+};
 
 #[instrument(name = "genres::read", level = "trace", skip(firestore))]
-pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<Genre, Status> {
-    let doc = firestore
+pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<Option<Genre>, Status> {
+    Ok(firestore
         .db()
         .fluent()
         .select()
         .by_id_in(GENRES)
         .obj()
         .one(doc_id.to_string())
-        .await?;
-
-    Ok(match doc {
-        Some(doc) => doc,
-        None => Genre {
-            game_id: doc_id,
-            ..Default::default()
-        },
-    })
+        .await?)
 }
 
 #[instrument(name = "genres::write", level = "trace", skip(firestore))]
@@ -36,4 +32,28 @@ pub async fn write(firestore: &FirestoreApi, genre: &Genre) -> Result<(), Status
     Ok(())
 }
 
+#[instrument(name = "genres::needs_annotation", level = "trace", skip(firestore))]
+pub async fn needs_annotation(
+    firestore: &FirestoreApi,
+    game_entry: &GameEntry,
+) -> Result<(), Status> {
+    let clone = GameEntry {
+        id: game_entry.id,
+        name: game_entry.name.clone(),
+        ..Default::default()
+    };
+
+    firestore
+        .db()
+        .fluent()
+        .update()
+        .in_col(NEEDS_ANNOTATION)
+        .document_id(game_entry.id.to_string())
+        .object(&clone)
+        .execute()
+        .await?;
+    Ok(())
+}
+
 const GENRES: &str = "genres";
+const NEEDS_ANNOTATION: &str = "needs_annotation";

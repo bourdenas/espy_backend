@@ -131,8 +131,10 @@ pub async fn resolve_game_digest(
     }
     game_entry.resolve_genres();
 
-    let genres = firestore::genres::read(firestore, game_entry.id).await?;
-    game_entry.espy_genres = genres.espy_genres;
+    match firestore::genres::read(firestore, game_entry.id).await? {
+        Some(genres) => game_entry.espy_genres = genres.espy_genres,
+        None => firestore::genres::needs_annotation(firestore, &game_entry).await?,
+    }
 
     match metacritic_handle.await {
         Ok(response) => {
