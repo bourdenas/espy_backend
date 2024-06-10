@@ -203,9 +203,9 @@ impl KeywordsEvent {
         )
     }
 }
+
 const WEBHOOK_LOGS: &str = "webhook_logs";
 const ADD_GAME_HANDLER: &str = "post_add_game";
 const UPDATE_GAME_HANDLER: &str = "post_update_game";
 const EXTERNAL_GAME_HANDLER: &str = "post_external_game";
-const GENRES_HANDLER: &str = "post_genres";
 const KEYWORDS_HANDLER: &str = "post_keywords";
