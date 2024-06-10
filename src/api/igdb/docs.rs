@@ -115,6 +115,10 @@ pub struct IgdbGame {
     pub collection: Option<u64>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub collections: Vec<u64>,
+
+    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub franchise: Option<u64>,
 
@@ -201,6 +205,7 @@ impl IgdbGame {
             version_title: self.version_title != other.version_title,
 
             collection: self.collection != other.collection,
+            collections: vec_diff(&self.collections, &other.collections),
             franchise: self.franchise != other.franchise,
             franchises: vec_diff(&self.franchises, &other.franchises),
             involved_companies: vec_diff(&self.involved_companies, &other.involved_companies),
@@ -410,6 +415,8 @@ pub struct IgdbGameDiff {
     #[serde(default, skip_serializing_if = "is_default")]
     pub collection: bool,
     #[serde(default, skip_serializing_if = "is_default")]
+    pub collections: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
     pub franchise: bool,
     #[serde(default, skip_serializing_if = "is_default")]
     pub franchises: bool,
@@ -467,6 +474,7 @@ impl IgdbGameDiff {
             || self.version_parent
             || self.version_title
             || self.collection
+            || self.collections
             || self.franchise
             || self.franchises
             || self.involved_companies
@@ -488,6 +496,7 @@ impl IgdbGameDiff {
             || self.parent_game
             || self.version_parent
             || self.collection
+            || self.collections
             || self.franchise
             || self.franchises
             || self.involved_companies

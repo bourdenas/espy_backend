@@ -66,10 +66,20 @@ pub async fn resolve_game_digest(
         game_entry.cover = get_cover(connection, cover).await?;
     }
 
-    if let Some(collection) = igdb_game.collection {
-        if let Some(collection) = get_collection(connection, firestore, collection).await? {
-            game_entry.collections = vec![collection];
-        }
+    let mut collections = [
+        match igdb_game.collection {
+            Some(id) => vec![id],
+            None => vec![],
+        },
+        igdb_game.collections.clone(),
+    ]
+    .concat();
+    if !collections.is_empty() {
+        collections.sort();
+        collections.dedup();
+        game_entry
+            .collections
+            .extend(get_collections(connection, firestore, &collections).await?);
     }
 
     let mut franchises = [
@@ -466,38 +476,48 @@ async fn get_websites(
 
 /// Returns game collection based on id from the igdb/collections endpoint.
 #[instrument(level = "trace", skip(connection, firestore))]
-async fn get_collection(
+async fn get_collections(
     connection: &IgdbConnection,
     firestore: &FirestoreApi,
-    id: u64,
-) -> Result<Option<CollectionDigest>, Status> {
-    let collection = firestore::collections::read(firestore, id).await;
-    match collection {
-        Ok(collection) => Ok(Some(CollectionDigest {
-            id: collection.id,
-            name: collection.name,
-            slug: collection.slug,
+    ids: &[u64],
+) -> Result<Vec<CollectionDigest>, Status> {
+    let (collections, missing) = firestore::collections::batch_read(firestore, ids).await?;
+    let mut collections = collections
+        .into_iter()
+        .map(|e| CollectionDigest {
+            id: e.id,
+            name: e.name,
+            slug: e.slug,
             igdb_type: CollectionType::Collection,
-        })),
-        Err(_) => {
-            let result: Vec<docs::IgdbAnnotation> = post(
-                &connection,
-                COLLECTIONS_ENDPOINT,
-                &format!("fields *; where id={id};"),
-            )
-            .await?;
+        })
+        .collect_vec();
 
-            match result.into_iter().next() {
-                Some(collection) => Ok(Some(CollectionDigest {
-                    id: collection.id,
-                    name: collection.name,
-                    slug: collection.slug,
-                    igdb_type: CollectionType::Collection,
-                })),
-                None => Ok(None),
-            }
-        }
+    if !missing.is_empty() {
+        collections.extend(
+            post::<Vec<docs::IgdbAnnotation>>(
+                connection,
+                COLLECTIONS_ENDPOINT,
+                &format!(
+                    "fields *; where id = ({});",
+                    missing
+                        .iter()
+                        .map(|id| id.to_string())
+                        .collect::<Vec<String>>()
+                        .join(",")
+                ),
+            )
+            .await?
+            .into_iter()
+            .map(|e| CollectionDigest {
+                id: e.id,
+                name: e.name,
+                slug: e.slug,
+                igdb_type: CollectionType::Collection,
+            }),
+        );
     }
+
+    Ok(collections)
 }
 
 /// Returns game franchices based on id from the igdb/frachises endpoint.
@@ -507,19 +527,16 @@ async fn get_franchises(
     firestore: &FirestoreApi,
     ids: &[u64],
 ) -> Result<Vec<CollectionDigest>, Status> {
-    let mut franchises = vec![];
-    let mut missing = vec![];
-    for id in ids {
-        match firestore::franchises::read(firestore, *id).await {
-            Ok(franchise) => franchises.push(CollectionDigest {
-                id: franchise.id,
-                name: franchise.name,
-                slug: franchise.slug,
-                igdb_type: CollectionType::Franchise,
-            }),
-            Err(_) => missing.push(id),
-        }
-    }
+    let (franchises, missing) = firestore::franchises::batch_read(firestore, ids).await?;
+    let mut franchises = franchises
+        .into_iter()
+        .map(|e| CollectionDigest {
+            id: e.id,
+            name: e.name,
+            slug: e.slug,
+            igdb_type: CollectionType::Franchise,
+        })
+        .collect_vec();
 
     if !missing.is_empty() {
         franchises.extend(
@@ -537,10 +554,10 @@ async fn get_franchises(
             )
             .await?
             .into_iter()
-            .map(|c| CollectionDigest {
-                id: c.id,
-                name: c.name,
-                slug: c.slug,
+            .map(|e| CollectionDigest {
+                id: e.id,
+                name: e.name,
+                slug: e.slug,
                 igdb_type: CollectionType::Franchise,
             }),
         );
