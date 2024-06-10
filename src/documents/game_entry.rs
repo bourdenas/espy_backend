@@ -222,6 +222,7 @@ pub enum GameCategory {
     Remaster,
     Version,
     Ignore,
+    Unknown,
 }
 
 impl From<u64> for GameCategory {
@@ -243,7 +244,7 @@ impl From<u64> for GameCategory {
 
 impl Default for GameCategory {
     fn default() -> Self {
-        GameCategory::Main
+        GameCategory::Unknown
     }
 }
 
