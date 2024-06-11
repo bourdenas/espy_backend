@@ -90,6 +90,10 @@ name = "refresh_collections"
 path = "src/utils/refresh_collections.rs"
 
 [[bin]]
+name = "refresh_companies"
+path = "src/utils/refresh_companies.rs"
+
+[[bin]]
 name = "refresh_game_entries"
 path = "src/utils/refresh_game_entries.rs"
 
