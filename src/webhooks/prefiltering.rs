@@ -1,3 +1,5 @@
+use tracing::warn;
+
 use crate::api::IgdbGame;
 
 pub struct IgdbPrefilter;
@@ -22,6 +24,10 @@ impl IgdbPrefilter {
         {
             PrefilterRejectionReason::NoUserMetrics
         } else {
+            warn!(
+                "Prefilter failed to provide rejection explanation for '{}' ({}).",
+                &igdb_game.name, igdb_game.id,
+            );
             PrefilterRejectionReason::Unknown
         }
     }

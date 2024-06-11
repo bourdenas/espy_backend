@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 
+use tracing::warn;
+
 use crate::documents::{
     GameCategory, GameEntry, GameStatus, IgdbGenre, Notable, SteamData, WebsiteAuthority,
 };
@@ -83,6 +85,10 @@ impl GameFilter {
         } else if !is_popular(game) {
             RejectionReason::NoScoreLowPopularity
         } else {
+            warn!(
+                "GameFilter failed to provide rejection explanation for '{}' ({}).",
+                &game.name, game.id,
+            );
             RejectionReason::Unknown
         }
     }
