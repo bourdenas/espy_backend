@@ -113,5 +113,5 @@ pub struct GenreDebugInfo {
     pub labels: HashMap<String, String>,
 }
 
-const GENRES_PREDICT_URL: &str = "https://genrelearner-fjxkoqq4wq-ew.a.run.app/genres";
-const GENRES_DEBUG_URL: &str = "http://localhost:8080/genres_debug";
+const _GENRES_PREDICT_URL: &str = "https://genrelearner-fjxkoqq4wq-ew.a.run.app/genres";
+const _GENRES_DEBUG_URL: &str = "http://localhost:8080/genres_debug";

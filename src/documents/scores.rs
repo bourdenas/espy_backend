@@ -7,6 +7,15 @@ use crate::api::{IgdbGame, MetacriticData, WikipediaScrapeData};
 use super::SteamData;
 
 #[derive(Eq, PartialEq, Serialize, Deserialize, Default, Clone, Debug)]
+pub struct ScoresDoc {
+    pub id: u64,
+    pub name: String,
+
+    #[serde(default)]
+    pub scores: Scores,
+}
+
+#[derive(Eq, PartialEq, Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Scores {
     // Thumbs up percentage from Steam.
     #[serde(default)]
