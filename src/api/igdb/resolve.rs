@@ -157,6 +157,14 @@ pub async fn resolve_game_digest(
         Err(status) => warn!("{status}"),
     }
 
+    if game_entry.scores.metacritic.is_none() {
+        let lookup = firestore::scores::read(&firestore, game_entry.id).await?;
+        let scores = &mut game_entry.scores;
+        scores.metacritic = lookup.scores.metacritic;
+        scores.metacritic_source = lookup.scores.metacritic_source;
+        scores.espy_score = lookup.scores.espy_score;
+    }
+
     // TODO: Remove these updates from the critical path.
     update_companies(firestore, &game_entry).await;
     update_collections(firestore, &game_entry).await;
