@@ -1,3 +1,4 @@
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -59,6 +60,33 @@ pub struct SteamData {
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub movies: Vec<Movie>,
+}
+
+impl SteamData {
+    pub fn release_timestamp(&self) -> Option<i64> {
+        match &self.release_date {
+            Some(date) => {
+                let parsed_date = NaiveDateTime::parse_from_str(
+                    &format!("{} 12:00:00", &date.date),
+                    "%b %e, %Y %H:%M:%S",
+                );
+                match parsed_date {
+                    Ok(date) => Some(date.timestamp()),
+                    Err(_) => {
+                        let parsed_date = NaiveDateTime::parse_from_str(
+                            &format!("{} 12:00:00", &date.date),
+                            "%e %b, %Y %H:%M:%S",
+                        );
+                        match parsed_date {
+                            Ok(date) => Some(date.timestamp()),
+                            Err(_) => None,
+                        }
+                    }
+                }
+            }
+            None => None,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]

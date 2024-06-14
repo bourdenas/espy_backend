@@ -1,4 +1,7 @@
-use std::cmp::Ordering;
+use std::{
+    cmp::Ordering,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use crate::{
     api::{FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
@@ -10,7 +13,6 @@ use crate::{
     Status,
 };
 use async_recursion::async_recursion;
-use chrono::NaiveDateTime;
 use itertools::Itertools;
 use tracing::{error, instrument, trace_span, warn, Instrument};
 
@@ -130,11 +132,9 @@ pub async fn resolve_game_digest(
         }
     }
 
-    if !igdb_game.release_dates.is_empty() {
-        game_entry.release_date = get_release_date(connection, &igdb_game, &steam_data)
-            .await?
-            .unwrap_or_default();
-    }
+    game_entry.release_date = get_release_timestamp(connection, &igdb_game, &steam_data)
+        .await?
+        .unwrap_or_default();
 
     if let Some(steam_data) = steam_data {
         game_entry.add_steam_data(steam_data);
@@ -671,28 +671,33 @@ async fn get_involved_companies(
     Ok(companies)
 }
 
-/// Returns the most appropriate game release date. Trying to retun the date of
-/// the PC full release.
+/// Returns the most appropriate game release timestamp. Trying to return the
+/// date of the earliest full release date.
 #[instrument(level = "trace", skip(connection, igdb_game, steam_data))]
-async fn get_release_date(
+async fn get_release_timestamp(
     connection: &IgdbConnection,
     igdb_game: &IgdbGame,
     steam_data: &Option<SteamData>,
 ) -> Result<Option<i64>, Status> {
-    let mut release_dates = post::<Vec<docs::ReleaseDate>>(
-        connection,
-        RELEASE_DATES_ENDPOINT,
-        &format!(
-            "fields category, date, status.name; where id = ({});",
-            igdb_game
-                .release_dates
-                .iter()
-                .map(|id| id.to_string())
-                .collect::<Vec<String>>()
-                .join(",")
-        ),
-    )
-    .await?;
+    let mut release_dates = match igdb_game.release_dates.is_empty() {
+        false => {
+            post::<Vec<docs::ReleaseDate>>(
+                connection,
+                RELEASE_DATES_ENDPOINT,
+                &format!(
+                    "fields category, date, status.name; where id = ({});",
+                    igdb_game
+                        .release_dates
+                        .iter()
+                        .map(|id| id.to_string())
+                        .collect::<Vec<String>>()
+                        .join(",")
+                ),
+            )
+            .await?
+        }
+        true => vec![],
+    };
 
     // Sort release dates if many to bring the earliest "Full Release" first.
     release_dates.sort_by(|a, b| match (&a.status, &b.status) {
@@ -728,40 +733,29 @@ async fn get_release_date(
         .iter()
         .filter(|release_date| release_date.date > 0);
 
-    // If IGDB date is exact (category == 0) or release is before 2008 then
-    // prefer the IGDB release date. Steam's release dates refer to the release
-    // on the platform instead of the game itself. For games before 2008 this is
-    // problematic.
-    if let Some(release_date) = release_dates.next() {
-        if release_date.category == 0 || release_date.date < Y2008 {
-            Ok(Some(release_date.date))
-        } else {
-            if let Some(steam_data) = steam_data {
-                if let Some(date) = &steam_data.release_date {
-                    let date = match NaiveDateTime::parse_from_str(
-                        &format!("{} 12:00:00", &date.date),
-                        "%b %e, %Y %H:%M:%S",
-                    ) {
-                        Ok(date) => Some(date.timestamp()),
-                        Err(_) => match NaiveDateTime::parse_from_str(
-                            &format!("{} 12:00:00", &date.date),
-                            "%e %b, %Y %H:%M:%S",
-                        ) {
-                            Ok(date) => Some(date.timestamp()),
-                            Err(_status) => Some(release_date.date),
-                        },
-                    };
-                    return Ok(date);
-                }
-            }
-            Ok(Some(release_date.date))
-        }
-    } else {
-        Ok(igdb_game.first_release_date)
-    }
-}
+    let igdb_date = match release_dates.next() {
+        Some(release_date) => Some(release_date.date),
+        None => igdb_game.first_release_date,
+    };
+    let steam_date = match steam_data {
+        Some(steam_data) => steam_data.release_timestamp(),
+        None => None,
+    };
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
 
-const Y2008: i64 = 1199142000;
+    Ok(
+        if igdb_date.is_none()
+            || (igdb_date.unwrap_or_default() > (now as i64) && !steam_date.is_none())
+        {
+            steam_date
+        } else {
+            igdb_date
+        },
+    )
+}
 
 /// Make sure that any companies involved in the game are updated to include it.
 #[instrument(level = "trace", skip(firestore, game_entry))]
