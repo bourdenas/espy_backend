@@ -12,7 +12,7 @@ use crate::{
 use async_recursion::async_recursion;
 use chrono::NaiveDateTime;
 use itertools::Itertools;
-use tracing::{instrument, trace_span, warn, Instrument};
+use tracing::{error, instrument, trace_span, warn, Instrument};
 
 use super::{
     backend::post,
@@ -158,11 +158,20 @@ pub async fn resolve_game_digest(
     }
 
     if game_entry.scores.metacritic.is_none() {
-        let lookup = firestore::scores::read(&firestore, game_entry.id).await?;
-        let scores = &mut game_entry.scores;
-        scores.metacritic = lookup.scores.metacritic;
-        scores.metacritic_source = lookup.scores.metacritic_source;
-        scores.espy_score = lookup.scores.espy_score;
+        match firestore::scores::read(&firestore, game_entry.id).await {
+            Ok(lookup) => {
+                let scores = &mut game_entry.scores;
+                scores.metacritic = lookup.scores.metacritic;
+                scores.metacritic_source = lookup.scores.metacritic_source;
+                scores.espy_score = lookup.scores.espy_score;
+            }
+            Err(Status::NotFound(_)) => {
+                // pass: no score found
+            }
+            Err(status) => {
+                error!("Score lookup failed: {status}");
+            }
+        }
     }
 
     // TODO: Remove these updates from the critical path.
