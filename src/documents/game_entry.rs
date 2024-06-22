@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::IgdbGame;
 
-use super::{EspyGenre, GameDigest, Scores, SteamData};
+use super::{EspyGenre, GameDigest, GogData, Scores, SteamData};
 
 /// Document type under 'games' collection that represents an espy game entry.
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -102,6 +102,10 @@ pub struct GameEntry {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub steam_data: Option<SteamData>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gog_data: Option<GogData>,
 }
 
 impl GameEntry {

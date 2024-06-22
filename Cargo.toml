@@ -110,6 +110,10 @@ name = "storefront_cleanup"
 path = "src/utils/storefront_cleanup.rs"
 
 [[bin]]
+name = "gog_scrape"
+path = "src/utils/gog_scrape.rs"
+
+[[bin]]
 name = "wikipedia_scrape"
 path = "src/utils/wikipedia_scrape.rs"
 
