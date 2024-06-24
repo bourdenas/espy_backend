@@ -64,10 +64,13 @@ impl GenrePredictor {
 struct GenrePredictRequest {
     id: u64,
     name: String,
+
     igdb_genres: Vec<String>,
     igdb_keywords: Vec<String>,
     steam_genres: Vec<String>,
     steam_tags: Vec<String>,
+    gog_genres: Vec<String>,
+    gog_tags: Vec<String>,
 }
 
 impl GenrePredictRequest {
@@ -75,12 +78,14 @@ impl GenrePredictRequest {
         GenrePredictRequest {
             id: game_entry.id,
             name: game_entry.name.clone(),
+
             igdb_genres: game_entry
                 .igdb_genres
                 .iter()
                 .map(|genre| format!("{:?}", genre))
                 .collect(),
             igdb_keywords: game_entry.keywords.clone(),
+
             steam_genres: match &game_entry.steam_data {
                 Some(steam_data) => steam_data
                     .genres
@@ -91,6 +96,15 @@ impl GenrePredictRequest {
             },
             steam_tags: match &game_entry.steam_data {
                 Some(steam_data) => steam_data.user_tags.clone(),
+                None => vec![],
+            },
+
+            gog_genres: match &game_entry.gog_data {
+                Some(gog_data) => gog_data.genres.clone(),
+                None => vec![],
+            },
+            gog_tags: match &game_entry.gog_data {
+                Some(gog_data) => gog_data.tags.clone(),
                 None => vec![],
             },
         }

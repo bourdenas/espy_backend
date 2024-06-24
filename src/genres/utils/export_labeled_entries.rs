@@ -67,9 +67,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 Some(steam_data) => steam_data.genres.iter().map(|e| &e.description).join("|"),
                 None => String::default(),
             },
+            gog_genres: match &entry.gog_data {
+                Some(gog_data) => gog_data.genres.iter().join("|"),
+                None => String::default(),
+            },
             igdb_keywords: entry.keywords.join("|"),
             steam_tags: match &entry.steam_data {
                 Some(steam_data) => steam_data.user_tags.join("|"),
+                None => String::default(),
+            },
+            gog_tags: match &entry.gog_data {
+                Some(gog_data) => gog_data.tags.iter().join("|"),
                 None => String::default(),
             },
             images: match entry.steam_data {
@@ -109,7 +117,9 @@ struct LabeledExample {
     espy_genres: String,
     igdb_genres: String,
     steam_genres: String,
+    gog_genres: String,
     igdb_keywords: String,
     steam_tags: String,
+    gog_tags: String,
     images: String,
 }

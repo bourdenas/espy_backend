@@ -55,7 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         while let Some(game_entry) = game_entries.next().await {
             match game_entry {
-                Ok(game_entry) => {
+                Ok(mut game_entry) => {
                     cursor = game_entry.release_date as u64;
 
                     println!(
@@ -73,14 +73,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         .as_millis();
 
                     let espy_genres = predictor.predict(&game_entry).await?;
-                    library::firestore::genres::write(
-                        &firestore,
-                        &Genre {
-                            game_id: game_entry.id,
-                            espy_genres,
-                        },
-                    )
-                    .await?;
+                    if !espy_genres.is_empty() {
+                        println!("  predicted genres={:?}", &espy_genres);
+                        game_entry.espy_genres = espy_genres.clone();
+
+                        library::firestore::genres::write(
+                            &firestore,
+                            &Genre {
+                                game_id: game_entry.id,
+                                espy_genres,
+                            },
+                        )
+                        .await?;
+
+                        library::firestore::games::write(&firestore, &mut game_entry).await?;
+                    }
 
                     let finish = SystemTime::now()
                         .duration_since(UNIX_EPOCH)
