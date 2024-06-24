@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::{IgdbGame, MetacriticData, WikipediaScrapeData};
 
-use super::SteamData;
+use super::{GogData, SteamData};
 
 #[derive(Eq, PartialEq, Serialize, Deserialize, Default, Clone, Debug)]
 pub struct ScoresDoc {
@@ -96,6 +96,18 @@ impl Scores {
         self.espy_score = Some(wikipedia.score);
     }
 
+    pub fn add_gog(&mut self, gog_data: &GogData) {
+        if self.metacritic.is_some() {
+            return;
+        }
+
+        if let Some(score) = gog_data.critic_score {
+            self.metacritic = Some(score);
+            self.metacritic_source = MetacrtitcSource::Gog;
+            self.espy_score = Some(score);
+        }
+    }
+
     pub fn add_steam(&mut self, steam_data: &SteamData, release_date: i64) {
         if let Some(score) = &steam_data.score {
             if score.review_score > 0 {
@@ -147,6 +159,7 @@ pub enum MetacrtitcSource {
     Metacritic,
     Wikipedia,
     Steam,
+    Gog,
 }
 
 impl MetacrtitcSource {

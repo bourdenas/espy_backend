@@ -141,6 +141,11 @@ impl GameEntry {
         self.steam_data = Some(steam_data);
     }
 
+    pub fn add_gog_data(&mut self, gog_data: GogData) {
+        self.scores.add_gog(&gog_data);
+        self.gog_data = Some(gog_data);
+    }
+
     pub fn update(&mut self, igdb_game: IgdbGame) {
         self.name = igdb_game.name.clone();
         self.category = Self::extract_category(&igdb_game);

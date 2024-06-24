@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    api::{FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
+    api::{FirestoreApi, GogScrape, MetacriticApi, SteamDataApi, SteamScrape},
     documents::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
         GameCategory, GameDigest, GameEntry, Image, SteamData, Website, WebsiteAuthority,
@@ -241,6 +241,21 @@ pub async fn resolve_game_info(
         }
     }
 
+    let gog_store = game_entry
+        .websites
+        .iter()
+        .find(|e| matches!(e.authority, WebsiteAuthority::Gog));
+    let gog_handle = match gog_store {
+        Some(gog_store) => {
+            let url = gog_store.url.clone();
+            Some(tokio::spawn(
+                async move { GogScrape::scrape(&url).await }
+                    .instrument(trace_span!("spawn_gog_scrape")),
+            ))
+        }
+        None => None,
+    };
+
     // Skip screenshots if they already exist from steam data.
     if !igdb_game.screenshots.is_empty() && game_entry.steam_data.is_none() {
         if let Ok(screenshots) = get_screenshots(connection, &igdb_game.screenshots).await {
@@ -315,6 +330,17 @@ pub async fn resolve_game_info(
                     if let Some(steam_data) = &mut game_entry.steam_data {
                         steam_data.user_tags = steam_scrape_data.user_tags;
                     }
+                }
+            }
+            Err(status) => warn!("{status}"),
+        }
+    }
+
+    if let Some(handle) = gog_handle {
+        match handle.await {
+            Ok(gog_data) => {
+                if let Some(gog_data) = gog_data {
+                    game_entry.add_gog_data(gog_data)
                 }
             }
             Err(status) => warn!("{status}"),
