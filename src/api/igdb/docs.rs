@@ -252,8 +252,6 @@ impl IgdbExternalGame {
 
 #[derive(Deserialize, Default, Debug, Clone)]
 pub struct IgdbInvolvedCompany {
-    pub id: u64,
-
     #[serde(default)]
     pub company: Option<u64>,
 
@@ -326,7 +324,6 @@ pub struct IgdbGenre {
 
 #[derive(Deserialize, Default, Debug, Clone)]
 pub struct IgdbWebsite {
-    pub id: u64,
     pub category: i32,
     pub url: String,
 }
