@@ -725,31 +725,32 @@ async fn get_release_timestamp(
         true => vec![],
     };
 
-    // Sort release dates if many to bring the earliest "Full Release" first.
+    // Sort release dates if many and push back "Early Releases" to prefer full
+    // releases instead.
     release_dates.sort_by(|a, b| match (&a.status, &b.status) {
         (Some(ast), Some(bst)) => {
             if ast.name == bst.name {
                 a.date.cmp(&b.date)
             } else {
-                if ast.name == "Full Release" {
-                    Ordering::Less
-                } else {
+                if ast.name == "Early Access" {
                     Ordering::Greater
+                } else {
+                    Ordering::Less
                 }
             }
         }
         (Some(ast), None) => {
-            if ast.name == "Full Release" {
-                Ordering::Less
-            } else {
+            if ast.name == "Early Access" {
                 Ordering::Greater
+            } else {
+                a.date.cmp(&b.date)
             }
         }
         (None, Some(bst)) => {
-            if bst.name == "Full Release" {
-                Ordering::Less
-            } else {
+            if bst.name == "Early Access" {
                 Ordering::Greater
+            } else {
+                a.date.cmp(&b.date)
             }
         }
         (None, None) => a.date.cmp(&b.date),
@@ -774,7 +775,9 @@ async fn get_release_timestamp(
 
     Ok(
         if igdb_date.is_none()
-            || (igdb_date.unwrap_or_default() > (now as i64) && !steam_date.is_none())
+            || ((igdb_date.unwrap_or_default() > (now as i64) || igdb_date.unwrap_or_default() > 0)
+                && !steam_date.is_none())
+            || (igdb_date.unwrap_or_default() > steam_date.unwrap_or_default())
         {
             steam_date
         } else {
