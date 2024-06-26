@@ -775,9 +775,10 @@ async fn get_release_timestamp(
 
     Ok(
         if igdb_date.is_none()
-            || ((igdb_date.unwrap_or_default() > (now as i64) || igdb_date.unwrap_or_default() > 0)
-                && !steam_date.is_none())
-            || (igdb_date.unwrap_or_default() > steam_date.unwrap_or_default())
+            || !steam_date.is_none()
+                && (igdb_date.unwrap_or_default() > (now as i64)
+                    || igdb_date.unwrap_or_default() == 0
+                    || (igdb_date.unwrap_or_default() > steam_date.unwrap_or_default()))
         {
             steam_date
         } else {
