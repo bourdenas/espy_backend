@@ -1,6 +1,7 @@
 use crate::{
     api::{
-        FirestoreApi, IgdbApi, IgdbExternalGame, IgdbGame, MetacriticApi, SteamDataApi, SteamScrape,
+        FirestoreApi, GogScrape, IgdbApi, IgdbExternalGame, IgdbGame, MetacriticApi, SteamDataApi,
+        SteamScrape,
     },
     documents::{ExternalGame, GameEntry, Keyword},
     library::firestore,
@@ -212,11 +213,23 @@ pub async fn external_games_webhook(
     external_game: IgdbExternalGame,
     firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    if !(external_game.is_steam() || external_game.is_gog()) {
+    if !(external_game.is_supported_store()) {
         return Ok(StatusCode::OK);
     }
 
-    let external_game = ExternalGame::from(external_game);
+    let mut external_game = ExternalGame::from(external_game);
+    match external_game.store_name.as_str() {
+        "gog" => {
+            if let Some(url) = &external_game.store_url {
+                match GogScrape::scrape(url).await {
+                    Ok(gog_data) => external_game.gog_data = Some(gog_data),
+                    Err(status) => warn!("GOG scraping failed: {status}"),
+                }
+            }
+        }
+        _ => {}
+    }
+
     let result = firestore::external_games::write(&firestore, &external_game).await;
     let event = ExternalGameEvent::new(external_game);
 

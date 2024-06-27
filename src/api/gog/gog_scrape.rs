@@ -2,14 +2,13 @@ use std::collections::HashSet;
 
 use reqwest::{header, ClientBuilder};
 use soup::prelude::*;
-use tracing::warn;
 
-use crate::documents::GogData;
+use crate::{documents::GogData, Status};
 
 pub struct GogScrape {}
 
 impl GogScrape {
-    pub async fn scrape(url: &str) -> Option<GogData> {
+    pub async fn scrape(url: &str) -> Result<GogData, Status> {
         let mut request_headers = header::HeaderMap::new();
         request_headers.insert(
             header::ACCEPT_LANGUAGE,
@@ -44,20 +43,8 @@ impl GogScrape {
         //     }
         // }
 
-        let resp = match client.get(url).send().await {
-            Ok(resp) => resp,
-            Err(status) => {
-                warn!("{status}");
-                return None;
-            }
-        };
-        let text = match resp.text().await {
-            Ok(text) => text,
-            Err(status) => {
-                warn!("{status}");
-                return None;
-            }
-        };
+        let resp = client.get(url).send().await?;
+        let text = resp.text().await?;
         let soup = Soup::new(&text);
 
         let logo = match soup.class(LOGO).find() {
@@ -92,7 +79,7 @@ impl GogScrape {
             None => None,
         };
 
-        Some(GogData {
+        Ok(GogData {
             release_date: None,
             logo,
             critic_score,

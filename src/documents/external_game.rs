@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::IgdbExternalGame;
 
+use super::GogData;
+
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct ExternalGame {
     pub igdb_id: u64,
@@ -12,6 +14,10 @@ pub struct ExternalGame {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub store_url: Option<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gog_data: Option<GogData>,
 }
 
 impl From<IgdbExternalGame> for ExternalGame {
@@ -21,6 +27,8 @@ impl From<IgdbExternalGame> for ExternalGame {
             igdb_id: external.game,
             store_id: external.uid,
             store_url: external.url,
+
+            ..Default::default()
         }
     }
 }

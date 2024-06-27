@@ -221,11 +221,15 @@ impl IgdbGame {
 #[derive(Deserialize, Default, Debug, Clone)]
 pub struct IgdbExternalGame {
     pub id: u64,
+
+    // IGDB game id.
     pub game: u64,
+
+    // Game id on the external service (e.g. Steam appid or GOG id).
     pub uid: String,
 
     // Enum of the external's game store.
-    // {steam: 1, GOG: 5}
+    // {Steam: 1, GOG: 5, EGS: 26}
     pub category: u64,
 
     #[serde(default)]
@@ -233,6 +237,10 @@ pub struct IgdbExternalGame {
 }
 
 impl IgdbExternalGame {
+    pub fn is_supported_store(&self) -> bool {
+        matches!(self.category, 1 | 5 | 26)
+    }
+
     pub fn is_steam(&self) -> bool {
         self.category == 1
     }
@@ -241,10 +249,15 @@ impl IgdbExternalGame {
         self.category == 5
     }
 
+    pub fn is_egs(&self) -> bool {
+        self.category == 26
+    }
+
     pub fn store(&self) -> &str {
         match self.category {
             1 => "steam",
             5 => "gog",
+            26 => "egs",
             _ => "unknown",
         }
     }

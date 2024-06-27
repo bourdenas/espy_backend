@@ -339,7 +339,7 @@ pub async fn resolve_game_info(
     if let Some(handle) = gog_handle {
         match handle.await {
             Ok(gog_data) => {
-                if let Some(gog_data) = gog_data {
+                if let Ok(gog_data) = gog_data {
                     game_entry.add_gog_data(gog_data)
                 }
             }
