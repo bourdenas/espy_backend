@@ -34,11 +34,7 @@ pub async fn read(
     }
 }
 
-/// Batch reads external games by id.
-///
-/// Returns a tuple with two vectors. The first one contains the found
-/// ExternalGame docs and the second contains the StoreEntry docs that were not
-/// found.
+/// Batch reads external games based on StoreEntries.
 #[instrument(
     name = "external_games::batch_read",
     level = "trace",
@@ -154,6 +150,23 @@ pub async fn get_steam_id(firestore: &FirestoreApi, igdb_id: u64) -> Result<Stri
             "Steam Id for {igdb_id} was not found"
         ))),
     }
+}
+
+pub async fn get_external_games(
+    firestore: &FirestoreApi,
+    igdb_id: u64,
+) -> Result<Vec<ExternalGame>, Status> {
+    let external_games: BoxStream<FirestoreResult<ExternalGame>> = firestore
+        .db()
+        .fluent()
+        .select()
+        .from("external_games")
+        .filter(|q| q.for_all([q.field(path!(ExternalGame::igdb_id)).equal(igdb_id)]))
+        .obj()
+        .stream_query_with_errors()
+        .await?;
+
+    Ok(external_games.try_collect::<Vec<ExternalGame>>().await?)
 }
 
 const EXTERNAL_GAMES: &str = "external_games";
