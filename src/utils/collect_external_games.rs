@@ -1,6 +1,11 @@
 use clap::Parser;
-use espy_backend::{api, documents::ExternalGame, library::firestore, util, Tracing};
-use tracing::{error, info};
+use espy_backend::{
+    api::{self, GogScrape},
+    documents::ExternalGame,
+    library::firestore,
+    util, Tracing,
+};
+use tracing::{error, info, warn};
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
 #[derive(Parser)]
@@ -37,14 +42,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if external_games.len() == 0 {
             break;
         }
-        info!(
-            "\nWorking on {}:{}",
+        println!(
+            "🦀 Working on {}:{}",
             opts.offset + i * 500,
             opts.offset + i * 500 + external_games.len() as u64
         );
 
         for external_game in external_games {
-            let external_game = ExternalGame::from(external_game);
+            let mut external_game = ExternalGame::from(external_game);
+            match external_game.store_name.as_str() {
+                "gog" => {
+                    if let Some(url) = &external_game.store_url {
+                        println!("Scrapping {}", url);
+                        match GogScrape::scrape(url).await {
+                            Ok(gog_data) => external_game.gog_data = Some(gog_data),
+                            Err(status) => warn!("GOG scraping failed: {status}"),
+                        }
+                    }
+                }
+                _ => {}
+            }
+
             if let Err(e) = firestore::external_games::write(&firestore, &external_game).await {
                 error!(
                     "Failed to save '{}_{}' in Firestore: {e}",
