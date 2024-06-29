@@ -44,14 +44,6 @@ name = "export_labeled_entries"
 path = "src/genres/utils/export_labeled_entries.rs"
 
 [[bin]]
-name = "export_unlabeled_entries"
-path = "src/genres/utils/export_unlabeled_entries.rs"
-
-[[bin]]
-name = "import_predictions"
-path = "src/genres/utils/import_predictions.rs"
-
-[[bin]]
 name = "predict"
 path = "src/genres/utils/predict.rs"
 
