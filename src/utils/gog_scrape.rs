@@ -26,7 +26,7 @@ async fn main() -> Result<(), Status> {
         .find(|e| matches!(e.authority, WebsiteAuthority::Gog));
     if let Some(website) = website {
         let gog_data = GogScrape::scrape(&website.url).await;
-        println!("gog_date={:#?}", gog_data);
+        println!("gog_data={:#?}", gog_data);
     }
 
     Ok(())

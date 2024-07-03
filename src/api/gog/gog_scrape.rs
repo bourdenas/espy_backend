@@ -23,29 +23,20 @@ impl GogScrape {
 
         // Uncomment for forcing english page from GOG, but it issues
         // two http requests.
-        //
-        // let resp = match client
-        //     .get("https://www.gog.com/user/changeLanguage/en")
-        //     .send()
-        //     .await
-        // {
-        //     Ok(resp) => resp,
-        //     Err(status) => {
-        //         warn!("{status}");
-        //         return None;
-        //     }
-        // };
-        // match resp.text().await {
-        //     Ok(_) => {}
-        //     Err(status) => {
-        //         warn!("{status}");
-        //         return None;
-        //     }
-        // }
+        let resp = client
+            .get("https://www.gog.com/user/changeLanguage/en")
+            .send()
+            .await?;
+        resp.text().await?;
 
         let resp = client.get(url).send().await?;
         let text = resp.text().await?;
         let soup = Soup::new(&text);
+
+        let description = match soup.class(DESCRIPTION).find() {
+            Some(description) => Some(description.display()),
+            None => None,
+        };
 
         let logo = match soup.class(LOGO).find() {
             Some(img) => match img.get("srcset") {
@@ -54,6 +45,14 @@ impl GogScrape {
             },
             None => None,
         };
+
+        let mut release_date = None;
+        for div in soup.class(DETAILS_ROW).find_all() {
+            if let Some(date) = extract_date(&div.text()) {
+                release_date = Some(date);
+                break;
+            }
+        }
 
         let mut genres = HashSet::new();
         let mut tags = HashSet::new();
@@ -80,11 +79,12 @@ impl GogScrape {
         };
 
         Ok(GogData {
-            release_date: None,
+            release_date,
             logo,
             critic_score,
             genres: genres.into_iter().collect(),
             tags: tags.into_iter().collect(),
+            description,
         })
     }
 }
@@ -98,6 +98,14 @@ fn extract_logo(input: &str) -> Option<String> {
     }
     RE.captures(input)
         .and_then(|cap| cap.name("url").map(|url| url.as_str().to_owned()))
+}
+
+fn extract_date(text: &str) -> Option<String> {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r"(?P<date>\d+\-\d+\-\d+)T").unwrap();
+    }
+    RE.captures(text)
+        .and_then(|cap| cap.name("date").map(|url| url.as_str().to_owned()))
 }
 
 fn extract_genre(input: &str) -> Option<String> {
@@ -136,6 +144,8 @@ fn extract_score(input: &str) -> Option<u64> {
 }
 
 const LOGO: &str = "productcard-player__logo";
+const DETAILS_ROW: &str = "details__row";
 const DETAILS_CELL: &str = "details__link";
 const CRITICS_RATING_WRAPPER: &str = "critics-rating-wrapper";
 const CRITICS_SCORE: &str = "circle-score__text";
+const DESCRIPTION: &str = "description";
