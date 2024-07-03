@@ -10,6 +10,7 @@ use espy_backend::{
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use soup::Soup;
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
 #[derive(Parser)]
@@ -81,6 +82,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 Some(gog_data) => gog_data.tags.iter().join("|"),
                 None => String::default(),
             },
+            description: match &entry.steam_data {
+                Some(steam_data) => format!(
+                    "{} {}",
+                    extract_text(&steam_data.about_the_game),
+                    extract_text(&steam_data.detailed_description)
+                ),
+                None => entry.igdb_game.summary.replace("\n", " "),
+            },
             images: match entry.steam_data {
                 Some(steam_data) => steam_data
                     .screenshots
@@ -111,6 +120,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
+fn extract_text(html: &str) -> String {
+    let soup = Soup::new(&html);
+    soup.text().replace("\n", " ")
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct LabeledExample {
     id: u64,
@@ -122,5 +136,6 @@ struct LabeledExample {
     igdb_keywords: String,
     steam_tags: String,
     gog_tags: String,
+    description: String,
     images: String,
 }
