@@ -20,6 +20,20 @@ pub struct ExternalGame {
     pub gog_data: Option<GogData>,
 }
 
+impl ExternalGame {
+    pub fn is_steam(&self) -> bool {
+        self.store_name == "steam"
+    }
+
+    pub fn is_gog(&self) -> bool {
+        self.store_name == "gog"
+    }
+
+    pub fn is_egs(&self) -> bool {
+        self.store_name == "egs"
+    }
+}
+
 impl From<IgdbExternalGame> for ExternalGame {
     fn from(external: IgdbExternalGame) -> Self {
         ExternalGame {
