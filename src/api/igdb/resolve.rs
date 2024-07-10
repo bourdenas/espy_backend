@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    api::{FirestoreApi, GogScrape, MetacriticApi, SteamDataApi, SteamScrape},
+    api::{FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
     documents::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
         GameCategory, GameDigest, GameEntry, Image, SteamData, Website, WebsiteAuthority,
@@ -41,20 +41,28 @@ pub async fn resolve_game_digest(
     let mut game_entry = GameEntry::from(igdb_game);
     let igdb_game = &game_entry.igdb_game;
 
-    // Spawn a task to retrieve steam data.
-    let steam_handle = match firestore::external_games::get_steam_id(firestore, game_entry.id).await
-    {
-        Ok(steam_appid) => Some(tokio::spawn(
-            async move {
-                let steam = SteamDataApi::new();
-                steam.retrieve_steam_data(&steam_appid).await
+    let external_games =
+        match firestore::external_games::get_external_games(firestore, game_entry.id).await {
+            Ok(external_games) => external_games,
+            Err(status) => {
+                warn!("{status}");
+                vec![]
             }
-            .instrument(trace_span!("spawn_steam_request")),
-        )),
-        Err(status) => {
-            warn!("{status}");
-            None
+        };
+
+    // Spawn a task to retrieve steam data.
+    let steam_handle = match external_games.iter().find(|e| e.is_steam()) {
+        Some(steam_external) => {
+            let steam_appid = steam_external.store_id.clone();
+            Some(tokio::spawn(
+                async move {
+                    let steam = SteamDataApi::new();
+                    steam.retrieve_steam_data(&steam_appid).await
+                }
+                .instrument(trace_span!("spawn_steam_request")),
+            ))
         }
+        None => None,
     };
 
     // Spawn a task to retrieve metacritic score.
@@ -174,6 +182,12 @@ pub async fn resolve_game_digest(
         }
     }
 
+    if let Some(gog_external) = external_games.into_iter().find(|e| e.is_gog()) {
+        if let Some(gog_data) = gog_external.gog_data {
+            game_entry.add_gog_data(gog_data);
+        }
+    }
+
     // TODO: Remove these updates from the critical path.
     update_companies(firestore, &game_entry).await;
     update_collections(firestore, &game_entry).await;
@@ -240,21 +254,6 @@ pub async fn resolve_game_info(
             );
         }
     }
-
-    let gog_store = game_entry
-        .websites
-        .iter()
-        .find(|e| matches!(e.authority, WebsiteAuthority::Gog));
-    let gog_handle = match gog_store {
-        Some(gog_store) => {
-            let url = gog_store.url.clone();
-            Some(tokio::spawn(
-                async move { GogScrape::scrape(&url).await }
-                    .instrument(trace_span!("spawn_gog_scrape")),
-            ))
-        }
-        None => None,
-    };
 
     // Skip screenshots if they already exist from steam data.
     if !igdb_game.screenshots.is_empty() && game_entry.steam_data.is_none() {
@@ -330,17 +329,6 @@ pub async fn resolve_game_info(
                     if let Some(steam_data) = &mut game_entry.steam_data {
                         steam_data.user_tags = steam_scrape_data.user_tags;
                     }
-                }
-            }
-            Err(status) => warn!("{status}"),
-        }
-    }
-
-    if let Some(handle) = gog_handle {
-        match handle.await {
-            Ok(gog_data) => {
-                if let Ok(gog_data) = gog_data {
-                    game_entry.add_gog_data(gog_data)
                 }
             }
             Err(status) => warn!("{status}"),

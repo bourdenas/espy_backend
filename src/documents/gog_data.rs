@@ -22,6 +22,10 @@ pub struct GogData {
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 impl GogData {
@@ -30,20 +34,11 @@ impl GogData {
             Some(date) => {
                 let parsed_date = NaiveDateTime::parse_from_str(
                     &format!("{} 12:00:00", &date),
-                    "%B %e, %Y %H:%M:%S",
+                    "%Y-%m-%d %H:%M:%S",
                 );
                 match parsed_date {
                     Ok(date) => Some(date.timestamp()),
-                    Err(_) => {
-                        let parsed_date = NaiveDateTime::parse_from_str(
-                            &format!("{} 12:00:00", &date),
-                            "%e %B, %Y %H:%M:%S",
-                        );
-                        match parsed_date {
-                            Ok(date) => Some(date.timestamp()),
-                            Err(_) => None,
-                        }
-                    }
+                    Err(_) => None,
                 }
             }
             None => None,
