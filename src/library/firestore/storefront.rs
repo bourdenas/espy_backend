@@ -1,28 +1,16 @@
-use crate::{api::FirestoreApi, documents::StoreEntry, documents::Storefront, Status};
 use std::collections::HashSet;
 use tracing::instrument;
+
+use crate::{api::FirestoreApi, documents::StoreEntry, documents::Storefront, Status};
+
+use super::utils;
 
 /// Returns all store entries owned by user.
 ///
 /// Reads `users/{user_id}/games/storefront` document in Firestore.
 #[instrument(name = "storefront::read", level = "trace", skip(firestore, user_id))]
 pub async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<Storefront, Status> {
-    let parent_path = firestore.db().parent_path(USERS, user_id)?;
-
-    let doc: Option<Storefront> = firestore
-        .db()
-        .fluent()
-        .select()
-        .by_id_in(GAMES)
-        .parent(&parent_path)
-        .obj()
-        .one(STOREFRONT_DOC)
-        .await?;
-
-    match doc {
-        Some(doc) => Ok(doc),
-        None => Ok(Storefront::default()),
-    }
+    utils::users_read(firestore, user_id, GAMES, STOREFRONT_DOC).await
 }
 
 /// Writes the Storefront doc containing games owned by user.
@@ -38,7 +26,7 @@ pub async fn write(
     user_id: &str,
     storefront: &Storefront,
 ) -> Result<(), Status> {
-    let parent_path = firestore.db().parent_path(USERS, user_id)?;
+    let parent_path = firestore.db().parent_path(utils::USERS, user_id)?;
 
     firestore
         .db()
@@ -142,6 +130,5 @@ pub async fn remove_entry(
     write(firestore, user_id, &storefront).await
 }
 
-const USERS: &str = "users";
 const GAMES: &str = "games";
 const STOREFRONT_DOC: &str = "storefront";

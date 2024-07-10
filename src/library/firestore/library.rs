@@ -5,24 +5,11 @@ use crate::{
 };
 use tracing::instrument;
 
+use super::utils;
+
 #[instrument(name = "library::read", level = "trace", skip(firestore, user_id))]
 pub async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<Library, Status> {
-    let parent_path = firestore.db().parent_path(USERS, user_id)?;
-
-    let doc = firestore
-        .db()
-        .fluent()
-        .select()
-        .by_id_in(GAMES)
-        .parent(&parent_path)
-        .obj()
-        .one(LIBRARY_DOC)
-        .await?;
-
-    match doc {
-        Some(doc) => Ok(doc),
-        None => Ok(Library { entries: vec![] }),
-    }
+    utils::users_read(firestore, user_id, GAMES, LIBRARY_DOC).await
 }
 
 #[instrument(
@@ -39,7 +26,7 @@ pub async fn write(
         .entries
         .sort_by(|l, r| r.digest.release_date.cmp(&l.digest.release_date));
 
-    let parent_path = firestore.db().parent_path(USERS, user_id)?;
+    let parent_path = firestore.db().parent_path(utils::USERS, user_id)?;
 
     firestore
         .db()
@@ -54,7 +41,6 @@ pub async fn write(
     Ok(())
 }
 
-const USERS: &str = "users";
 const GAMES: &str = "games";
 const LIBRARY_DOC: &str = "library";
 

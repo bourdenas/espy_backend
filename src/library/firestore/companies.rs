@@ -1,6 +1,9 @@
-use crate::{api::FirestoreApi, documents::Company, Status};
 use futures::{stream::BoxStream, StreamExt};
 use tracing::instrument;
+
+use crate::{api::FirestoreApi, documents::Company, Status};
+
+use super::utils;
 
 #[instrument(name = "companies::list", level = "trace", skip(firestore))]
 pub async fn list(firestore: &FirestoreApi) -> Result<Vec<Company>, Status> {
@@ -18,21 +21,7 @@ pub async fn list(firestore: &FirestoreApi) -> Result<Vec<Company>, Status> {
 
 #[instrument(name = "companies::read", level = "trace", skip(firestore))]
 pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<Company, Status> {
-    let doc = firestore
-        .db()
-        .fluent()
-        .select()
-        .by_id_in(COMPANIES)
-        .obj()
-        .one(doc_id.to_string())
-        .await?;
-
-    match doc {
-        Some(doc) => Ok(doc),
-        None => Err(Status::not_found(format!(
-            "Firestore document '{COMPANIES}/{doc_id}' was not found"
-        ))),
-    }
+    utils::read(firestore, COMPANIES, doc_id.to_string()).await
 }
 
 #[instrument(

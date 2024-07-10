@@ -9,6 +9,8 @@ use firestore::{path, FirestoreResult};
 use futures::{stream::BoxStream, StreamExt, TryStreamExt};
 use tracing::{instrument, warn};
 
+use super::utils;
+
 #[instrument(name = "external_games::read", level = "trace", skip(firestore))]
 pub async fn read(
     firestore: &FirestoreApi,
@@ -16,22 +18,7 @@ pub async fn read(
     store_id: &str,
 ) -> Result<ExternalGame, Status> {
     let doc_id = format!("{}_{}", store, store_id);
-
-    let doc = firestore
-        .db()
-        .fluent()
-        .select()
-        .by_id_in(EXTERNAL_GAMES)
-        .obj()
-        .one(&doc_id)
-        .await?;
-
-    match doc {
-        Some(doc) => Ok(doc),
-        None => Err(Status::not_found(format!(
-            "Firestore document '{EXTERNAL_GAMES}/{doc_id}' was not found"
-        ))),
-    }
+    utils::read(firestore, EXTERNAL_GAMES, doc_id).await
 }
 
 /// Batch reads external games based on StoreEntries.
@@ -70,7 +57,10 @@ pub async fn batch_read(
                 }),
                 None => missing.push(store_entries.remove(&id).unwrap_or_default()),
             },
-            Err(status) => warn!("{status}"),
+            Err(e) => warn!(
+                "{}",
+                utils::make_status(e, "external_games::batch_read", "?")
+            ),
         }
     }
 

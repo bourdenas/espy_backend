@@ -5,6 +5,8 @@ use crate::{
 };
 use tracing::instrument;
 
+use super::utils;
+
 #[instrument(
     name = "wishlist::add_entry",
     level = "trace",
@@ -103,22 +105,7 @@ fn remove(game_id: u64, wishlist: &mut Library) -> bool {
 
 #[instrument(name = "wishlist::read", level = "trace", skip(firestore, user_id))]
 async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<Library, Status> {
-    let parent_path = firestore.db().parent_path(USERS, user_id)?;
-
-    let doc = firestore
-        .db()
-        .fluent()
-        .select()
-        .by_id_in(GAMES)
-        .parent(&parent_path)
-        .obj()
-        .one(WISHLIST_DOC)
-        .await?;
-
-    match doc {
-        Some(doc) => Ok(doc),
-        None => Ok(Library { entries: vec![] }),
-    }
+    utils::users_read(firestore, user_id, GAMES, WISHLIST_DOC).await
 }
 
 #[instrument(
@@ -135,7 +122,7 @@ async fn write(
         .entries
         .sort_by(|l, r| r.digest.release_date.cmp(&l.digest.release_date));
 
-    let parent_path = firestore.db().parent_path(USERS, user_id)?;
+    let parent_path = firestore.db().parent_path(utils::USERS, user_id)?;
 
     firestore
         .db()
@@ -150,6 +137,5 @@ async fn write(
     Ok(())
 }
 
-const USERS: &str = "users";
 const GAMES: &str = "games";
 const WISHLIST_DOC: &str = "wishlist";

@@ -2,26 +2,14 @@ use tracing::instrument;
 
 use crate::{api::FirestoreApi, documents::ScoresDoc, Status};
 
-#[instrument(name = "games::read", level = "trace", skip(firestore))]
-pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<ScoresDoc, Status> {
-    let doc = firestore
-        .db()
-        .fluent()
-        .select()
-        .by_id_in(SCORES)
-        .obj()
-        .one(doc_id.to_string())
-        .await?;
+use super::utils;
 
-    match doc {
-        Some(doc) => Ok(doc),
-        None => Err(Status::not_found(format!(
-            "Firestore document '{SCORES}/{doc_id}' was not found"
-        ))),
-    }
+#[instrument(name = "scores::read", level = "trace", skip(firestore))]
+pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<ScoresDoc, Status> {
+    utils::read(firestore, SCORES, doc_id.to_string()).await
 }
 
-#[instrument(name = "games::write", level = "trace", skip(firestore, game_entry))]
+#[instrument(name = "scores::write", level = "trace", skip(firestore, game_entry))]
 pub async fn write(firestore: &FirestoreApi, game_entry: &ScoresDoc) -> Result<(), Status> {
     firestore
         .db()

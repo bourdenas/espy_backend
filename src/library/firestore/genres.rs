@@ -6,16 +6,11 @@ use crate::{
     Status,
 };
 
+use super::utils;
+
 #[instrument(name = "genres::read", level = "trace", skip(firestore))]
-pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<Option<Genre>, Status> {
-    Ok(firestore
-        .db()
-        .fluent()
-        .select()
-        .by_id_in(GENRES)
-        .obj()
-        .one(doc_id.to_string())
-        .await?)
+pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<Genre, Status> {
+    utils::read(firestore, GENRES, doc_id.to_string()).await
 }
 
 #[instrument(name = "genres::write", level = "trace", skip(firestore))]

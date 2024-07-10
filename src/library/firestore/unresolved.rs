@@ -5,6 +5,8 @@ use crate::{
 };
 use tracing::instrument;
 
+use super::utils;
+
 #[instrument(
     name = "unresolved::add_unresolved",
     level = "trace",
@@ -101,22 +103,7 @@ fn remove_storefront_entries(storefront_name: &str, unresolved: &mut UnresolvedE
 
 #[instrument(name = "unresolved::read", level = "trace", skip(firestore, user_id))]
 pub async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<UnresolvedEntries, Status> {
-    let parent_path = firestore.db().parent_path(USERS, user_id)?;
-
-    let doc = firestore
-        .db()
-        .fluent()
-        .select()
-        .by_id_in(GAMES)
-        .parent(&parent_path)
-        .obj()
-        .one(UNRESOLVED_DOC)
-        .await?;
-
-    match doc {
-        Some(doc) => Ok(doc),
-        None => Ok(UnresolvedEntries::default()),
-    }
+    utils::users_read(firestore, user_id, GAMES, UNRESOLVED_DOC).await
 }
 
 #[instrument(
@@ -129,7 +116,7 @@ pub async fn write(
     user_id: &str,
     unresolved: &UnresolvedEntries,
 ) -> Result<(), Status> {
-    let parent_path = firestore.db().parent_path(USERS, user_id)?;
+    let parent_path = firestore.db().parent_path(utils::USERS, user_id)?;
 
     firestore
         .db()
@@ -144,7 +131,6 @@ pub async fn write(
     Ok(())
 }
 
-const USERS: &str = "users";
 const GAMES: &str = "games";
 const UNRESOLVED_DOC: &str = "unresolved";
 

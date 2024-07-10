@@ -149,9 +149,12 @@ pub async fn resolve_game_digest(
     }
     game_entry.resolve_genres();
 
-    match firestore::genres::read(firestore, game_entry.id).await? {
-        Some(genres) => game_entry.espy_genres = genres.espy_genres,
-        None => firestore::genres::needs_annotation(firestore, &game_entry).await?,
+    match firestore::genres::read(firestore, game_entry.id).await {
+        Ok(genres) => game_entry.espy_genres = genres.espy_genres,
+        Err(Status::NotFound(_)) => {
+            firestore::genres::needs_annotation(firestore, &game_entry).await?
+        }
+        Err(status) => error!("Genre lookup failed: {status}"),
     }
 
     match metacritic_handle.await {
@@ -444,11 +447,8 @@ async fn get_games(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<IgdbG
 /// Returns game keywords from their ids.
 #[instrument(level = "trace", skip(firestore))]
 async fn get_keywords(firestore: &FirestoreApi, ids: &[u64]) -> Result<Vec<String>, Status> {
-    Ok(firestore::keywords::batch_read(firestore, ids)
-        .await?
-        .iter()
-        .map(|kw| kw.name.clone())
-        .collect())
+    let (keywords, _) = firestore::keywords::batch_read(firestore, ids).await?;
+    Ok(keywords.iter().map(|kw| kw.name.clone()).collect())
 }
 
 /// Returns game screenshots based on id from the igdb/screenshots endpoint.

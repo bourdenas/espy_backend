@@ -1,10 +1,11 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use firestore::FirestoreResult;
 use futures::{stream::BoxStream, StreamExt};
-use tracing::{instrument, warn};
+use tracing::instrument;
 
 use crate::{api::FirestoreApi, documents::GameEntry, Status};
+
+use super::utils;
 
 #[instrument(name = "games::list", level = "trace", skip(firestore))]
 pub async fn list(firestore: &FirestoreApi) -> Result<Vec<GameEntry>, Status> {
@@ -22,21 +23,7 @@ pub async fn list(firestore: &FirestoreApi) -> Result<Vec<GameEntry>, Status> {
 
 #[instrument(name = "games::read", level = "trace", skip(firestore))]
 pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<GameEntry, Status> {
-    let doc = firestore
-        .db()
-        .fluent()
-        .select()
-        .by_id_in(GAMES)
-        .obj()
-        .one(doc_id.to_string())
-        .await?;
-
-    match doc {
-        Some(doc) => Ok(doc),
-        None => Err(Status::not_found(format!(
-            "Firestore document '{GAMES}/{doc_id}' was not found"
-        ))),
-    }
+    utils::read(firestore, GAMES, doc_id.to_string()).await
 }
 
 /// Batch reads games by id.
@@ -48,28 +35,7 @@ pub async fn batch_read(
     firestore: &FirestoreApi,
     doc_ids: &[u64],
 ) -> Result<(Vec<GameEntry>, Vec<u64>), Status> {
-    let mut docs: BoxStream<FirestoreResult<(String, Option<GameEntry>)>> = firestore
-        .db()
-        .fluent()
-        .select()
-        .by_id_in(GAMES)
-        .obj()
-        .batch_with_errors(doc_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>())
-        .await?;
-
-    let mut games = vec![];
-    let mut not_found = vec![];
-    while let Some(game) = docs.next().await {
-        match game {
-            Ok((id, game)) => match game {
-                Some(game) => games.push(game),
-                None => not_found.push(id.parse().unwrap_or_default()),
-            },
-            Err(status) => warn!("{status}"),
-        }
-    }
-
-    Ok((games, not_found))
+    utils::batch_read(firestore, GAMES, doc_ids).await
 }
 
 #[instrument(name = "games::write", level = "trace", skip(firestore, game_entry))]
