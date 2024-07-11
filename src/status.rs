@@ -55,11 +55,15 @@ impl From<FirestoreError> for Status {
         match err {
             FirestoreError::DataNotFoundError(err) => Self::not_found(err.to_string()),
             FirestoreError::InvalidParametersError(err) => Self::invalid_argument(err.to_string()),
+            FirestoreError::SerializeError(err) => Self::internal(format!(
+                "Failed to serialize document with error '{}'",
+                err.message
+            )),
             FirestoreError::DeserializeError(err) => Self::internal(format!(
                 "Failed to parse document with error '{}'",
                 err.message
             )),
-            err => Self::new("firestore error", err),
+            err => Self::new("Firestore error", err),
         }
     }
 }
