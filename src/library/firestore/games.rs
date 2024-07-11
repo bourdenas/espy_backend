@@ -5,7 +5,7 @@ use tracing::instrument;
 
 use crate::{api::FirestoreApi, documents::GameEntry, Status};
 
-use super::utils;
+use super::{utils, BatchReadResult};
 
 #[instrument(name = "games::list", level = "trace", skip(firestore))]
 pub async fn list(firestore: &FirestoreApi) -> Result<Vec<GameEntry>, Status> {
@@ -34,7 +34,7 @@ pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<GameEntry, St
 pub async fn batch_read(
     firestore: &FirestoreApi,
     doc_ids: &[u64],
-) -> Result<(Vec<GameEntry>, Vec<u64>), Status> {
+) -> Result<BatchReadResult<GameEntry>, Status> {
     utils::batch_read(firestore, GAMES, doc_ids).await
 }
 

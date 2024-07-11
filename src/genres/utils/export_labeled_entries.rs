@@ -45,9 +45,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     let game_ids = game_to_genre.keys().into_iter().map(|e| *e).collect_vec();
-    let (game_entries, _) = games::batch_read(&firestore, &game_ids).await?;
+    let games = games::batch_read(&firestore, &game_ids).await?;
 
-    let examples = game_entries
+    let examples = games
+        .documents
         .into_iter()
         .map(|entry| LabeledExample {
             id: entry.id,

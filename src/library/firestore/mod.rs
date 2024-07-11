@@ -18,3 +18,4 @@ pub mod wishlist;
 pub mod year;
 
 mod utils;
+pub use utils::BatchReadResult;

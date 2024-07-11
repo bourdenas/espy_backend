@@ -66,7 +66,7 @@ pub async fn batch_read<Document: serde::de::DeserializeOwned + Send>(
     firestore: &FirestoreApi,
     collection: &str,
     doc_ids: &[u64],
-) -> Result<(Vec<Document>, Vec<u64>), Status> {
+) -> Result<BatchReadResult<Document>, Status> {
     let mut docs: BoxStream<FirestoreResult<(String, Option<Document>)>> = firestore
         .db()
         .fluent()
@@ -89,7 +89,16 @@ pub async fn batch_read<Document: serde::de::DeserializeOwned + Send>(
         }
     }
 
-    Ok((documents, not_found))
+    Ok(BatchReadResult {
+        documents,
+        not_found,
+    })
+}
+
+#[derive(Debug, Clone)]
+pub struct BatchReadResult<Document> {
+    pub documents: Vec<Document>,
+    pub not_found: Vec<u64>,
 }
 
 pub fn make_status<S: Into<String> + Display>(

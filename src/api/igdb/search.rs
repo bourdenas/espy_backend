@@ -35,13 +35,13 @@ impl IgdbSearch {
         let candidates = self.search_by_title(title).await?;
         let candidate_ids = candidates.iter().map(|e| e.id).collect_vec();
 
-        let (games, _not_found_games) =
-            firestore::games::batch_read(&firestore, &candidate_ids).await?;
+        let result = firestore::games::batch_read(&firestore, &candidate_ids).await?;
 
         Ok(candidates
             .into_iter()
             .map(|igdb_game| {
-                if let Some(game) = games
+                if let Some(game) = result
+                    .documents
                     .iter()
                     .find(|game_entry| game_entry.id == igdb_game.id)
                 {

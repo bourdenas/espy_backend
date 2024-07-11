@@ -391,14 +391,15 @@ async fn get_digests(
     firestore: &FirestoreApi,
     ids: &[u64],
 ) -> Result<Vec<GameDigest>, Status> {
-    let (game_entries, missing) = firestore::games::batch_read(firestore, ids).await?;
-    let mut digests = game_entries
+    let result = firestore::games::batch_read(firestore, ids).await?;
+    let mut digests = result
+        .documents
         .into_iter()
         .map(|entry| GameDigest::from(entry))
         .collect_vec();
 
-    if !missing.is_empty() {
-        let games = get_games(connection, &missing).await?;
+    if !result.not_found.is_empty() {
+        let games = get_games(connection, &result.not_found).await?;
         for igdb_game in games {
             digests.push(GameDigest::from(
                 resolve_game_digest(connection, firestore, igdb_game).await?,
@@ -447,8 +448,8 @@ async fn get_games(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<IgdbG
 /// Returns game keywords from their ids.
 #[instrument(level = "trace", skip(firestore))]
 async fn get_keywords(firestore: &FirestoreApi, ids: &[u64]) -> Result<Vec<String>, Status> {
-    let (keywords, _) = firestore::keywords::batch_read(firestore, ids).await?;
-    Ok(keywords.iter().map(|kw| kw.name.clone()).collect())
+    let result = firestore::keywords::batch_read(firestore, ids).await?;
+    Ok(result.documents.into_iter().map(|kw| kw.name).collect())
 }
 
 /// Returns game screenshots based on id from the igdb/screenshots endpoint.
@@ -512,8 +513,9 @@ async fn get_collections(
     firestore: &FirestoreApi,
     ids: &[u64],
 ) -> Result<Vec<CollectionDigest>, Status> {
-    let (collections, missing) = firestore::collections::batch_read(firestore, ids).await?;
-    let mut collections = collections
+    let result = firestore::collections::batch_read(firestore, ids).await?;
+    let mut collections = result
+        .documents
         .into_iter()
         .map(|e| CollectionDigest {
             id: e.id,
@@ -523,17 +525,18 @@ async fn get_collections(
         })
         .collect_vec();
 
-    if !missing.is_empty() {
+    if !result.not_found.is_empty() {
         collections.extend(
             post::<Vec<docs::IgdbAnnotation>>(
                 connection,
                 COLLECTIONS_ENDPOINT,
                 &format!(
                     "fields *; where id = ({});",
-                    missing
+                    result
+                        .not_found
                         .iter()
                         .map(|id| id.to_string())
-                        .collect::<Vec<String>>()
+                        .collect::<Vec<_>>()
                         .join(",")
                 ),
             )
@@ -558,8 +561,9 @@ async fn get_franchises(
     firestore: &FirestoreApi,
     ids: &[u64],
 ) -> Result<Vec<CollectionDigest>, Status> {
-    let (franchises, missing) = firestore::franchises::batch_read(firestore, ids).await?;
-    let mut franchises = franchises
+    let result = firestore::franchises::batch_read(firestore, ids).await?;
+    let mut franchises = result
+        .documents
         .into_iter()
         .map(|e| CollectionDigest {
             id: e.id,
@@ -569,14 +573,15 @@ async fn get_franchises(
         })
         .collect_vec();
 
-    if !missing.is_empty() {
+    if !result.not_found.is_empty() {
         franchises.extend(
             post::<Vec<docs::IgdbAnnotation>>(
                 connection,
                 FRANCHISES_ENDPOINT,
                 &format!(
                     "fields *; where id = ({});",
-                    missing
+                    result
+                        .not_found
                         .iter()
                         .map(|id| id.to_string())
                         .collect::<Vec<String>>()

@@ -41,9 +41,10 @@ impl LibraryManager {
                 .into_iter()
                 .collect_vec();
 
-        let (games, _not_found_games) = games::batch_read(&firestore, &doc_ids).await?;
-        let games =
-            HashMap::<u64, GameEntry>::from_iter(games.into_iter().map(|game| (game.id, game)));
+        let result = games::batch_read(&firestore, &doc_ids).await?;
+        let games = HashMap::<u64, GameEntry>::from_iter(
+            result.documents.into_iter().map(|game| (game.id, game)),
+        );
         let not_found_games = externals
             .matches
             .iter()

@@ -30,9 +30,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     let game_ids = examples.iter().map(|e| e.id).collect_vec();
-    let (mut game_entries, _) = games::batch_read(&firestore, &game_ids).await?;
+    let mut games = games::batch_read(&firestore, &game_ids).await?;
 
-    for game_entry in &mut game_entries {
+    for game_entry in &mut games.documents {
         let example = examples.iter().find(|e| e.id == game_entry.id).unwrap();
 
         let genres = example

@@ -74,31 +74,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         .unwrap()
                         .as_millis();
 
-                    let (developed, missing) = library::firestore::games::batch_read(
+                    let developed_games = library::firestore::games::batch_read(
                         &firestore,
                         &company.developed.iter().map(|e| e.id).collect_vec(),
                     )
                     .await?;
 
-                    if !missing.is_empty() {
+                    if !developed_games.not_found.is_empty() {
                         warn!(
                             "missing {} developed GameEntries from company '{}' ({})",
-                            missing.len(),
+                            developed_games.not_found.len(),
                             &company.name,
                             company.id,
                         );
                     }
 
-                    let (published, missing) = library::firestore::games::batch_read(
+                    let published_games = library::firestore::games::batch_read(
                         &firestore,
                         &company.published.iter().map(|e| e.id).collect_vec(),
                     )
                     .await?;
 
-                    if !missing.is_empty() {
+                    if !published_games.not_found.is_empty() {
                         warn!(
                             "missing {} published GameEntries from company '{}' ({})",
-                            missing.len(),
+                            published_games.not_found.len(),
                             &company.name,
                             company.id,
                         );
@@ -108,11 +108,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         id: company.id,
                         name: company.name,
                         slug: company.slug,
-                        developed: developed
+                        developed: developed_games
+                            .documents
                             .into_iter()
                             .map(|e| GameDigest::from(e))
                             .collect_vec(),
-                        published: published
+                        published: published_games
+                            .documents
                             .into_iter()
                             .map(|e| GameDigest::from(e))
                             .collect_vec(),

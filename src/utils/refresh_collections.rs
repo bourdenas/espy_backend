@@ -72,16 +72,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         .unwrap()
                         .as_millis();
 
-                    let (games, missing) = library::firestore::games::batch_read(
+                    let games = library::firestore::games::batch_read(
                         &firestore,
                         &collection.games.iter().map(|e| e.id).collect_vec(),
                     )
                     .await?;
 
-                    if !missing.is_empty() {
+                    if !games.not_found.is_empty() {
                         warn!(
                             "missing {} GameEntries from collection '{}' ({})",
-                            missing.len(),
+                            games.not_found.len(),
                             &collection.name,
                             collection.id,
                         );
@@ -92,7 +92,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         name: collection.name,
                         slug: collection.slug,
                         url: collection.url,
-                        games: games.into_iter().map(|e| GameDigest::from(e)).collect_vec(),
+                        games: games
+                            .documents
+                            .into_iter()
+                            .map(|e| GameDigest::from(e))
+                            .collect_vec(),
                     };
                     if opts.franchises {
                         library::firestore::franchises::write(&firestore, &collection).await?
