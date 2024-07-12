@@ -151,16 +151,14 @@ fn extract_keywords(game_entry: &GameEntry) -> Vec<String> {
     keywords.into_iter().collect()
 }
 
-static KW_SETS: [&'static phf::Map<&'static str, &'static str>; 9] = [
+static KW_SETS: [&'static phf::Map<&'static str, &'static str>; 7] = [
     &SETTING_KWS,
     &HISTORICAL_SETTING_KWS,
-    &HORROR_KWS,
     &GAMEPLAY_KWS,
     &VISUAL_STYLE_KWS,
+    &MATURE_KWS,
     &MULTIPLAYER_KWS,
-    &ADULT_KWS,
     &TRIGGER_KWS,
-    &OTHER_KWS,
 ];
 
 static SETTING_KWS: phf::Map<&'static str, &'static str> = phf_map! {
@@ -184,23 +182,19 @@ static SETTING_KWS: phf::Map<&'static str, &'static str> = phf_map! {
 
     "space" => "space",
     "spacebattle" => "space",
-    "spacecombat" => "space combat",
+    "spacecombat" => "space",
     "spacesim" => "space",
     "spacesimulation" => "space",
 
     "noir" => "noir",
-    "filmnoir" => "film noir",
+    "filmnoir" => "noir",
     "timetravel" => "time travel",
-
-    "starwars" => "Star Wars",
-    "warhammer" => "Warhammer",
-    "warhammer40k" => "Warhammer 40K",
 };
 
 static HISTORICAL_SETTING_KWS: phf::Map<&'static str, &'static str> = phf_map! {
-    "ancientgreece" => "ancient greece",
-    "romanempire" => "roman empire",
-    "rome" => "roman empire",
+    "ancientgreece" => "ancient world",
+    "romanempire" => "ancient world",
+    "rome" => "ancient world",
 
     "mythology" => "mythology",
     "greekmythology" => "mythology",
@@ -218,21 +212,24 @@ static HISTORICAL_SETTING_KWS: phf::Map<&'static str, &'static str> = phf_map! {
     "alternativehistory" => "alternate history",
 };
 
-static HORROR_KWS: phf::Map<&'static str, &'static str> = phf_map! {
-    "horror" => "horror",
-    "psychologicalhorror" => "psychological horror",
-    "psychologicalthriller" => "psychological horror",
-};
-
 static GAMEPLAY_KWS: phf::Map<&'static str, &'static str> = phf_map! {
-    "boomershooter" => "boomer shooter",
-    "bullethell" => "bullet hell",
-    "bullettime" => "bullet hell",
-    "lootershooter" => "looter shooter",
-    "precisionplatformer" => "precision platformer",
-    "twinstickshooter" => "twin stick shooter",
     "roguelike" => "roguelike",
     "roguelite" => "roguelite",
+    "turnbased" => "turn-based",
+    "turnbasedcombat" => "turn-based",
+    "tacticalturnbasedcombat" => "turn-based",
+    "turnbasedrpg" => "turn-based",
+    "rtwp" => "RTwP",
+    "realtimewithpause" => "RTwP",
+    "pausablerealtimecombal" => "RTwP",
+    "dungeoncrawler" => "dungeon crawler",
+    "boomershooter" => "boomer shooter",
+    "lootershooter" => "looter shooter",
+    "bullethell" => "bullet hell",
+    "bullettime" => "bullet hell",
+    "metroidvania" => "metroidvania",
+    "precisionplatformer" => "precision platformer",
+    "twinstickshooter" => "twin stick shooter",
     "soulslike" => "souls-like",
     "indie" => "indie",
 };
@@ -250,6 +247,18 @@ static VISUAL_STYLE_KWS: phf::Map<&'static str, &'static str> = phf_map! {
     "voxel" => "voxel",
 };
 
+static MATURE_KWS: phf::Map<&'static str, &'static str> = phf_map! {
+    "adult" => "mature",
+    "mature" => "mature",
+    "horror" => "horror",
+    "psychologicalhorror" => "psychological horror",
+    "psychologicalthriller" => "psychological horror",
+    "nsfw" => "NSFW",
+    "nudity" => "nudity",
+    "sexualcontent" => "sexual content",
+    "familyfriendly" => "family friendly",
+};
+
 static MULTIPLAYER_KWS: phf::Map<&'static str, &'static str> = phf_map! {
     "coop" => "co-op",
     "coopcampaign" => "co-op",
@@ -260,22 +269,8 @@ static MULTIPLAYER_KWS: phf::Map<&'static str, &'static str> = phf_map! {
     "playervplayer" => "PvP",
 };
 
-static ADULT_KWS: phf::Map<&'static str, &'static str> = phf_map! {
-    "adult" => "adult",
-    "mature" => "mature",
-    "nsfw" => "NSFW",
-    "nudity" => "nudity",
-    "sexualcontent" => "sexual content",
-};
-
 static TRIGGER_KWS: phf::Map<&'static str, &'static str> = phf_map! {
     "freetoplay" => "free-to-play",
     "microtransaction" => "microtransaction",
     "paytoplay" => "pay-to-play",
-};
-
-static OTHER_KWS: phf::Map<&'static str, &'static str> = phf_map! {
-    "familyfriendly" => "family friendly",
-    "openworld" => "open world",
-    "sandbox" => "sandbox",
 };
