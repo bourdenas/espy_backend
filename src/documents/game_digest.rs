@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 
+use itertools::Itertools;
+use phf::phf_map;
 use serde::{Deserialize, Serialize};
 
 use super::{EspyGenre, GameCategory, GameEntry, GameStatus, IgdbGenre, Scores};
@@ -61,6 +63,8 @@ pub struct GameDigest {
 
 impl From<GameEntry> for GameDigest {
     fn from(game_entry: GameEntry) -> Self {
+        let keywords = extract_keywords(&game_entry);
+
         GameDigest {
             id: game_entry.id,
             name: game_entry.name,
@@ -117,10 +121,161 @@ impl From<GameEntry> for GameDigest {
 
             espy_genres: game_entry.espy_genres,
             igdb_genres: game_entry.igdb_genres,
-            keywords: match game_entry.steam_data {
-                Some(steam_data) => steam_data.user_tags,
-                None => vec![],
-            },
+            keywords,
         }
     }
 }
+
+fn extract_keywords(game_entry: &GameEntry) -> Vec<String> {
+    let mut keywords = HashSet::<String>::default();
+
+    let mut original_kws = vec![&game_entry.keywords];
+    if let Some(steam_data) = &game_entry.steam_data {
+        original_kws.push(&steam_data.user_tags);
+    }
+    if let Some(gog_data) = &game_entry.gog_data {
+        original_kws.push(&gog_data.tags);
+    }
+
+    let original_kws = original_kws.into_iter().flatten().collect_vec();
+    for kw in original_kws {
+        let kw = kw.to_lowercase().replace("-", "").replace(" ", "");
+        for kw_set in KW_SETS {
+            if let Some(kw) = kw_set.get(&kw) {
+                keywords.insert(kw.to_string());
+                break;
+            }
+        }
+    }
+
+    keywords.into_iter().collect()
+}
+
+static KW_SETS: [&'static phf::Map<&'static str, &'static str>; 9] = [
+    &SETTING_KWS,
+    &HISTORICAL_SETTING_KWS,
+    &HORROR_KWS,
+    &GAMEPLAY_KWS,
+    &VISUAL_STYLE_KWS,
+    &MULTIPLAYER_KWS,
+    &ADULT_KWS,
+    &TRIGGER_KWS,
+    &OTHER_KWS,
+];
+
+static SETTING_KWS: phf::Map<&'static str, &'static str> = phf_map! {
+    "aliens" => "aliens",
+    "alien" => "aliens",
+    "vampires" => "vampires",
+    "vampire" => "vampires",
+    "zombies" => "zombies",
+    "zombie" => "zombies",
+    "mechs" => "mechs",
+    "mech" => "mechs",
+
+    "scifi" => "sci-fi",
+    "cyberpunk" => "cyberpunk",
+    "steampunk" => "steampunk",
+    "darkfantasy" => "dark fantasy",
+    "postapocalyptic" => "post-apocalyptic",
+    "dystopian" => "dystopian",
+    "lovecraftian" => "lovecraftian",
+    "heavy metal" => "heavy metal",
+
+    "space" => "space",
+    "spacebattle" => "space",
+    "spacecombat" => "space combat",
+    "spacesim" => "space",
+    "spacesimulation" => "space",
+
+    "noir" => "noir",
+    "filmnoir" => "film noir",
+    "timetravel" => "time travel",
+
+    "starwars" => "Star Wars",
+    "warhammer" => "Warhammer",
+    "warhammer40k" => "Warhammer 40K",
+};
+
+static HISTORICAL_SETTING_KWS: phf::Map<&'static str, &'static str> = phf_map! {
+    "ancientgreece" => "ancient greece",
+    "romanempire" => "roman empire",
+    "rome" => "roman empire",
+
+    "mythology" => "mythology",
+    "greekmythology" => "mythology",
+
+    "coldwar" => "cold war",
+    "worldwari" => "WW1",
+    "worldwariww1" => "WW1",
+    "worldwarii" => "WW2",
+    "worldwariiww2" => "WW2",
+    "modernwarfare" => "modern warefare",
+    "modernmilitary" => "modern warefare",
+
+    "historical" => "historical",
+    "alternatehistory" => "alternate history",
+    "alternativehistory" => "alternate history",
+};
+
+static HORROR_KWS: phf::Map<&'static str, &'static str> = phf_map! {
+    "horror" => "horror",
+    "psychologicalhorror" => "psychological horror",
+    "psychologicalthriller" => "psychological horror",
+};
+
+static GAMEPLAY_KWS: phf::Map<&'static str, &'static str> = phf_map! {
+    "boomershooter" => "boomer shooter",
+    "bullethell" => "bullet hell",
+    "bullettime" => "bullet hell",
+    "lootershooter" => "looter shooter",
+    "precisionplatformer" => "precision platformer",
+    "twinstickshooter" => "twin stick shooter",
+    "roguelike" => "roguelike",
+    "roguelite" => "roguelite",
+    "soulslike" => "souls-like",
+    "indie" => "indie",
+};
+
+static VISUAL_STYLE_KWS: phf::Map<&'static str, &'static str> = phf_map! {
+    "anime" => "anime",
+    "cartoon" => "cartoon",
+    "cartoongraphics" => "cartoon",
+    "cartoony" => "cartoon",
+    "handdrawn" => "hand-drawn",
+    "fmv" => "FMV",
+    "fullmotionvideo" => "FMV",
+    "pixelart" => "pixel art",
+    "pixelgraphics" => "pixel art",
+    "voxel" => "voxel",
+};
+
+static MULTIPLAYER_KWS: phf::Map<&'static str, &'static str> = phf_map! {
+    "coop" => "co-op",
+    "coopcampaign" => "co-op",
+    "localcoop" => "co-op",
+    "onlinecoop" => "co-op",
+    "pvp" => "PvP",
+    "playervsplayer" => "PvP",
+    "playervplayer" => "PvP",
+};
+
+static ADULT_KWS: phf::Map<&'static str, &'static str> = phf_map! {
+    "adult" => "adult",
+    "mature" => "mature",
+    "nsfw" => "NSFW",
+    "nudity" => "nudity",
+    "sexualcontent" => "sexual content",
+};
+
+static TRIGGER_KWS: phf::Map<&'static str, &'static str> = phf_map! {
+    "freetoplay" => "free-to-play",
+    "microtransaction" => "microtransaction",
+    "paytoplay" => "pay-to-play",
+};
+
+static OTHER_KWS: phf::Map<&'static str, &'static str> = phf_map! {
+    "familyfriendly" => "family friendly",
+    "openworld" => "open world",
+    "sandbox" => "sandbox",
+};

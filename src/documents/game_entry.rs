@@ -38,6 +38,7 @@ pub struct GameEntry {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub igdb_genres: Vec<IgdbGenre>,
 
+    // Keywords from IGDB.
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub keywords: Vec<String>,
