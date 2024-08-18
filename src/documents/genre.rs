@@ -16,92 +16,99 @@ pub enum EspyGenre {
     #[default]
     Unknown = 0,
 
+    // Action
+    Action = 1,
+    IsometricAction = 2,
+    ActionRpg = 3,
+
     // Adventure
-    PointAndClick = 1,
-    Action = 2,
-    IsometricAction = 3,
-    NarrativeAdventure = 4,
-    SurvivalAdventure = 5,
-    PuzzleAdventure = 6,
-    WalkingSimulator = 7,
+    PointAndClick = 4,
+    NarrativeAdventure = 5,
+    SurvivalAdventure = 6,
+    PuzzleAdventure = 7,
+    WalkingSimulator = 8,
 
     // Arcade
-    Fighting = 8,
-    BeatEmUp = 9,
-    Pinball = 10,
-    CardAndBoard = 11,
-    Deckbuilder = 12,
+    Fighting = 9,
+    BeatEmUp = 10,
+    Pinball = 11,
+    CardAndBoard = 12,
+    Deckbuilder = 13,
 
     // Casual
-    LifeSim = 13,
-    FarmingSim = 14,
-    FishingSim = 15,
-    SailingSim = 16,
-    DatingSim = 17,
-    Puzzle = 18,
-    EndlessRunner = 19,
-    Rhythm = 20,
-    PartyGame = 21,
-    VisualNovel = 22,
-    Exploration = 23,
+    LifeSim = 14,
+    FarmingSim = 15,
+    DatingSim = 16,
+    Puzzle = 17,
+    VisualNovel = 18,
+    Exploration = 19,
+    EndlessRunner = 20,
+    Rhythm = 21,
+    PartyGame = 22,
 
     // Platformer
-    SideScroller = 24,
-    Metroidvania = 25,
-    Platformer3d = 26,
-    ShooterPlatformer = 27,
-    PrecisionPlatformer = 28,
-    PuzzlePlatformer = 29,
+    SideScroller = 23,
+    Platformer3d = 24,
+    ShooterPlatformer = 25,
+    PuzzlePlatformer = 26,
 
     // RPG
-    CRPG = 30,
-    ARPG = 31,
-    ActionRpg = 32,
-    JRPG = 33,
-    FirstPersonRpg = 34,
-    TurnBasedRpg = 35,
-    RTwPRPG = 36,
-    DungeonCrawler = 37,
-    MMORPG = 38,
+    CRPG = 27,
+    ARPG = 28,
+    FirstPersonRpg = 29,
+    JRPG = 30,
+    MMORPG = 31,
 
     // Shooter
-    FirstPersonShooter = 39,
-    TopDownShooter = 40,
-    ThirdPersonShooter = 41,
-    SpaceShooter = 42,
-    Shmup = 43,
-    BattleRoyale = 44,
+    FirstPersonShooter = 32,
+    TopDownShooter = 33,
+    ThirdPersonShooter = 34,
+    SpaceShooter = 35,
+    Shmup = 36,
+    BattleRoyale = 37,
 
     // Simulator
-    CityBuilder = 45,
-    Tycoon = 46,
-    GodGame = 47,
-    Racing = 48,
-    Sports = 49,
-    FlightSimulator = 50,
-    CombatSimulator = 51,
-    NavalSimulator = 52,
-    DrivingSimulator = 53,
-    Survival = 54,
+    CityBuilder = 38,
+    Tycoon = 39,
+    GodGame = 40,
+    Racing = 41,
+    Sports = 42,
+    Survival = 43,
+    FlightSimulator = 44,
+    CombatSimulator = 45,
+    DrivingSimulator = 46,
+    NavalSimulator = 47,
 
     // Strategy
-    TurnBasedStrategy = 55,
-    RealTimeStrategy = 56,
-    TurnBasedTactics = 57,
-    RealTimeTactics = 58,
-    GradStrategy = 59,
-    FourX = 60,
-    TowerDefense = 61,
-    MOBA = 62,
+    TurnBasedStrategy = 48,
+    RealTimeStrategy = 49,
+    TurnBasedTactics = 50,
+    RealTimeTactics = 51,
+    GradStrategy = 52,
+    FourX = 53,
+    TowerDefense = 54,
+    MOBA = 55,
+
+    // Obsolete
+    TurnBasedRpg,
+    RTwPRPG,
+    DungeonCrawler,
+    Metroidvania,
+    PrecisionPlatformer,
+    FishingSim,
+    SailingSim,
 }
 
 impl EspyGenre {
     pub fn from_user_tag(description: &str) -> Self {
         match description {
-            // Adventure
-            "Point & Click" => EspyGenre::PointAndClick,
+            // Action
             "Action" => EspyGenre::Action,
             "Isometric Action" => EspyGenre::IsometricAction,
+            "Action RPG" => EspyGenre::ActionRpg,
+
+            // Adventure
+            "Point & Click" => EspyGenre::PointAndClick,
             "Narrative Adventure" => EspyGenre::NarrativeAdventure,
             "Survival Adventure" => EspyGenre::SurvivalAdventure,
             "Puzzle Adventure" => EspyGenre::PuzzleAdventure,
@@ -117,33 +124,25 @@ impl EspyGenre {
             // Casual
             "Life Sim" => EspyGenre::LifeSim,
             "Farming Sim" => EspyGenre::FarmingSim,
-            "Fishing Sim" => EspyGenre::FishingSim,
-            "Sailing Sim" => EspyGenre::SailingSim,
             "Dating Sim" => EspyGenre::DatingSim,
             "Puzzle" => EspyGenre::Puzzle,
+            "Visual Novel" => EspyGenre::VisualNovel,
+            "Exploration" => EspyGenre::Exploration,
             "Endless Runner" => EspyGenre::EndlessRunner,
             "Rhythm" => EspyGenre::Rhythm,
             "Party Game" => EspyGenre::PartyGame,
-            "Visual Novel" => EspyGenre::VisualNovel,
-            "Exploration" => EspyGenre::Exploration,
 
             // Platformer
             "Side Scroller" => EspyGenre::SideScroller,
-            "Metroidvania" => EspyGenre::Metroidvania,
             "3D Platformer" => EspyGenre::Platformer3d,
             "Shooter Platformer" => EspyGenre::ShooterPlatformer,
-            "Precision Platformer" => EspyGenre::PrecisionPlatformer,
             "Puzzle Platformer" => EspyGenre::PuzzlePlatformer,
 
             // RPG
             "CRPG" => EspyGenre::CRPG,
             "ARPG" => EspyGenre::ARPG,
-            "Action RPG" => EspyGenre::ActionRpg,
-            "JRPG" => EspyGenre::JRPG,
             "First Person RPG" => EspyGenre::FirstPersonRpg,
-            "Turn Based RPG" => EspyGenre::TurnBasedRpg,
-            "RTwP RPG" => EspyGenre::RTwPRPG,
-            "Dungeon Crawler" => EspyGenre::DungeonCrawler,
+            "JRPG" => EspyGenre::JRPG,
             "MMORPG" => EspyGenre::MMORPG,
 
             // Shooter
@@ -160,11 +159,11 @@ impl EspyGenre {
             "God Game" => EspyGenre::GodGame,
             "Racing" => EspyGenre::Racing,
             "Sports" => EspyGenre::Sports,
+            "Survival" => EspyGenre::Survival,
             "Flight Simulator" => EspyGenre::FlightSimulator,
             "Combat Simulator" => EspyGenre::CombatSimulator,
-            "Naval Simulator" => EspyGenre::NavalSimulator,
             "Driving Simulator" => EspyGenre::DrivingSimulator,
-            "Survival" => EspyGenre::Survival,
+            "Naval Simulator" => EspyGenre::NavalSimulator,
 
             // Strategy
             "Turn Based Strategy" => EspyGenre::TurnBasedStrategy,
@@ -183,10 +182,13 @@ impl EspyGenre {
 impl From<&str> for EspyGenre {
     fn from(s: &str) -> Self {
         match s {
-            // Adventure
-            "PointAndClick" => EspyGenre::PointAndClick,
+            // Action
             "Action" => EspyGenre::Action,
             "IsometricAction" => EspyGenre::IsometricAction,
+            "ActionRpg" => EspyGenre::ActionRpg,
+
+            // Adventure
+            "PointAndClick" => EspyGenre::PointAndClick,
             "NarrativeAdventure" => EspyGenre::NarrativeAdventure,
             "SurvivalAdventure" => EspyGenre::SurvivalAdventure,
             "PuzzleAdventure" => EspyGenre::PuzzleAdventure,
@@ -202,33 +204,25 @@ impl From<&str> for EspyGenre {
             // Casual
             "LifeSim" => EspyGenre::LifeSim,
             "FarmingSim" => EspyGenre::FarmingSim,
-            "FishingSim" => EspyGenre::FishingSim,
-            "SailingSim" => EspyGenre::SailingSim,
             "DatingSim" => EspyGenre::DatingSim,
             "Puzzle" => EspyGenre::Puzzle,
+            "VisualNovel" => EspyGenre::VisualNovel,
+            "Exploration" => EspyGenre::Exploration,
             "EndlessRunner" => EspyGenre::EndlessRunner,
             "Rhythm" => EspyGenre::Rhythm,
             "PartyGame" => EspyGenre::PartyGame,
-            "VisualNovel" => EspyGenre::VisualNovel,
-            "Exploration" => EspyGenre::Exploration,
 
             // Platformer
             "SideScroller" => EspyGenre::SideScroller,
-            "Metroidvania" => EspyGenre::Metroidvania,
             "Platformer3d" => EspyGenre::Platformer3d,
             "ShooterPlatformer" => EspyGenre::ShooterPlatformer,
-            "PrecisionPlatformer" => EspyGenre::PrecisionPlatformer,
             "PuzzlePlatformer" => EspyGenre::PuzzlePlatformer,
 
             // RPG
             "CRPG" => EspyGenre::CRPG,
             "ARPG" => EspyGenre::ARPG,
-            "ActionRpg" => EspyGenre::ActionRpg,
-            "JRPG" => EspyGenre::JRPG,
             "FirstPersonRpg" => EspyGenre::FirstPersonRpg,
-            "TurnBasedRpg" => EspyGenre::TurnBasedRpg,
-            "RTwPRPG" => EspyGenre::RTwPRPG,
-            "DungeonCrawler" => EspyGenre::DungeonCrawler,
+            "JRPG" => EspyGenre::JRPG,
             "MMORPG" => EspyGenre::MMORPG,
 
             // Shooter
@@ -245,11 +239,11 @@ impl From<&str> for EspyGenre {
             "GodGame" => EspyGenre::GodGame,
             "Racing" => EspyGenre::Racing,
             "Sports" => EspyGenre::Sports,
+            "Survival" => EspyGenre::Survival,
             "FlightSimulator" => EspyGenre::FlightSimulator,
             "CombatSimulator" => EspyGenre::CombatSimulator,
-            "NavalSimulator" => EspyGenre::NavalSimulator,
             "DrivingSimulator" => EspyGenre::DrivingSimulator,
-            "Survival" => EspyGenre::Survival,
+            "NavalSimulator" => EspyGenre::NavalSimulator,
 
             // Strategy
             "TurnBasedStrategy" => EspyGenre::TurnBasedStrategy,
