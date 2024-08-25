@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
+use soup::Soup;
 use tracing::instrument;
 
 use crate::{
@@ -71,6 +72,8 @@ struct GenrePredictRequest {
     steam_tags: Vec<String>,
     gog_genres: Vec<String>,
     gog_tags: Vec<String>,
+
+    description: String,
 }
 
 impl GenrePredictRequest {
@@ -107,8 +110,22 @@ impl GenrePredictRequest {
                 Some(gog_data) => gog_data.tags.clone(),
                 None => vec![],
             },
+
+            description: match &game_entry.steam_data {
+                Some(steam_data) => format!(
+                    "{} {}",
+                    extract_text(&steam_data.about_the_game),
+                    extract_text(&steam_data.detailed_description)
+                ),
+                None => game_entry.igdb_game.summary.replace("\n", " "),
+            },
         }
     }
+}
+
+fn extract_text(html: &str) -> String {
+    let soup = Soup::new(&html);
+    soup.text().replace("\n", " ")
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
