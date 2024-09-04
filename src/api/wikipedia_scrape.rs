@@ -4,41 +4,12 @@ use std::{
     io::{BufRead, BufReader},
 };
 
-use serde::{Deserialize, Serialize};
+use crate::{documents::WikipediaData, Status};
+
 use soup::prelude::*;
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct WikipediaScrapeData {
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub developers: Vec<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub publishers: Vec<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub genres: Vec<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub keywords: Vec<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub score: Option<u64>,
-}
 
 pub struct WikipediaScrape {
     keywords: Vec<String>,
-}
-
-#[derive(Debug)]
-enum InfoboxRow {
-    Developer(Vec<String>),
-    Publisher(Vec<String>),
-    Genre(Vec<String>),
 }
 
 impl WikipediaScrape {
@@ -63,7 +34,7 @@ impl WikipediaScrape {
         Ok(WikipediaScrape { keywords })
     }
 
-    pub async fn scrape(&self, uri: &str) -> Result<WikipediaScrapeData, Status> {
+    pub async fn scrape(&self, uri: &str) -> Result<WikipediaData, Status> {
         let resp = match reqwest::get(uri).await {
             Ok(resp) => resp,
             Err(e) => {
@@ -84,7 +55,7 @@ impl WikipediaScrape {
 
         let infobox = extract_infobox(&soup);
 
-        Ok(WikipediaScrapeData {
+        Ok(WikipediaData {
             keywords: self.extract_keywords(&soup),
             score: extract_score(&soup),
 
@@ -162,6 +133,13 @@ impl WikipediaScrape {
     }
 }
 
+#[derive(Debug)]
+enum InfoboxRow {
+    Developer(Vec<String>),
+    Publisher(Vec<String>),
+    Genre(Vec<String>),
+}
+
 fn extract_infobox(soup: &Soup) -> Vec<InfoboxRow> {
     let mut infobox = vec![];
     if let Some(table) = soup.class(VIDEO_GAME_TABLE).find() {
@@ -230,8 +208,6 @@ fn extract_score(soup: &Soup) -> Option<u64> {
 
 use lazy_static::lazy_static;
 use regex::Regex;
-
-use crate::Status;
 
 fn parse_score(input: &str) -> Option<u64> {
     lazy_static! {

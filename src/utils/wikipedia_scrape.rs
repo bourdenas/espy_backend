@@ -6,8 +6,8 @@ use std::{
 use chrono::DateTime;
 use clap::Parser;
 use espy_backend::{
-    api::{self, WikipediaScrape, WikipediaScrapeData},
-    documents::{GameEntry, ScoresDoc, WebsiteAuthority},
+    api::{self, WikipediaScrape},
+    documents::{GameEntry, ScoresDoc, WebsiteAuthority, WikipediaData},
     library, Status, Tracing,
 };
 use firestore::{struct_path::path, FirestoreQueryDirection, FirestoreResult};
@@ -136,7 +136,7 @@ async fn scrape(
     firestore: &api::FirestoreApi,
     id: u64,
     kw_source: &str,
-) -> Result<WikipediaScrapeData, Status> {
+) -> Result<WikipediaData, Status> {
     let scraper = WikipediaScrape::new(kw_source).unwrap();
 
     match library::firestore::games::read(firestore, id).await {

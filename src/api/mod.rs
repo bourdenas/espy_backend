@@ -10,4 +10,4 @@ pub use gog::*;
 pub use igdb::*;
 pub use metacritic::{MetacriticApi, MetacriticData};
 pub use steam::*;
-pub use wikipedia_scrape::{WikipediaScrape, WikipediaScrapeData};
+pub use wikipedia_scrape::WikipediaScrape;

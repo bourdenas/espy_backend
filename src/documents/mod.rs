@@ -19,6 +19,7 @@ mod timeline;
 mod unresolved;
 mod user_data;
 mod user_tags;
+mod wikipedia_data;
 
 pub use annual_review::AnnualReview;
 pub use collection::Collection;
@@ -41,3 +42,4 @@ pub use timeline::*;
 pub use unresolved::{Unresolved, UnresolvedEntries};
 pub use user_data::{Keys, UserData};
 pub use user_tags::{UserAnnotations, UserTag};
+pub use wikipedia_data::WikipediaData;
