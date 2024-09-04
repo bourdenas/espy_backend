@@ -91,9 +91,11 @@ impl Scores {
     }
 
     pub fn add_wikipedia(&mut self, wikipedia: WikipediaScrapeData) {
-        self.metacritic = Some(wikipedia.score);
-        self.metacritic_source = MetacrtitcSource::Wikipedia;
-        self.espy_score = Some(wikipedia.score);
+        if wikipedia.score.is_some() {
+            self.metacritic_source = MetacrtitcSource::Wikipedia;
+            self.metacritic = wikipedia.score;
+            self.espy_score = wikipedia.score;
+        }
     }
 
     pub fn add_gog(&mut self, gog_data: &GogData) {

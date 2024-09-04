@@ -4,6 +4,7 @@ use crate::{
     Status,
 };
 use async_trait::async_trait;
+use reqwest::{header, ClientBuilder};
 use std::collections::HashMap;
 use tracing::{info, instrument};
 
@@ -25,7 +26,19 @@ impl SteamApi {
         let uri =
             format!("https://store.steampowered.com/api/appdetails?appids={steam_appid}&l=english");
 
-        let resp = reqwest::get(&uri).await?;
+        let mut request_headers = header::HeaderMap::new();
+        request_headers.insert(
+            header::COOKIE,
+            header::HeaderValue::from_static("birthtime=0; path=/; max-age=315360000"),
+        );
+
+        let client = ClientBuilder::new()
+            .default_headers(request_headers)
+            .cookie_store(true)
+            .build()
+            .unwrap();
+
+        let resp = client.get(&uri).send().await?;
         let text = resp.text().await?;
         let (_, resp) = serde_json::from_str::<HashMap<String, SteamAppDetailsResponse>>(&text)
             .map_err(|e| {
@@ -46,7 +59,19 @@ impl SteamApi {
     pub async fn get_app_score(steam_appid: &str) -> Result<SteamScore, Status> {
         let uri = format!("https://store.steampowered.com/appreviews/{steam_appid}?json=1");
 
-        let resp = reqwest::get(&uri).await?;
+        let mut request_headers = header::HeaderMap::new();
+        request_headers.insert(
+            header::COOKIE,
+            header::HeaderValue::from_static("birthtime=0; path=/; max-age=315360000"),
+        );
+
+        let client = ClientBuilder::new()
+            .default_headers(request_headers)
+            .cookie_store(true)
+            .build()
+            .unwrap();
+
+        let resp = client.get(&uri).send().await?;
         let text = resp.text().await?;
         let resp = serde_json::from_str::<SteamAppReviewsResponse>(&text).map_err(|e| {
             let msg = format!(
