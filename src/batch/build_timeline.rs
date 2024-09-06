@@ -102,6 +102,43 @@ async fn main() -> Result<(), Status> {
         .collect_vec();
     info!("upcoming after filtering = {}", upcoming.len());
 
+    let unknown: BoxStream<FirestoreResult<GameEntry>> = firestore
+        .db()
+        .fluent()
+        .select()
+        .from("games")
+        .filter(|q| q.for_all([q.field(path!(GameEntry::release_date)).equal(0)]))
+        .obj()
+        .stream_query_with_errors()
+        .await?;
+    let unknown = unknown.try_collect::<Vec<GameEntry>>().await?;
+    info!("unknown = {}", unknown.len());
+
+    let unknown = unknown
+        .into_iter()
+        .filter(|entry| match entry.category {
+            GameCategory::Main
+            | GameCategory::Expansion
+            | GameCategory::StandaloneExpansion
+            | GameCategory::Remake
+            | GameCategory::Remaster => true,
+            _ => false,
+        })
+        .filter(|entry| !matches!(entry.status, GameStatus::Cancelled | GameStatus::Rumored))
+        .filter(|entry| {
+            entry.scores.hype.unwrap_or_default() >= UNKNOWN_HYPE_THRESHOLD
+                || entry
+                    .developers
+                    .iter()
+                    .any(|dev| notable.contains(&dev.name))
+                || entry
+                    .publishers
+                    .iter()
+                    .any(|publ| notable.contains(&publ.name))
+        })
+        .collect_vec();
+    info!("unknown after filtering = {}", unknown.len());
+
     let recent: BoxStream<FirestoreResult<GameEntry>> = firestore
         .db()
         .fluent()
@@ -163,7 +200,7 @@ async fn main() -> Result<(), Status> {
     info!("recent after filtering = {}", recent.len());
 
     build_frontpage(&firestore, &upcoming, &recent).await?;
-    build_timeline(&firestore, &upcoming, &recent).await?;
+    build_timeline(&firestore, &upcoming, &unknown, &recent).await?;
 
     Ok(())
 }
@@ -232,6 +269,7 @@ async fn build_frontpage(
 async fn build_timeline(
     firestore: &FirestoreApi,
     future: &[GameEntry],
+    unknown: &[GameEntry],
     past: &[GameEntry],
 ) -> Result<(), Status> {
     let today = Utc::now().naive_utc();
@@ -240,9 +278,7 @@ async fn build_timeline(
         let diff = today.signed_duration_since(release_date);
         let is_future = diff.num_days() < 0;
 
-        let label = if diff.num_days().abs() <= 7 {
-            release_date.format("%-d %b").to_string()
-        } else if is_future && release_date.month() == 12 && release_date.day() == 31 {
+        let label = if is_future && release_date.month() == 12 && release_date.day() == 31 {
             release_date.year().to_string()
         } else if is_future && release_date.month() == 9 && release_date.day() == 30 {
             "Q3".to_owned()
@@ -257,22 +293,35 @@ async fn build_timeline(
         (label, release_date.format("%Y").to_string())
     };
 
-    let mut releases = future
+    let mut unknown = unknown
         .into_iter()
-        .group_by(|entry| release_group(&entry))
-        .into_iter()
-        .map(|(key, games)| {
-            let mut games = games
-                .map(|game| GameDigest::from(game.clone()))
-                .collect_vec();
-            games.sort_by(|a, b| b.scores.hype.cmp(&a.scores.hype));
-            ReleaseEvent {
-                label: key.0,
-                year: key.1,
-                games,
-            }
-        })
+        .map(|entry| GameDigest::from(entry.clone()))
         .collect_vec();
+    unknown.sort_by(|a, b| b.scores.cmp(&a.scores));
+
+    let mut releases = vec![ReleaseEvent {
+        label: "?".to_owned(),
+        year: "2050".to_owned(),
+        games: unknown,
+    }];
+
+    releases.extend(
+        future
+            .into_iter()
+            .group_by(|entry| release_group(&entry))
+            .into_iter()
+            .map(|(key, games)| {
+                let mut games = games
+                    .map(|game| GameDigest::from(game.clone()))
+                    .collect_vec();
+                games.sort_by(|a, b| b.scores.cmp(&a.scores));
+                ReleaseEvent {
+                    label: key.0,
+                    year: key.1,
+                    games,
+                }
+            }),
+    );
 
     releases.extend(
         past.into_iter()
@@ -282,7 +331,7 @@ async fn build_timeline(
                 let mut games = games
                     .map(|game| GameDigest::from(game.clone()))
                     .collect_vec();
-                games.sort_by(|a, b| b.scores.espy_score.cmp(&a.scores.espy_score));
+                games.sort_by(|a, b| b.scores.cmp(&a.scores));
                 ReleaseEvent {
                     label: key.0,
                     year: key.1,
@@ -344,4 +393,5 @@ const DAY_IN_SECONDS: u64 = 24 * 60 * 60;
 const MONTH_IN_SECONDS: u64 = 30 * 24 * 60 * 60;
 
 const UPCOMING_HYPE_THRESHOLD: u64 = 1;
+const UNKNOWN_HYPE_THRESHOLD: u64 = 8;
 const EARLY_ACCESS_POPULARITY_THRESHOLD: u64 = 5000;
