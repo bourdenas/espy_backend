@@ -141,5 +141,3 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 tracing-opentelemetry = "0.25"
 tracing-stackdriver = { version = "0.10", features = ["opentelemetry"] }
-opentelemetry = "0.24"
-opentelemetry-jaeger = "0.22"
