@@ -66,7 +66,7 @@ impl WikipediaScrape {
                     _ => None,
                 })
                 .flat_map(|v| v)
-                .cloned()
+                .map(|e| CompanyNormalizer::normalize_name(e))
                 .collect(),
 
             publishers: infobox
@@ -76,7 +76,7 @@ impl WikipediaScrape {
                     _ => None,
                 })
                 .flat_map(|v| v)
-                .cloned()
+                .map(|e| CompanyNormalizer::normalize_name(e))
                 .collect(),
 
             genres: infobox
@@ -208,6 +208,8 @@ fn extract_score(soup: &Soup) -> Option<u64> {
 
 use lazy_static::lazy_static;
 use regex::Regex;
+
+use super::common::CompanyNormalizer;
 
 fn parse_score(input: &str) -> Option<u64> {
     lazy_static! {
