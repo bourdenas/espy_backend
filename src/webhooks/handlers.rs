@@ -114,7 +114,7 @@ pub async fn update_game_webhook(
 }
 
 fn needs_update(game_entry: &GameEntry) -> bool {
-    let today = Utc::now().naive_utc().timestamp();
+    let today = Utc::now().naive_utc().and_utc().timestamp();
     let close_to_release = (today - game_entry.release_date).abs() < 8 * DAY_SECS;
 
     // Update if never updated || was not updated in the last 7 days ago ||

@@ -37,7 +37,7 @@ impl GogData {
                     "%Y-%m-%d %H:%M:%S",
                 );
                 match parsed_date {
-                    Ok(date) => Some(date.timestamp()),
+                    Ok(date) => Some(date.and_utc().timestamp()),
                     Err(_) => None,
                 }
             }

@@ -4,7 +4,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use chrono::{Datelike, NaiveDateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use clap::Parser;
 use espy_backend::{
     api::{self, FirestoreApi},
@@ -210,16 +210,16 @@ async fn build_frontpage(
     future: &[GameEntry],
     past: &[GameEntry],
 ) -> Result<(), Status> {
-    let today = Utc::now().naive_utc();
+    let today = Utc::now();
 
     let games = future.iter().chain(past.iter()).filter(|game_entry| {
-        let release_date = NaiveDateTime::from_timestamp_opt(game_entry.release_date, 0).unwrap();
+        let release_date = DateTime::from_timestamp(game_entry.release_date, 0).unwrap();
         let diff = today.signed_duration_since(release_date);
         diff.num_days().abs() <= 30
     });
 
     let release_group = |entry: &GameEntry| -> (String, String) {
-        let release_date = NaiveDateTime::from_timestamp_opt(entry.release_date, 0).unwrap();
+        let release_date = DateTime::from_timestamp(entry.release_date, 0).unwrap();
         (
             release_date.format("%-d %b").to_string(),
             release_date.format("%Y").to_string(),
@@ -228,7 +228,7 @@ async fn build_frontpage(
 
     let releases = games
         .into_iter()
-        .group_by(|entry| release_group(entry))
+        .chunk_by(|entry| release_group(entry))
         .into_iter()
         .map(|(key, games)| {
             let mut games = games
@@ -272,9 +272,9 @@ async fn build_timeline(
     unknown: &[GameEntry],
     past: &[GameEntry],
 ) -> Result<(), Status> {
-    let today = Utc::now().naive_utc();
+    let today = Utc::now();
     let release_group = |entry: &GameEntry| -> (String, String) {
-        let release_date = NaiveDateTime::from_timestamp_opt(entry.release_date, 0).unwrap();
+        let release_date = DateTime::from_timestamp(entry.release_date, 0).unwrap();
         let diff = today.signed_duration_since(release_date);
         let is_future = diff.num_days() < 0;
 
@@ -308,7 +308,7 @@ async fn build_timeline(
     releases.extend(
         future
             .into_iter()
-            .group_by(|entry| release_group(&entry))
+            .chunk_by(|entry| release_group(&entry))
             .into_iter()
             .map(|(key, games)| {
                 let mut games = games
@@ -325,7 +325,7 @@ async fn build_timeline(
 
     releases.extend(
         past.into_iter()
-            .group_by(|entry| release_group(&entry))
+            .chunk_by(|entry| release_group(&entry))
             .into_iter()
             .map(|(key, games)| {
                 let mut games = games

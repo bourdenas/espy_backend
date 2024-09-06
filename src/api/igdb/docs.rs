@@ -1,6 +1,6 @@
 use std::{collections::HashSet, fmt};
 
-use chrono::{Datelike, NaiveDateTime};
+use chrono::{DateTime, Datelike};
 use serde::{Deserialize, Serialize};
 
 use crate::documents::GameCategory;
@@ -166,7 +166,7 @@ impl IgdbGame {
     }
 
     pub fn release_year(&self) -> i32 {
-        NaiveDateTime::from_timestamp_opt(self.first_release_date.unwrap_or(0), 0)
+        DateTime::from_timestamp(self.first_release_date.unwrap_or(0), 0)
             .unwrap()
             .year()
     }

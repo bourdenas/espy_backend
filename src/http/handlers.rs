@@ -322,9 +322,9 @@ pub async fn get_images(uri: String) -> Result<Box<dyn warp::Reply>, Infallible>
         }
     };
 
-    if resp.status() != StatusCode::OK {
+    if !resp.status().is_success() {
         warn!("Failed to retrieve image: {uri} \nerr: {}", resp.status());
-        return Ok(Box::new(resp.status()));
+        return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
     }
 
     match resp.bytes().await {

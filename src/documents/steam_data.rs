@@ -71,14 +71,14 @@ impl SteamData {
                     "%b %e, %Y %H:%M:%S",
                 );
                 match parsed_date {
-                    Ok(date) => Some(date.timestamp()),
+                    Ok(date) => Some(date.and_utc().timestamp()),
                     Err(_) => {
                         let parsed_date = NaiveDateTime::parse_from_str(
                             &format!("{} 12:00:00", &date.date),
                             "%e %b, %Y %H:%M:%S",
                         );
                         match parsed_date {
-                            Ok(date) => Some(date.timestamp()),
+                            Ok(date) => Some(date.and_utc().timestamp()),
                             Err(_) => None,
                         }
                     }

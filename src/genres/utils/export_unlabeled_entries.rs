@@ -29,18 +29,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let opts: Opts = Opts::parse();
 
-    let start = chrono::NaiveDateTime::parse_from_str(
+    let start = chrono::DateTime::parse_from_str(
         &format!("{}-01-01 00:00:00", opts.year),
         "%Y-%m-%d %H:%M:%S",
     )?
     .timestamp();
     let end = min(
-        chrono::NaiveDateTime::parse_from_str(
+        chrono::DateTime::parse_from_str(
             &format!("{}-01-01 00:00:00", opts.year + 1),
             "%Y-%m-%d %H:%M:%S",
         )?
         .timestamp(),
-        Utc::now().naive_utc().timestamp(),
+        Utc::now().timestamp(),
     );
 
     let firestore = Arc::new(FirestoreApi::connect().await?);

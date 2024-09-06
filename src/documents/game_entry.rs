@@ -1,4 +1,4 @@
-use chrono::{Datelike, NaiveDateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::api::IgdbGame;
@@ -157,13 +157,13 @@ impl GameEntry {
     }
 
     pub fn release_year(&self) -> i32 {
-        NaiveDateTime::from_timestamp_opt(self.release_date, 0)
+        DateTime::from_timestamp(self.release_date, 0)
             .unwrap()
             .year()
     }
 
     pub fn is_released(&self) -> bool {
-        self.release_date > 0 && self.release_date < Utc::now().naive_utc().timestamp()
+        self.release_date > 0 && self.release_date < Utc::now().naive_utc().and_utc().timestamp()
     }
 
     fn extract_category(igdb_game: &IgdbGame) -> GameCategory {

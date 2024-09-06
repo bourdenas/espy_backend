@@ -3,7 +3,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use chrono::NaiveDateTime;
+use chrono::DateTime;
 use clap::Parser;
 use documents::Genre;
 use espy_backend::{documents::GameEntry, *};
@@ -63,8 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         game_entry.name,
                         game_entry.id,
                         game_entry.release_date,
-                        NaiveDateTime::from_timestamp_millis(game_entry.release_date * 1000)
-                            .unwrap()
+                        DateTime::from_timestamp_millis(game_entry.release_date * 1000).unwrap()
                     );
 
                     let start = SystemTime::now()
