@@ -1,10 +1,11 @@
 use std::{
     cmp::Ordering,
+    collections::HashMap,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use crate::{
-    api::{FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
+    api::{common::CompanyNormalizer, FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
     documents::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
         GameCategory, GameDigest, GameEntry, Image, SteamData, Website, WebsiteAuthority,
@@ -111,22 +112,17 @@ pub async fn resolve_game_digest(
     if !igdb_game.involved_companies.is_empty() {
         let companies =
             get_involved_companies(connection, firestore, &igdb_game.involved_companies).await?;
-        game_entry.developers = companies
-            .iter()
-            .filter(|company| match company.role {
-                CompanyRole::Developer => true,
-                _ => false,
-            })
-            // NOTE: drain_filter() would prevent the cloning.
-            .map(|company| company.clone())
-            .collect();
-        game_entry.publishers = companies
-            .into_iter()
-            .filter(|company| match company.role {
-                CompanyRole::Publisher => true,
-                _ => false,
-            })
-            .collect();
+        for company in companies {
+            match company.role {
+                CompanyRole::Developer => game_entry.developers.push(company),
+                CompanyRole::Publisher => game_entry.publishers.push(company),
+                CompanyRole::DevPub => {
+                    game_entry.developers.push(company.clone());
+                    game_entry.publishers.push(company);
+                }
+                _ => {}
+            }
+        }
     }
 
     let mut steam_data = None;
@@ -604,7 +600,10 @@ async fn get_franchises(
 
 fn get_role(involved_company: &IgdbInvolvedCompany) -> CompanyRole {
     match involved_company.developer {
-        true => CompanyRole::Developer,
+        true => match involved_company.publisher {
+            true => CompanyRole::DevPub,
+            false => CompanyRole::Developer,
+        },
         false => match involved_company.publisher {
             true => CompanyRole::Publisher,
             false => match involved_company.porting {
@@ -639,50 +638,55 @@ async fn get_involved_companies(
     )
     .await?;
 
-    let mut companies = vec![];
-    let mut missing = vec![];
+    let involved = HashMap::<u64, CompanyRole>::from_iter(
+        involved_companies
+            .iter()
+            .filter(|ic| {
+                matches!(
+                    get_role(ic),
+                    CompanyRole::Developer | CompanyRole::Publisher | CompanyRole::DevPub
+                )
+            })
+            .filter(|ic| ic.company.is_some())
+            .map(|ic| (ic.company.unwrap(), get_role(ic))),
+    );
+    let result =
+        firestore::companies::batch_read(firestore, &involved.keys().cloned().collect_vec())
+            .await?;
 
-    for involved_company in &involved_companies {
-        if let Some(id) = involved_company.company {
-            match firestore::companies::read(firestore, id).await {
-                Ok(igdb_company) => companies.push(CompanyDigest {
-                    id: igdb_company.id,
-                    name: igdb_company.name,
-                    slug: igdb_company.slug,
-                    role: get_role(involved_company),
-                }),
-                _ => missing.push(id),
-            }
-        }
-    }
+    let mut companies = result
+        .documents
+        .into_iter()
+        .map(|company_doc| CompanyDigest {
+            id: company_doc.id,
+            name: company_doc.name,
+            slug: company_doc.slug,
+            role: involved[&company_doc.id],
+        })
+        .collect_vec();
 
-    if !missing.is_empty() {
+    if !result.not_found.is_empty() {
         companies.extend(
             post::<Vec<docs::IgdbCompany>>(
                 &connection,
                 COMPANIES_ENDPOINT,
                 &format!(
                     "fields *; where id = ({});",
-                    missing
+                    result
+                        .not_found
                         .into_iter()
                         .map(|id| id.to_string())
-                        .collect::<Vec<_>>()
+                        .collect_vec()
                         .join(",")
                 ),
             )
             .await?
             .into_iter()
-            .map(|c| CompanyDigest {
-                id: c.id,
-                name: c.name,
-                slug: c.slug,
-                role: match involved_companies.iter().find(|ic| match ic.company {
-                    Some(cid) => cid == c.id,
-                    None => false,
-                }) {
-                    Some(ic) => get_role(ic),
-                    None => CompanyRole::Unknown,
-                },
+            .map(|igdb_company| CompanyDigest {
+                id: igdb_company.id,
+                slug: CompanyNormalizer::normalize_name(&igdb_company.name),
+                name: igdb_company.name,
+                role: involved[&igdb_company.id],
             }),
         );
     }
