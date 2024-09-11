@@ -142,7 +142,20 @@ async fn scrape(
                 .iter()
                 .find(|e| matches!(e.authority, WebsiteAuthority::Wikipedia))
             {
-                Some(website) => wikipedia.scrape(game_entry.name, &website.url).await,
+                Some(website) => match wikipedia.scrape(game_entry.name, &website.url).await {
+                    Ok(wiki_data) => {
+                        if !wiki_data.is_empty() {
+                            library::firestore::wikipedia::write(
+                                &firestore,
+                                game_entry.id,
+                                &wiki_data,
+                            )
+                            .await?;
+                        }
+                        Ok(wiki_data)
+                    }
+                    Err(status) => Err(status),
+                },
                 None => Err(Status::invalid_argument(format!(
                     "'{}' missing a wikipedia link",
                     game_entry.name
