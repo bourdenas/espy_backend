@@ -684,7 +684,7 @@ async fn get_involved_companies(
             .into_iter()
             .map(|igdb_company| CompanyDigest {
                 id: igdb_company.id,
-                slug: CompanyNormalizer::normalize_name(&igdb_company.name),
+                slug: CompanyNormalizer::slug(&igdb_company.name),
                 name: igdb_company.name,
                 role: involved[&igdb_company.id],
             }),

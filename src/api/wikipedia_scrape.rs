@@ -66,7 +66,7 @@ impl WikipediaScrape {
                     _ => None,
                 })
                 .flat_map(|v| v)
-                .map(|e| CompanyNormalizer::normalize_name(e))
+                .map(|e| CompanyNormalizer::slug(e))
                 .collect(),
 
             publishers: infobox
@@ -76,7 +76,7 @@ impl WikipediaScrape {
                     _ => None,
                 })
                 .flat_map(|v| v)
-                .map(|e| CompanyNormalizer::normalize_name(e))
+                .map(|e| CompanyNormalizer::slug(e))
                 .collect(),
 
             genres: infobox
