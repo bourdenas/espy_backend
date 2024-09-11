@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct WikipediaData {
+    pub name: String,
+
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub developers: Vec<String>,

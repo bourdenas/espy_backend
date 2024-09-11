@@ -34,7 +34,7 @@ impl Wikipedia {
         Ok(Wikipedia { keywords })
     }
 
-    pub async fn scrape(&self, uri: &str) -> Result<WikipediaData, Status> {
+    pub async fn scrape(&self, name: String, uri: &str) -> Result<WikipediaData, Status> {
         let resp = match reqwest::get(uri).await {
             Ok(resp) => resp,
             Err(e) => {
@@ -56,6 +56,7 @@ impl Wikipedia {
         let infobox = extract_infobox(&soup);
 
         Ok(WikipediaData {
+            name,
             keywords: self.extract_keywords(&soup),
             score: extract_score(&soup),
 
