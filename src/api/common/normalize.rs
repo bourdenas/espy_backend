@@ -30,7 +30,7 @@ impl CompanyNormalizer {
             .join(" ");
         match HARDCODED_FIXES.get(&slug.to_lowercase()) {
             Some(fix) => fix.to_string(),
-            None => slug.to_lowercase(),
+            None => slug,
         }
     }
 }
