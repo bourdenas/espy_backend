@@ -13,9 +13,6 @@ pub struct Company {
     pub slug: String,
 
     #[serde(default)]
-    pub norm: String,
-
-    #[serde(default)]
     pub logo: String,
 
     #[serde(default)]

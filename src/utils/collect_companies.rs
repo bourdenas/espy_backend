@@ -5,7 +5,7 @@ use std::{
 
 use clap::Parser;
 use espy_backend::{
-    api,
+    api::{self, common::CompanyNormalizer},
     documents::{Company, GameDigest},
     library::firestore,
     util, Status, Tracing,
@@ -82,8 +82,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         for igdb_company in companies {
             let mut company = Company {
                 id: igdb_company.id,
+                slug: CompanyNormalizer::slug(&igdb_company.name),
                 name: igdb_company.name,
-                slug: igdb_company.slug,
+                logo: String::new(),
                 developed: vec![],
                 published: vec![],
             };
