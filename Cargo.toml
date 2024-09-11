@@ -29,6 +29,10 @@ path = "src/batch/build_timeline.rs"
 name = "build_year_summary"
 path = "src/batch/build_year_summary.rs"
 
+[[bin]]
+name = "wikipedia_scrape"
+path = "src/batch/wikipedia_scrape.rs"
+
 
 # Tools for genre analysis / training.
 [[bin]]
@@ -112,10 +116,6 @@ path = "src/utils/storefront_cleanup.rs"
 [[bin]]
 name = "gog_scrape"
 path = "src/utils/gog_scrape.rs"
-
-[[bin]]
-name = "wikipedia_scrape"
-path = "src/utils/wikipedia_scrape.rs"
 
 
 [dependencies]
