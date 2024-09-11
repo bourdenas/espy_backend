@@ -5,7 +5,7 @@ use std::{
 
 use clap::Parser;
 use espy_backend::{
-    api::{self, common::CompanyNormalizer},
+    api::{self, CompanyNormalizer},
     documents::{Company, GameDigest},
     library::firestore,
     util, Status, Tracing,

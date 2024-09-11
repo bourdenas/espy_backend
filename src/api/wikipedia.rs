@@ -8,12 +8,12 @@ use crate::{documents::WikipediaData, Status};
 
 use soup::prelude::*;
 
-pub struct WikipediaScrape {
+pub struct Wikipedia {
     keywords: Vec<String>,
 }
 
-impl WikipediaScrape {
-    pub fn new(kw_source: &str) -> Result<WikipediaScrape, Status> {
+impl Wikipedia {
+    pub fn new(kw_source: &str) -> Result<Wikipedia, Status> {
         let file = match File::open(kw_source) {
             Ok(file) => file,
             Err(e) => {
@@ -31,7 +31,7 @@ impl WikipediaScrape {
             }
         }
 
-        Ok(WikipediaScrape { keywords })
+        Ok(Wikipedia { keywords })
     }
 
     pub async fn scrape(&self, uri: &str) -> Result<WikipediaData, Status> {
