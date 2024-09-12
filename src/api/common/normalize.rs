@@ -123,13 +123,50 @@ const LOCATION: &'static [&'static str] = &[
 ];
 
 static HARDCODED_FIXES: phf::Map<&'static str, &'static str> = phf_map! {
-    "ea" => "electronic arts",
-    "ea digital illusions ce" => "electronic arts",
-    "ea sports" => "electronic arts",
-    "kalypsomediagroup" => "kalypso",
-    "lucasfilm" => "lucasarts",
-    "lucas arts" => "lucasarts",
-    "cd project red" => "cd project",
-    "wb" => "warner bros",
-    "3d realms" => "apogee",
+    "ea" => "Electronic Arts",
+    "ea digital illusions ce" => "Electronic Arts",
+    "ea sports" => "Electronic Arts",
+    "kalypsomediagroup" => "Kalypso",
+    "lucasfilm" => "LucasArts",
+    "lucas arts" => "KucasArts",
+    "cd project red" => "CD Project",
+    "wb" => "Warner Bros",
+    "3d realms" => "Apogee",
 };
+
+#[cfg(test)]
+mod tests {
+    // use super::*;
+
+    use crate::api::CompanyNormalizer;
+
+    #[test]
+    fn match_no_token() {
+        assert_eq!(CompanyNormalizer::slug("XYZ Dev"), "XYZ Dev");
+    }
+
+    #[test]
+    fn match_one_token() {
+        assert_eq!(CompanyNormalizer::slug("XYZ Studios"), "XYZ");
+    }
+
+    #[test]
+    fn match_multiple_tokens() {
+        assert_eq!(CompanyNormalizer::slug("Studios XYZ Inc."), "XYZ");
+    }
+
+    #[test]
+    fn match_all_tokens() {
+        assert_eq!(CompanyNormalizer::slug("Games Studios"), "");
+    }
+
+    #[test]
+    fn match_hardcoded() {
+        assert_eq!(CompanyNormalizer::slug("ea"), "Electronic Arts");
+    }
+
+    #[test]
+    fn match_hardcoded_after_matching_token() {
+        assert_eq!(CompanyNormalizer::slug("EA North"), "Electronic Arts");
+    }
+}
