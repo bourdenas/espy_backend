@@ -8,8 +8,7 @@ use crate::{
     api::{common::CompanyNormalizer, FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
     documents::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
-        GameCategory, GameDigest, GameEntry, Image, MetacrtitcSource, SteamData, Website,
-        WebsiteAuthority,
+        GameCategory, GameDigest, GameEntry, Image, SteamData, Website, WebsiteAuthority,
     },
     library::firestore,
     Status,
@@ -174,10 +173,7 @@ pub async fn resolve_game_digest(
         match firestore::wikipedia::read(&firestore, game_entry.id).await {
             Ok(wiki_data) => {
                 if game_entry.scores.metacritic.is_none() && wiki_data.score.is_some() {
-                    let scores = &mut game_entry.scores;
-                    scores.metacritic = wiki_data.score;
-                    scores.espy_score = wiki_data.score;
-                    scores.metacritic_source = MetacrtitcSource::Wikipedia;
+                    game_entry.scores.add_wikipedia(&wiki_data);
                 }
                 if game_entry.steam_data.is_none() {
                     adjust_companies(

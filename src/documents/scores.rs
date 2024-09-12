@@ -7,15 +7,6 @@ use crate::api::{IgdbGame, MetacriticData};
 use super::{GogData, SteamData, WikipediaData};
 
 #[derive(Eq, PartialEq, Serialize, Deserialize, Default, Clone, Debug)]
-pub struct ScoresDoc {
-    pub id: u64,
-    pub name: String,
-
-    #[serde(default)]
-    pub scores: Scores,
-}
-
-#[derive(Eq, PartialEq, Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Scores {
     // Thumbs up percentage from Steam.
     #[serde(default)]
@@ -90,7 +81,7 @@ impl Scores {
         self.espy_tier = EspyTier::create(&self);
     }
 
-    pub fn add_wikipedia(&mut self, wikipedia: WikipediaData) {
+    pub fn add_wikipedia(&mut self, wikipedia: &WikipediaData) {
         if wikipedia.score.is_some() {
             self.metacritic_source = MetacrtitcSource::Wikipedia;
             self.metacritic = wikipedia.score;
