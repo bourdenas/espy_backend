@@ -8,7 +8,8 @@ use crate::{
     api::{common::CompanyNormalizer, FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
     documents::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
-        GameCategory, GameDigest, GameEntry, Image, SteamData, Website, WebsiteAuthority,
+        GameCategory, GameDigest, GameEntry, Image, MetacrtitcSource, SteamData, Website,
+        WebsiteAuthority,
     },
     library::firestore,
     Status,
@@ -141,6 +142,11 @@ pub async fn resolve_game_digest(
         .unwrap_or_default();
 
     if let Some(steam_data) = steam_data {
+        adjust_companies(
+            &mut game_entry,
+            &steam_data.developers,
+            &steam_data.publishers,
+        );
         game_entry.add_steam_data(steam_data);
     }
     game_entry.resolve_genres();
@@ -164,13 +170,22 @@ pub async fn resolve_game_digest(
         Err(status) => warn!("{status}"),
     }
 
-    if game_entry.scores.metacritic.is_none() {
-        match firestore::scores::read(&firestore, game_entry.id).await {
-            Ok(lookup) => {
-                let scores = &mut game_entry.scores;
-                scores.metacritic = lookup.scores.metacritic;
-                scores.metacritic_source = lookup.scores.metacritic_source;
-                scores.espy_score = lookup.scores.espy_score;
+    if game_entry.steam_data.is_none() || game_entry.scores.metacritic.is_none() {
+        match firestore::wikipedia::read(&firestore, game_entry.id).await {
+            Ok(wiki_data) => {
+                if game_entry.scores.metacritic.is_none() && wiki_data.score.is_some() {
+                    let scores = &mut game_entry.scores;
+                    scores.metacritic = wiki_data.score;
+                    scores.espy_score = wiki_data.score;
+                    scores.metacritic_source = MetacrtitcSource::Wikipedia;
+                }
+                if game_entry.steam_data.is_none() {
+                    adjust_companies(
+                        &mut game_entry,
+                        &wiki_data.developers,
+                        &wiki_data.publishers,
+                    );
+                }
             }
             Err(Status::NotFound(_)) => {
                 // pass: no score found
@@ -187,9 +202,6 @@ pub async fn resolve_game_digest(
         }
     }
 
-    // Adjust IGDB devs based on external sources.
-    adjust_companies(&mut game_entry);
-
     // TODO: Remove these updates from the critical path.
     update_companies(firestore, &game_entry).await;
     update_collections(firestore, &game_entry).await;
@@ -197,46 +209,49 @@ pub async fn resolve_game_digest(
     Ok(game_entry)
 }
 
-fn adjust_companies(game_entry: &mut GameEntry) {
-    if let Some(steam_data) = &game_entry.steam_data {
-        let external_source_devs = steam_data
-            .developers
-            .iter()
-            .map(|e| CompanyNormalizer::slug(e))
-            .map(|e| e.to_lowercase())
-            .collect_vec();
-        let external_source_pubs = steam_data
-            .publishers
-            .iter()
-            .map(|e| CompanyNormalizer::slug(e))
-            .map(|e| e.to_lowercase())
-            .collect_vec();
+// Filters out developers and publishers in the GameEntry that are not present
+// in the external sources. It ignores external sources if they are empty or if
+// they filter out all GameEntry devs / pubs.
+fn adjust_companies(
+    game_entry: &mut GameEntry,
+    external_source_devs: &[String],
+    external_source_pubs: &[String],
+) {
+    let external_source_devs = external_source_devs
+        .iter()
+        .map(|e| CompanyNormalizer::slug(e))
+        .map(|e| e.to_lowercase())
+        .collect_vec();
+    let external_source_pubs = external_source_pubs
+        .iter()
+        .map(|e| CompanyNormalizer::slug(e))
+        .map(|e| e.to_lowercase())
+        .collect_vec();
 
-        let filtered = game_entry
-            .developers
-            .iter()
-            .cloned()
-            .filter(|digest| {
-                external_source_devs.is_empty()
-                    || external_source_devs.contains(&digest.slug.to_lowercase())
-            })
-            .collect_vec();
-        if !filtered.is_empty() {
-            game_entry.developers = filtered;
-        }
+    let filtered = game_entry
+        .developers
+        .iter()
+        .cloned()
+        .filter(|digest| {
+            external_source_devs.is_empty()
+                || external_source_devs.contains(&digest.slug.to_lowercase())
+        })
+        .collect_vec();
+    if !filtered.is_empty() {
+        game_entry.developers = filtered;
+    }
 
-        let filtered = game_entry
-            .publishers
-            .iter()
-            .cloned()
-            .filter(|digest| {
-                external_source_pubs.is_empty()
-                    || external_source_pubs.contains(&digest.slug.to_lowercase())
-            })
-            .collect_vec();
-        if !filtered.is_empty() {
-            game_entry.publishers = filtered;
-        }
+    let filtered = game_entry
+        .publishers
+        .iter()
+        .cloned()
+        .filter(|digest| {
+            external_source_pubs.is_empty()
+                || external_source_pubs.contains(&digest.slug.to_lowercase())
+        })
+        .collect_vec();
+    if !filtered.is_empty() {
+        game_entry.publishers = filtered;
     }
 }
 
