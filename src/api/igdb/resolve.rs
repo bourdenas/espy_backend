@@ -187,11 +187,57 @@ pub async fn resolve_game_digest(
         }
     }
 
+    // Adjust IGDB devs based on external sources.
+    adjust_companies(&mut game_entry);
+
     // TODO: Remove these updates from the critical path.
     update_companies(firestore, &game_entry).await;
     update_collections(firestore, &game_entry).await;
 
     Ok(game_entry)
+}
+
+fn adjust_companies(game_entry: &mut GameEntry) {
+    if let Some(steam_data) = &game_entry.steam_data {
+        let external_source_devs = steam_data
+            .developers
+            .iter()
+            .map(|e| CompanyNormalizer::slug(e))
+            .map(|e| e.to_lowercase())
+            .collect_vec();
+        let external_source_pubs = steam_data
+            .publishers
+            .iter()
+            .map(|e| CompanyNormalizer::slug(e))
+            .map(|e| e.to_lowercase())
+            .collect_vec();
+
+        let filtered = game_entry
+            .developers
+            .iter()
+            .cloned()
+            .filter(|digest| {
+                external_source_devs.is_empty()
+                    || external_source_devs.contains(&digest.slug.to_lowercase())
+            })
+            .collect_vec();
+        if !filtered.is_empty() {
+            game_entry.developers = filtered;
+        }
+
+        let filtered = game_entry
+            .publishers
+            .iter()
+            .cloned()
+            .filter(|digest| {
+                external_source_pubs.is_empty()
+                    || external_source_pubs.contains(&digest.slug.to_lowercase())
+            })
+            .collect_vec();
+        if !filtered.is_empty() {
+            game_entry.publishers = filtered;
+        }
+    }
 }
 
 /// Returns a fully resolved GameEntry from IGDB that goes beyond the GameDigest doc.
@@ -659,8 +705,10 @@ async fn get_involved_companies(
         .into_iter()
         .map(|company_doc| CompanyDigest {
             id: company_doc.id,
+            // TODO: Change the source to `company_doc.slug` when "/companies"
+            // collection get updated with the new slug definition.
+            slug: CompanyNormalizer::slug(&company_doc.name),
             name: company_doc.name,
-            slug: company_doc.slug,
             role: involved[&company_doc.id],
         })
         .collect_vec();
@@ -797,7 +845,7 @@ async fn update_companies(firestore: &FirestoreApi, game_entry: &GameEntry) {
                 Ok(mut company) => {
                     update_digest(
                         match company_role {
-                            CompanyRole::Developer => &mut company.developed,
+                            CompanyRole::Developer | CompanyRole::DevPub => &mut company.developed,
                             CompanyRole::Publisher => &mut company.published,
                             _ => panic!("Unexpected company role"),
                         },

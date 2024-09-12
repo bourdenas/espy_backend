@@ -322,10 +322,10 @@ pub struct CompanyDigest {
     pub name: String,
 
     #[serde(default)]
-    // This is a normalized version of the name removing fluff. It is not meant
-    // to be a display name. It is used to combine variations of a company name,
-    // e.g. Interplay -> Interplay Entertainment or its evolution over time,
-    // e.g. LucasFilm -> LucasArts.
+    // This is a normalized version of the name removing fluff. It is used to
+    // combine variations of a company name, e.g. "Interplay" -> "Interplay
+    // Entertainment" or its evolution over time, e.g. "LucasFilm" ->
+    // "LucasArts".
     pub slug: String,
 
     #[serde(default)]
