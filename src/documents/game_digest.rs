@@ -106,7 +106,7 @@ impl From<GameEntry> for GameDigest {
             developers: game_entry
                 .developers
                 .into_iter()
-                .map(|company| company.name)
+                .map(|company| company.slug)
                 .collect::<HashSet<_>>()
                 .into_iter()
                 .collect(),
@@ -114,7 +114,7 @@ impl From<GameEntry> for GameDigest {
             publishers: game_entry
                 .publishers
                 .into_iter()
-                .map(|company| company.name)
+                .map(|company| company.slug)
                 .collect::<HashSet<_>>()
                 .into_iter()
                 .collect(),

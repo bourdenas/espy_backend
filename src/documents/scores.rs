@@ -2,18 +2,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use crate::api::{IgdbGame, MetacriticData, WikipediaScrapeData};
+use crate::api::{IgdbGame, MetacriticData};
 
-use super::{GogData, SteamData};
-
-#[derive(Eq, PartialEq, Serialize, Deserialize, Default, Clone, Debug)]
-pub struct ScoresDoc {
-    pub id: u64,
-    pub name: String,
-
-    #[serde(default)]
-    pub scores: Scores,
-}
+use super::{GogData, SteamData, WikipediaData};
 
 #[derive(Eq, PartialEq, Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Scores {
@@ -90,10 +81,12 @@ impl Scores {
         self.espy_tier = EspyTier::create(&self);
     }
 
-    pub fn add_wikipedia(&mut self, wikipedia: WikipediaScrapeData) {
-        self.metacritic = Some(wikipedia.score);
-        self.metacritic_source = MetacrtitcSource::Wikipedia;
-        self.espy_score = Some(wikipedia.score);
+    pub fn add_wikipedia(&mut self, wikipedia: &WikipediaData) {
+        if wikipedia.score.is_some() {
+            self.metacritic_source = MetacrtitcSource::Wikipedia;
+            self.metacritic = wikipedia.score;
+            self.espy_score = wikipedia.score;
+        }
     }
 
     pub fn add_gog(&mut self, gog_data: &GogData) {

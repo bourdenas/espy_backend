@@ -322,19 +322,24 @@ pub struct CompanyDigest {
     pub name: String,
 
     #[serde(default)]
+    // This is a normalized version of the name removing fluff. It is used to
+    // combine variations of a company name, e.g. "Interplay" -> "Interplay
+    // Entertainment" or its evolution over time, e.g. "LucasFilm" ->
+    // "LucasArts".
     pub slug: String,
 
     #[serde(default)]
     pub role: CompanyRole,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum CompanyRole {
-    Unknown = 0,
-    Developer = 1,
-    Publisher = 2,
-    Porting = 3,
-    Support = 4,
+    Unknown,
+    Developer,
+    Publisher,
+    DevPub,
+    Porting,
+    Support,
 }
 
 impl Default for CompanyRole {

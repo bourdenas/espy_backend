@@ -6,8 +6,8 @@ use std::{
 use chrono::DateTime;
 use clap::Parser;
 use espy_backend::{
-    api::{self, WikipediaScrape},
-    documents::{GameEntry, ScoresDoc, WebsiteAuthority},
+    api,
+    documents::{GameEntry, WebsiteAuthority, WikipediaData},
     library, Status, Tracing,
 };
 use firestore::{struct_path::path, FirestoreQueryDirection, FirestoreResult};
@@ -20,6 +20,12 @@ struct Opts {
     #[clap(long, default_value = "keys.json")]
     key_store: String,
 
+    #[clap(long, default_value = "wikipedia_keywords.txt")]
+    kw_source: String,
+
+    #[clap(long)]
+    id: Option<u64>,
+
     #[clap(long, default_value = "0")]
     cursor: u64,
 }
@@ -30,6 +36,13 @@ async fn main() -> Result<(), Status> {
 
     let opts: Opts = Opts::parse();
 
+    if let Some(id) = opts.id {
+        let result = scrape(&api::FirestoreApi::connect().await?, id, &opts.kw_source).await;
+        println!("result = {:?}", result);
+        return Ok(());
+    }
+
+    let wikipedia = api::Wikipedia::new(&opts.kw_source).unwrap();
     let mut cursor = opts.cursor;
     let mut i = 0;
     let today = SystemTime::now()
@@ -63,7 +76,7 @@ async fn main() -> Result<(), Status> {
 
         while let Some(game_entry) = game_entries.next().await {
             match game_entry {
-                Ok(mut game_entry) => {
+                Ok(game_entry) => {
                     cursor = game_entry.release_date as u64;
 
                     println!(
@@ -79,25 +92,24 @@ async fn main() -> Result<(), Status> {
                         .unwrap()
                         .as_millis();
 
-                    if game_entry.scores.metacritic.is_none() {
-                        let website = game_entry
-                            .websites
-                            .iter()
-                            .find(|e| matches!(e.authority, WebsiteAuthority::Wikipedia));
-                        if let Some(website) = website {
-                            let response = WikipediaScrape::scrape(&website.url).await;
-                            if let Some(response) = response {
-                                game_entry.scores.add_wikipedia(response);
-                                library::firestore::games::write(&firestore, &mut game_entry)
+                    let website = game_entry
+                        .websites
+                        .iter()
+                        .find(|e| matches!(e.authority, WebsiteAuthority::Wikipedia));
+                    if let Some(website) = website {
+                        let response = wikipedia.scrape(game_entry.name, &website.url).await;
+                        match response {
+                            Ok(wiki_data) => {
+                                if !wiki_data.is_empty() {
+                                    library::firestore::wikipedia::write(
+                                        &firestore,
+                                        game_entry.id,
+                                        &wiki_data,
+                                    )
                                     .await?;
-
-                                let scores = ScoresDoc {
-                                    id: game_entry.id,
-                                    name: game_entry.name,
-                                    scores: game_entry.scores,
-                                };
-                                library::firestore::scores::write(&firestore, &scores).await?;
+                                }
                             }
+                            Err(status) => error!("{status}"),
                         }
                     }
 
@@ -114,6 +126,44 @@ async fn main() -> Result<(), Status> {
     }
 
     Ok(())
+}
+
+async fn scrape(
+    firestore: &api::FirestoreApi,
+    id: u64,
+    kw_source: &str,
+) -> Result<WikipediaData, Status> {
+    let wikipedia = api::Wikipedia::new(kw_source).unwrap();
+
+    match library::firestore::games::read(firestore, id).await {
+        Ok(game_entry) => {
+            match game_entry
+                .websites
+                .iter()
+                .find(|e| matches!(e.authority, WebsiteAuthority::Wikipedia))
+            {
+                Some(website) => match wikipedia.scrape(game_entry.name, &website.url).await {
+                    Ok(wiki_data) => {
+                        if !wiki_data.is_empty() {
+                            library::firestore::wikipedia::write(
+                                &firestore,
+                                game_entry.id,
+                                &wiki_data,
+                            )
+                            .await?;
+                        }
+                        Ok(wiki_data)
+                    }
+                    Err(status) => Err(status),
+                },
+                None => Err(Status::invalid_argument(format!(
+                    "'{}' missing a wikipedia link",
+                    game_entry.name
+                ))),
+            }
+        }
+        Err(status) => Err(status),
+    }
 }
 
 const BATCH_SIZE: u32 = 400;

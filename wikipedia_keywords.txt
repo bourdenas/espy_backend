@@ -1,0 +1,108 @@
+2d fighter
+2d platformer
+3d fighter
+3d platformer
+4x
+action adventure
+action roguelike
+action rpg
+action rts
+arcade
+arena shooter
+asynchronous multiplayer
+auto battler
+base building
+beat em up
+boomer shooter
+bullet hell
+bullet time
+card battler
+choices matter
+city builder
+colony sim
+combat based platformer
+combat flight simulator
+combat racing
+crpg
+dating sim
+dating simulation
+deck building
+deckbuilding
+dungeon crawler
+endless runner
+farming sim
+farming simulator
+first person adventure
+first person platforming
+first person shooter
+flight simulator
+fps
+god game
+grand strategy
+graphic adventure
+grid based movement
+hack and slash
+hero shooter
+immersive sim
+interactive fiction
+job simulator
+jrpg
+life sim
+life simulation
+lifesim
+looter shooter
+massively multiplayer
+match 3
+match three
+medical sim
+metroidvania
+mmorpg
+moba
+narrative adventure
+on rails shooter
+party based combat
+party based rpg
+party game
+pinball
+platformer
+point & click
+point and click
+precision platformer
+puzzle platformer
+rail shooter
+real time strategy
+real time tactics
+real time with pause
+roguelike
+roguelike deckbuilder
+roguelite
+roguevania
+rpg
+rts
+shmup
+shoot em up
+side scroller
+side scrolling
+social deduction
+souls like
+soulslike
+space combat
+space sim
+space simulation
+survival horror
+tactical rpg
+tactical turn based combat
+text adventure
+third person shooter
+top down perspective
+top down shooter
+tower defense
+truck simulator
+turn based combat
+turn based rpg
+turn based strategy
+turn based tactics
+twin stick control
+twin stick shooter
+visual novel
+walking simulator

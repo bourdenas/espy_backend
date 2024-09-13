@@ -292,6 +292,9 @@ pub struct IgdbCompany {
     pub slug: String,
 
     #[serde(default)]
+    pub url: String,
+
+    #[serde(default)]
     pub logo: Option<u64>,
 
     #[serde(default)]

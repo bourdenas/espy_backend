@@ -108,6 +108,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         id: company.id,
                         name: company.name,
                         slug: company.slug,
+                        logo: String::new(),
                         developed: developed_games
                             .documents
                             .into_iter()

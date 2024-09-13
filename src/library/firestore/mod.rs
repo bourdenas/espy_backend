@@ -8,12 +8,12 @@ pub mod genres;
 pub mod keywords;
 pub mod library;
 pub mod notable;
-pub mod scores;
 pub mod storefront;
 pub mod timeline;
 pub mod unresolved;
 pub mod user_annotations;
 pub mod user_data;
+pub mod wikipedia;
 pub mod wishlist;
 pub mod year;
 

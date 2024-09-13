@@ -1,10 +1,11 @@
 use std::{
     cmp::Ordering,
+    collections::HashMap,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use crate::{
-    api::{FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
+    api::{common::CompanyNormalizer, FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
     documents::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
         GameCategory, GameDigest, GameEntry, Image, SteamData, Website, WebsiteAuthority,
@@ -111,22 +112,17 @@ pub async fn resolve_game_digest(
     if !igdb_game.involved_companies.is_empty() {
         let companies =
             get_involved_companies(connection, firestore, &igdb_game.involved_companies).await?;
-        game_entry.developers = companies
-            .iter()
-            .filter(|company| match company.role {
-                CompanyRole::Developer => true,
-                _ => false,
-            })
-            // NOTE: drain_filter() would prevent the cloning.
-            .map(|company| company.clone())
-            .collect();
-        game_entry.publishers = companies
-            .into_iter()
-            .filter(|company| match company.role {
-                CompanyRole::Publisher => true,
-                _ => false,
-            })
-            .collect();
+        for company in companies {
+            match company.role {
+                CompanyRole::Developer => game_entry.developers.push(company),
+                CompanyRole::Publisher => game_entry.publishers.push(company),
+                CompanyRole::DevPub => {
+                    game_entry.developers.push(company.clone());
+                    game_entry.publishers.push(company);
+                }
+                _ => {}
+            }
+        }
     }
 
     let mut steam_data = None;
@@ -145,6 +141,11 @@ pub async fn resolve_game_digest(
         .unwrap_or_default();
 
     if let Some(steam_data) = steam_data {
+        adjust_companies(
+            &mut game_entry,
+            &steam_data.developers,
+            &steam_data.publishers,
+        );
         game_entry.add_steam_data(steam_data);
     }
     game_entry.resolve_genres();
@@ -168,13 +169,19 @@ pub async fn resolve_game_digest(
         Err(status) => warn!("{status}"),
     }
 
-    if game_entry.scores.metacritic.is_none() {
-        match firestore::scores::read(&firestore, game_entry.id).await {
-            Ok(lookup) => {
-                let scores = &mut game_entry.scores;
-                scores.metacritic = lookup.scores.metacritic;
-                scores.metacritic_source = lookup.scores.metacritic_source;
-                scores.espy_score = lookup.scores.espy_score;
+    if game_entry.steam_data.is_none() || game_entry.scores.metacritic.is_none() {
+        match firestore::wikipedia::read(&firestore, game_entry.id).await {
+            Ok(wiki_data) => {
+                if game_entry.scores.metacritic.is_none() && wiki_data.score.is_some() {
+                    game_entry.scores.add_wikipedia(&wiki_data);
+                }
+                if game_entry.steam_data.is_none() {
+                    adjust_companies(
+                        &mut game_entry,
+                        &wiki_data.developers,
+                        &wiki_data.publishers,
+                    );
+                }
             }
             Err(Status::NotFound(_)) => {
                 // pass: no score found
@@ -196,6 +203,52 @@ pub async fn resolve_game_digest(
     update_collections(firestore, &game_entry).await;
 
     Ok(game_entry)
+}
+
+// Filters out developers and publishers in the GameEntry that are not present
+// in the external sources. It ignores external sources if they are empty or if
+// they filter out all GameEntry devs / pubs.
+fn adjust_companies(
+    game_entry: &mut GameEntry,
+    external_source_devs: &[String],
+    external_source_pubs: &[String],
+) {
+    let external_source_devs = external_source_devs
+        .iter()
+        .map(|e| CompanyNormalizer::slug(e))
+        .map(|e| e.to_lowercase())
+        .collect_vec();
+    let external_source_pubs = external_source_pubs
+        .iter()
+        .map(|e| CompanyNormalizer::slug(e))
+        .map(|e| e.to_lowercase())
+        .collect_vec();
+
+    let filtered = game_entry
+        .developers
+        .iter()
+        .cloned()
+        .filter(|digest| {
+            external_source_devs.is_empty()
+                || external_source_devs.contains(&digest.slug.to_lowercase())
+        })
+        .collect_vec();
+    if !filtered.is_empty() {
+        game_entry.developers = filtered;
+    }
+
+    let filtered = game_entry
+        .publishers
+        .iter()
+        .cloned()
+        .filter(|digest| {
+            external_source_pubs.is_empty()
+                || external_source_pubs.contains(&digest.slug.to_lowercase())
+        })
+        .collect_vec();
+    if !filtered.is_empty() {
+        game_entry.publishers = filtered;
+    }
 }
 
 /// Returns a fully resolved GameEntry from IGDB that goes beyond the GameDigest doc.
@@ -604,7 +657,10 @@ async fn get_franchises(
 
 fn get_role(involved_company: &IgdbInvolvedCompany) -> CompanyRole {
     match involved_company.developer {
-        true => CompanyRole::Developer,
+        true => match involved_company.publisher {
+            true => CompanyRole::DevPub,
+            false => CompanyRole::Developer,
+        },
         false => match involved_company.publisher {
             true => CompanyRole::Publisher,
             false => match involved_company.porting {
@@ -639,50 +695,57 @@ async fn get_involved_companies(
     )
     .await?;
 
-    let mut companies = vec![];
-    let mut missing = vec![];
+    let involved = HashMap::<u64, CompanyRole>::from_iter(
+        involved_companies
+            .iter()
+            .filter(|ic| {
+                matches!(
+                    get_role(ic),
+                    CompanyRole::Developer | CompanyRole::Publisher | CompanyRole::DevPub
+                )
+            })
+            .filter(|ic| ic.company.is_some())
+            .map(|ic| (ic.company.unwrap(), get_role(ic))),
+    );
+    let result =
+        firestore::companies::batch_read(firestore, &involved.keys().cloned().collect_vec())
+            .await?;
 
-    for involved_company in &involved_companies {
-        if let Some(id) = involved_company.company {
-            match firestore::companies::read(firestore, id).await {
-                Ok(igdb_company) => companies.push(CompanyDigest {
-                    id: igdb_company.id,
-                    name: igdb_company.name,
-                    slug: igdb_company.slug,
-                    role: get_role(involved_company),
-                }),
-                _ => missing.push(id),
-            }
-        }
-    }
+    let mut companies = result
+        .documents
+        .into_iter()
+        .map(|company_doc| CompanyDigest {
+            id: company_doc.id,
+            // TODO: Change the source to `company_doc.slug` when "/companies"
+            // collection get updated with the new slug definition.
+            slug: CompanyNormalizer::slug(&company_doc.name),
+            name: company_doc.name,
+            role: involved[&company_doc.id],
+        })
+        .collect_vec();
 
-    if !missing.is_empty() {
+    if !result.not_found.is_empty() {
         companies.extend(
             post::<Vec<docs::IgdbCompany>>(
                 &connection,
                 COMPANIES_ENDPOINT,
                 &format!(
                     "fields *; where id = ({});",
-                    missing
+                    result
+                        .not_found
                         .into_iter()
                         .map(|id| id.to_string())
-                        .collect::<Vec<_>>()
+                        .collect_vec()
                         .join(",")
                 ),
             )
             .await?
             .into_iter()
-            .map(|c| CompanyDigest {
-                id: c.id,
-                name: c.name,
-                slug: c.slug,
-                role: match involved_companies.iter().find(|ic| match ic.company {
-                    Some(cid) => cid == c.id,
-                    None => false,
-                }) {
-                    Some(ic) => get_role(ic),
-                    None => CompanyRole::Unknown,
-                },
+            .map(|igdb_company| CompanyDigest {
+                id: igdb_company.id,
+                slug: CompanyNormalizer::slug(&igdb_company.name),
+                name: igdb_company.name,
+                role: involved[&igdb_company.id],
             }),
         );
     }
@@ -793,7 +856,7 @@ async fn update_companies(firestore: &FirestoreApi, game_entry: &GameEntry) {
                 Ok(mut company) => {
                     update_digest(
                         match company_role {
-                            CompanyRole::Developer => &mut company.developed,
+                            CompanyRole::Developer | CompanyRole::DevPub => &mut company.developed,
                             CompanyRole::Publisher => &mut company.published,
                             _ => panic!("Unexpected company role"),
                         },
