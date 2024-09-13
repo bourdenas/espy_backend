@@ -153,10 +153,7 @@ fn is_remaster(game: &GameEntry) -> bool {
 }
 
 fn is_expansion(game: &GameEntry) -> bool {
-    matches!(
-        game.category,
-        GameCategory::Expansion | GameCategory::StandaloneExpansion
-    )
+    game.category.is_expansion()
 }
 
 fn is_casual(game: &GameEntry) -> bool {

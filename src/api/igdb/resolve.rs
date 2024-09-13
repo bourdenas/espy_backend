@@ -846,48 +846,61 @@ async fn get_release_timestamp(
 /// Make sure that any companies involved in the game are updated to include it.
 #[instrument(level = "trace", skip(firestore, game_entry))]
 async fn update_companies(firestore: &FirestoreApi, game_entry: &GameEntry) {
-    for (companies, company_role) in [
-        (&game_entry.developers, CompanyRole::Developer),
-        (&game_entry.publishers, CompanyRole::Publisher),
-    ] {
-        for company in companies {
-            let company = match firestore::companies::read(&firestore, company.id).await {
-                // Update game in company.
-                Ok(mut company) => {
-                    update_digest(
-                        match company_role {
-                            CompanyRole::Developer | CompanyRole::DevPub => &mut company.developed,
-                            CompanyRole::Publisher => &mut company.published,
-                            _ => panic!("Unexpected company role"),
-                        },
-                        GameDigest::from(game_entry.clone()),
-                    );
-                    company
-                }
-                // Company was missing.
-                Err(Status::NotFound(_)) => Company {
-                    id: company.id,
-                    name: company.name.clone(),
-                    slug: company.slug.clone(),
-                    developed: match company_role {
-                        CompanyRole::Developer => vec![GameDigest::from(game_entry.clone())],
-                        _ => vec![],
-                    },
-                    published: match company_role {
-                        CompanyRole::Publisher => vec![GameDigest::from(game_entry.clone())],
-                        _ => vec![],
-                    },
-                    ..Default::default()
-                },
-                Err(status) => {
-                    warn!("Failed to read company={}: {status}", company.id);
-                    continue;
-                }
-            };
+    if !game_entry.category.is_main_category() {
+        return;
+    }
 
-            if let Err(status) = firestore::companies::write(&firestore, &company).await {
-                warn!("Failed to write company={}: {status}", company.id)
+    let companies = HashMap::<u64, &CompanyDigest>::from_iter(
+        game_entry
+            .developers
+            .iter()
+            .chain(game_entry.publishers.iter())
+            .map(|company_digest| (company_digest.id, company_digest)),
+    );
+
+    for (id, company_digest) in companies {
+        let company = match firestore::companies::read(&firestore, id).await {
+            // Update game in company.
+            Ok(mut company) => {
+                let game_digest = GameDigest::from(game_entry.clone()).compact();
+                match company_digest.role {
+                    CompanyRole::Developer => update_digest(&mut company.developed, game_digest),
+                    CompanyRole::Publisher => update_digest(&mut company.published, game_digest),
+                    CompanyRole::DevPub => {
+                        update_digest(&mut company.developed, game_digest.clone());
+                        update_digest(&mut company.published, game_digest);
+                    }
+                    _ => {}
+                }
+                company
             }
+            // Company was missing. Create it.
+            Err(Status::NotFound(_)) => Company {
+                id: company_digest.id,
+                name: company_digest.name.clone(),
+                slug: company_digest.slug.clone(),
+                logo: String::default(),
+                developed: match company_digest.role {
+                    CompanyRole::Developer | CompanyRole::DevPub => {
+                        vec![GameDigest::from(game_entry.clone()).compact()]
+                    }
+                    _ => vec![],
+                },
+                published: match company_digest.role {
+                    CompanyRole::Publisher | CompanyRole::DevPub => {
+                        vec![GameDigest::from(game_entry.clone()).compact()]
+                    }
+                    _ => vec![],
+                },
+            },
+            Err(status) => {
+                warn!("Failed to read company={}: {status}", company_digest.id);
+                continue;
+            }
+        };
+
+        if let Err(status) = firestore::companies::write(&firestore, &company).await {
+            warn!("Failed to write company={}: {status}", company.id)
         }
     }
 }

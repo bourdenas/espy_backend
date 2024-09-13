@@ -235,6 +235,26 @@ pub enum GameCategory {
     Unknown,
 }
 
+impl GameCategory {
+    pub fn is_main_category(&self) -> bool {
+        matches!(
+            self,
+            GameCategory::Main
+                | GameCategory::Expansion
+                | GameCategory::StandaloneExpansion
+                | GameCategory::Remake
+                | GameCategory::Remaster
+        )
+    }
+
+    pub fn is_expansion(&self) -> bool {
+        matches!(
+            self,
+            GameCategory::Expansion | GameCategory::StandaloneExpansion
+        )
+    }
+}
+
 impl From<u64> for GameCategory {
     fn from(igdb_category: u64) -> Self {
         match igdb_category {

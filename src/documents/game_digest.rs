@@ -4,7 +4,7 @@ use itertools::Itertools;
 use phf::phf_map;
 use serde::{Deserialize, Serialize};
 
-use super::{EspyGenre, GameCategory, GameEntry, GameStatus, IgdbGenre, Scores};
+use super::{EspyGenre, GameCategory, GameEntry, GameStatus, Scores};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct GameDigest {
@@ -54,11 +54,16 @@ pub struct GameDigest {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub igdb_genres: Vec<IgdbGenre>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub keywords: Vec<String>,
+}
+
+impl GameDigest {
+    pub fn compact(mut self) -> Self {
+        self.keywords.clear();
+        self.developers.clear();
+        self.publishers.clear();
+        self
+    }
 }
 
 impl From<GameEntry> for GameDigest {
@@ -120,7 +125,6 @@ impl From<GameEntry> for GameDigest {
                 .collect(),
 
             espy_genres: game_entry.espy_genres,
-            igdb_genres: game_entry.igdb_genres,
             keywords,
         }
     }
