@@ -235,6 +235,8 @@ static GAMEPLAY_KWS: phf::Map<&'static str, &'static str> = phf_map! {
     "precisionplatformer" => "precision platformer",
     "twinstickshooter" => "twin stick shooter",
     "soulslike" => "souls-like",
+    "deckbuilder" => "deckbuilder",
+    "deckbuilding" => "deckbuilder",
     "indie" => "indie",
 };
 

@@ -14,80 +14,79 @@ pub struct Genre {
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub enum EspyGenre {
     #[default]
-    Unknown = 0,
+    Unknown,
 
     // Action
-    Action = 1,
-    IsometricAction = 2,
-    ActionRpg = 3,
+    Action,
+    IsometricAction,
+    ActionRpg,
 
     // Adventure
-    PointAndClick = 4,
-    NarrativeAdventure = 5,
-    SurvivalAdventure = 6,
-    PuzzleAdventure = 7,
-    WalkingSimulator = 8,
+    PointAndClick,
+    NarrativeAdventure,
+    SurvivalAdventure,
+    PuzzleAdventure,
+    WalkingSimulator,
 
     // Arcade
-    Fighting = 9,
-    BeatEmUp = 10,
-    Pinball = 11,
-    CardAndBoard = 12,
-    Deckbuilder = 13,
+    Fighting,
+    BeatEmUp,
+    Pinball,
+    CardAndBoard,
 
     // Casual
-    LifeSim = 14,
-    FarmingSim = 15,
-    DatingSim = 16,
-    Puzzle = 17,
-    VisualNovel = 18,
-    Exploration = 19,
-    EndlessRunner = 20,
-    Rhythm = 21,
-    PartyGame = 22,
+    LifeSim,
+    FarmingSim,
+    DatingSim,
+    Puzzle,
+    VisualNovel,
+    Exploration,
+    EndlessRunner,
+    Rhythm,
+    PartyGame,
 
     // Platformer
-    SideScroller = 23,
-    Platformer3d = 24,
-    ShooterPlatformer = 25,
-    PuzzlePlatformer = 26,
+    SideScroller,
+    Platformer3d,
+    ShooterPlatformer,
+    PuzzlePlatformer,
 
     // RPG
-    CRPG = 27,
-    ARPG = 28,
-    FirstPersonRpg = 29,
-    JRPG = 30,
-    MMORPG = 31,
+    CRPG,
+    ARPG,
+    FirstPersonRpg,
+    JRPG,
+    MMORPG,
 
     // Shooter
-    FirstPersonShooter = 32,
-    TopDownShooter = 33,
-    ThirdPersonShooter = 34,
-    SpaceShooter = 35,
-    Shmup = 36,
-    BattleRoyale = 37,
+    FirstPersonShooter,
+    TopDownShooter,
+    ThirdPersonShooter,
+    SpaceShooter,
+    Shmup,
+    BattleRoyale,
 
     // Simulator
-    CityBuilder = 38,
-    Tycoon = 39,
-    GodGame = 40,
-    Racing = 41,
-    Sports = 42,
-    Survival = 43,
-    FlightSimulator = 44,
-    CombatSimulator = 45,
-    DrivingSimulator = 46,
-    NavalSimulator = 47,
+    CityBuilder,
+    Tycoon,
+    GodGame,
+    Racing,
+    Sports,
+    Survival,
+    FlightSimulator,
+    CombatSimulator,
+    DrivingSimulator,
+    NavalSimulator,
 
     // Strategy
-    TurnBasedStrategy = 48,
-    RealTimeStrategy = 49,
-    TurnBasedTactics = 50,
-    RealTimeTactics = 51,
-    GradStrategy = 52,
-    FourX = 53,
-    TowerDefense = 54,
-    MOBA = 55,
+    TurnBasedStrategy,
+    RealTimeStrategy,
+    TurnBasedTactics,
+    RealTimeTactics,
+    GradStrategy,
+    FourX,
+    TowerDefense,
+    MOBA,
 
     // Obsolete
     TurnBasedRpg,
@@ -97,6 +96,7 @@ pub enum EspyGenre {
     PrecisionPlatformer,
     FishingSim,
     SailingSim,
+    Deckbuilder,
 }
 
 impl EspyGenre {
@@ -119,7 +119,6 @@ impl EspyGenre {
             "Beat'em Up" => EspyGenre::BeatEmUp,
             "Pinball" => EspyGenre::Pinball,
             "Card & Board Game" => EspyGenre::CardAndBoard,
-            "Deckbuilder" => EspyGenre::Deckbuilder,
 
             // Casual
             "Life Sim" => EspyGenre::LifeSim,
@@ -199,7 +198,6 @@ impl From<&str> for EspyGenre {
             "BeatEmUp" => EspyGenre::BeatEmUp,
             "Pinball" => EspyGenre::Pinball,
             "CardAndBoard" => EspyGenre::CardAndBoard,
-            "Deckbuilder" => EspyGenre::Deckbuilder,
 
             // Casual
             "LifeSim" => EspyGenre::LifeSim,
