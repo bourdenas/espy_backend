@@ -2,6 +2,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct WikipediaData {
+    #[serde(default)]
+    pub id: u64,
+
     pub name: String,
 
     #[serde(default)]
