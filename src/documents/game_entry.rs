@@ -230,6 +230,7 @@ pub enum GameCategory {
     Season,
     Remake,
     Remaster,
+    Updated,
     Version,
     Ignore,
     Unknown,
@@ -266,7 +267,8 @@ impl From<u64> for GameCategory {
             6 => GameCategory::Episode,
             7 => GameCategory::Season,
             8 => GameCategory::Remake,
-            9 | 10 | 14 => GameCategory::Remaster,
+            9 => GameCategory::Remaster,
+            10 | 14 => GameCategory::Updated,
             _ => GameCategory::Ignore,
         }
     }
