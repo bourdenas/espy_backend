@@ -4,8 +4,8 @@ use clap::Parser;
 use csv::Writer;
 use espy_backend::{
     api::FirestoreApi,
-    documents::EspyGenre,
-    library::firestore::{games, user_annotations},
+    documents::{EspyGenre, WikipediaData},
+    library::firestore::{games, user_annotations, wikipedia},
     Tracing,
 };
 use itertools::Itertools;
@@ -47,6 +47,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let game_ids = game_to_genre.keys().into_iter().map(|e| *e).collect_vec();
     let games = games::batch_read(&firestore, &game_ids).await?;
+    let wikipedia = wikipedia::batch_read(&firestore, &game_ids).await?;
+    let wikipedia = HashMap::<u64, WikipediaData>::from_iter(
+        wikipedia
+            .documents
+            .into_iter()
+            .map(|wiki_data| (wiki_data.id, wiki_data)),
+    );
 
     let examples = games
         .documents
@@ -73,6 +80,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 Some(gog_data) => gog_data.genres.iter().join("|"),
                 None => String::default(),
             },
+            wiki_genres: match wikipedia.get(&entry.id) {
+                Some(wiki_data) => wiki_data.genres.iter().join("|"),
+                None => String::default(),
+            },
             igdb_keywords: entry.keywords.join("|"),
             steam_tags: match &entry.steam_data {
                 Some(steam_data) => steam_data.user_tags.join("|"),
@@ -80,6 +91,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             },
             gog_tags: match &entry.gog_data {
                 Some(gog_data) => gog_data.tags.iter().join("|"),
+                None => String::default(),
+            },
+            wiki_tags: match wikipedia.get(&entry.id) {
+                Some(wiki_data) => wiki_data.keywords.iter().join("|"),
                 None => String::default(),
             },
             description: match &entry.steam_data {
@@ -133,9 +148,11 @@ struct LabeledExample {
     igdb_genres: String,
     steam_genres: String,
     gog_genres: String,
+    wiki_genres: String,
     igdb_keywords: String,
     steam_tags: String,
     gog_tags: String,
+    wiki_tags: String,
     description: String,
     images: String,
 }
