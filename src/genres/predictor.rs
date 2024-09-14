@@ -5,7 +5,7 @@ use soup::Soup;
 use tracing::instrument;
 
 use crate::{
-    documents::{EspyGenre, GameEntry},
+    documents::{EspyGenre, GameEntry, WikipediaData},
     Status,
 };
 
@@ -19,11 +19,15 @@ impl GenrePredictor {
     }
 
     #[instrument(level = "trace", skip(self, game_entry))]
-    pub async fn predict(&self, game_entry: &GameEntry) -> Result<Vec<EspyGenre>, Status> {
+    pub async fn predict(
+        &self,
+        game_entry: &GameEntry,
+        wiki_data: Option<WikipediaData>,
+    ) -> Result<Vec<EspyGenre>, Status> {
         let client = reqwest::Client::new();
         let resp = client
             .post(format!("{}/genres", &self.url))
-            .json(&GenrePredictRequest::new(game_entry))
+            .json(&GenrePredictRequest::new(game_entry, wiki_data))
             .send()
             .await?;
 
@@ -42,11 +46,15 @@ impl GenrePredictor {
     }
 
     #[instrument(level = "trace", skip(self, game_entry))]
-    pub async fn debug(&self, game_entry: &GameEntry) -> Result<GenreDebugInfo, Status> {
+    pub async fn debug(
+        &self,
+        game_entry: &GameEntry,
+        wiki_data: Option<WikipediaData>,
+    ) -> Result<GenreDebugInfo, Status> {
         let client = reqwest::Client::new();
         let resp = client
             .post(format!("{}/genres_debug", &self.url))
-            .json(&GenrePredictRequest::new(game_entry))
+            .json(&GenrePredictRequest::new(game_entry, wiki_data))
             .send()
             .await?;
 
@@ -72,12 +80,14 @@ struct GenrePredictRequest {
     steam_tags: Vec<String>,
     gog_genres: Vec<String>,
     gog_tags: Vec<String>,
+    wiki_genres: Vec<String>,
+    wiki_tags: Vec<String>,
 
     description: String,
 }
 
 impl GenrePredictRequest {
-    fn new(game_entry: &GameEntry) -> Self {
+    fn new(game_entry: &GameEntry, wiki_data: Option<WikipediaData>) -> Self {
         GenrePredictRequest {
             id: game_entry.id,
             name: game_entry.name.clone(),
@@ -108,6 +118,15 @@ impl GenrePredictRequest {
             },
             gog_tags: match &game_entry.gog_data {
                 Some(gog_data) => gog_data.tags.clone(),
+                None => vec![],
+            },
+
+            wiki_genres: match &wiki_data {
+                Some(wiki_data) => wiki_data.genres.clone(),
+                None => vec![],
+            },
+            wiki_tags: match &wiki_data {
+                Some(wiki_data) => wiki_data.keywords.clone(),
                 None => vec![],
             },
 
