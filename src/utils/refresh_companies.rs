@@ -5,8 +5,8 @@ use std::{
 
 use clap::Parser;
 use espy_backend::{
-    api::FirestoreApi,
-    documents::{Company, GameCategory, GameDigest},
+    api::{CompanyNormalizer, FirestoreApi},
+    documents::{Company, GameDigest},
     library, Tracing,
 };
 use firestore::{struct_path::path, FirestoreQueryDirection, FirestoreResult};
@@ -19,9 +19,6 @@ use tracing::{error, warn};
 struct Opts {
     #[clap(long, default_value = "0")]
     cursor: u64,
-
-    #[clap(long)]
-    franchises: bool,
 }
 
 #[tokio::main]
@@ -47,77 +44,107 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .stream_query_with_errors()
             .await?;
 
+        let mut tbd = vec![];
         while let Some(company) = companies.next().await {
             match company {
-                Ok(company) => {
+                Ok(mut company) => {
                     cursor = company.id;
 
+                    company.slug = CompanyNormalizer::slug(&company.name);
+                    company
+                        .developed
+                        .retain(|digest| digest.category.is_main_category());
+                    company
+                        .published
+                        .retain(|digest| digest.category.is_main_category());
+
                     println!(
-                        "#{i} -- {} -- id={} -- {} main games ({} total)",
+                        "#{i} -- {} -- id={} -- developed {} games -- published {} games)",
                         company.name,
                         company.id,
-                        company.developed.iter().fold(0, |acc, e| acc
-                            + match e.category {
-                                GameCategory::Main => 1,
-                                _ => 0,
-                            })
-                            + company.published.iter().fold(0, |acc, e| acc
-                                + match e.category {
-                                    GameCategory::Main => 1,
-                                    _ => 0,
-                                }),
-                        company.developed.len() + company.published.len()
+                        company.developed.len(),
+                        company.published.len(),
                     );
+
+                    if company.developed.len() + company.published.len() == 0 {
+                        tbd.push(company.clone());
+                    }
 
                     let start = SystemTime::now()
                         .duration_since(UNIX_EPOCH)
                         .unwrap()
                         .as_millis();
 
-                    let developed_games = library::firestore::games::batch_read(
-                        &firestore,
-                        &company.developed.iter().map(|e| e.id).collect_vec(),
-                    )
-                    .await?;
+                    let mut developed_games = vec![];
+                    if !company.developed.is_empty() {
+                        let result = library::firestore::games::batch_read(
+                            &firestore,
+                            &company.developed.iter().map(|e| e.id).collect_vec(),
+                        )
+                        .await?;
 
-                    if !developed_games.not_found.is_empty() {
-                        warn!(
-                            "missing {} developed GameEntries from company '{}' ({})",
-                            developed_games.not_found.len(),
-                            &company.name,
-                            company.id,
-                        );
+                        if !result.not_found.is_empty() {
+                            warn!(
+                                "missing {} developed GameEntries from company '{}' ({})",
+                                result.not_found.len(),
+                                &company.name,
+                                company.id,
+                            );
+                        }
+                        developed_games = result
+                            .documents
+                            .into_iter()
+                            .filter(|game_entry| {
+                                game_entry
+                                    .developers
+                                    .iter()
+                                    .find(|digest| digest.name == company.name)
+                                    .is_some()
+                            })
+                            .collect();
                     }
 
-                    let published_games = library::firestore::games::batch_read(
-                        &firestore,
-                        &company.published.iter().map(|e| e.id).collect_vec(),
-                    )
-                    .await?;
+                    let mut published_games = vec![];
+                    if !company.published.is_empty() {
+                        let result = library::firestore::games::batch_read(
+                            &firestore,
+                            &company.published.iter().map(|e| e.id).collect_vec(),
+                        )
+                        .await?;
 
-                    if !published_games.not_found.is_empty() {
-                        warn!(
-                            "missing {} published GameEntries from company '{}' ({})",
-                            published_games.not_found.len(),
-                            &company.name,
-                            company.id,
-                        );
+                        if !result.not_found.is_empty() {
+                            warn!(
+                                "missing {} published GameEntries from company '{}' ({})",
+                                result.not_found.len(),
+                                &company.name,
+                                company.id,
+                            );
+                        }
+                        published_games = result
+                            .documents
+                            .into_iter()
+                            .filter(|game_entry| {
+                                game_entry
+                                    .publishers
+                                    .iter()
+                                    .find(|digest| digest.name == company.name)
+                                    .is_some()
+                            })
+                            .collect();
                     }
 
                     let company = Company {
                         id: company.id,
+                        slug: CompanyNormalizer::slug(&company.name),
                         name: company.name,
-                        slug: company.slug,
                         logo: String::new(),
                         developed: developed_games
-                            .documents
                             .into_iter()
-                            .map(|e| GameDigest::from(e))
+                            .map(|e| GameDigest::from(e).compact())
                             .collect_vec(),
                         published: published_games
-                            .documents
                             .into_iter()
-                            .map(|e| GameDigest::from(e))
+                            .map(|e| GameDigest::from(e).compact())
                             .collect_vec(),
                     };
                     library::firestore::companies::write(&firestore, &company).await?;
@@ -131,6 +158,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 Err(status) => error!("{status}"),
             }
             i += 1;
+        }
+
+        println!("🦀🦀🦀 Deleting {} companies...", tbd.len());
+        for company in tbd {
+            match library::firestore::companies::delete(&firestore, company.id).await {
+                Ok(()) => println!("Deleted {} ({})", company.name, company.id),
+                Err(status) => error!("{status}"),
+            }
         }
     }
 
