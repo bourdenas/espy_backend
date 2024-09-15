@@ -10,6 +10,7 @@ use espy_backend::{documents::GameEntry, *};
 use firestore::{path, FirestoreQueryDirection, FirestoreResult};
 use futures::{stream::BoxStream, StreamExt};
 use genres::GenrePredictor;
+use library::firestore::wikipedia;
 use tracing::error;
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
@@ -71,7 +72,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         .unwrap()
                         .as_millis();
 
-                    let espy_genres = predictor.predict(&game_entry).await?;
+                    let wiki_data = match wikipedia::read(&firestore, game_entry.id).await {
+                        Ok(wiki_data) => Some(wiki_data),
+                        Err(Status::NotFound(_)) => None,
+                        Err(status) => panic!("{status}"),
+                    };
+
+                    let espy_genres = predictor.predict(&game_entry, wiki_data).await?;
                     if !espy_genres.is_empty() {
                         println!("  predicted genres={:?}", &espy_genres);
                         game_entry.espy_genres = espy_genres.clone();

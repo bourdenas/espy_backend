@@ -27,6 +27,7 @@ crpg
 dating sim
 dating simulation
 deck building
+deckbuilder
 deckbuilding
 dungeon crawler
 endless runner

@@ -97,7 +97,9 @@ async fn main() -> Result<(), Status> {
                         .iter()
                         .find(|e| matches!(e.authority, WebsiteAuthority::Wikipedia));
                     if let Some(website) = website {
-                        let response = wikipedia.scrape(game_entry.name, &website.url).await;
+                        let response = wikipedia
+                            .scrape(game_entry.id, game_entry.name, &website.url)
+                            .await;
                         match response {
                             Ok(wiki_data) => {
                                 if !wiki_data.is_empty() {
@@ -142,7 +144,7 @@ async fn scrape(
                 .iter()
                 .find(|e| matches!(e.authority, WebsiteAuthority::Wikipedia))
             {
-                Some(website) => match wikipedia.scrape(game_entry.name, &website.url).await {
+                Some(website) => match wikipedia.scrape(id, game_entry.name, &website.url).await {
                     Ok(wiki_data) => {
                         if !wiki_data.is_empty() {
                             library::firestore::wikipedia::write(
