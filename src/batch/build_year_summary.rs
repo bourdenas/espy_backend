@@ -55,15 +55,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         println!("Building library for year {year}...");
 
         let start = chrono::DateTime::parse_from_str(
-            &format!("{}-01-01 00:00:00", year),
-            "%Y-%m-%d %H:%M:%S",
-        )?
+            &format!("{}-01-01 00:00:00 +0000", year),
+            "%Y-%m-%d %H:%M:%S %z",
+        )
+        .expect("Failed to parse start date")
         .timestamp();
         let end = min(
             chrono::DateTime::parse_from_str(
-                &format!("{}-01-01 00:00:00", year + 1),
-                "%Y-%m-%d %H:%M:%S",
-            )?
+                &format!("{}-01-01 00:00:00 +0000", year + 1),
+                "%Y-%m-%d %H:%M:%S %z",
+            )
+            .expect("Failed to parse end date")
             .timestamp(),
             Utc::now().timestamp(),
         );
@@ -92,14 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut games = game_entries.try_collect::<Vec<GameEntry>>().await?;
         println!("Retrieved {} titles.", games.len());
 
-        games.retain(|game| match game.category {
-            GameCategory::Dlc
-            | GameCategory::Bundle
-            | GameCategory::Episode
-            | GameCategory::Version
-            | GameCategory::Ignore => false,
-            _ => true,
-        });
+        games.retain(|game| game.category.is_main_category());
         println!("Retained {} titles.", games.len());
 
         let notable = notable::read(&firestore).await?;
