@@ -9,6 +9,10 @@ name = "http_server"
 path = "src/http_server.rs"
 
 [[bin]]
+name = "resolver_backend"
+path = "src/resolver_backend.rs"
+
+[[bin]]
 name = "webhook_handlers"
 path = "src/webhook_handlers.rs"
 
