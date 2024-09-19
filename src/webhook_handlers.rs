@@ -18,7 +18,7 @@ struct Opts {
 
     /// URL of the resolver backend.
     #[clap(long, default_value = "")]
-    resolver_url: String,
+    resolver_backend: String,
 
     #[clap(long)]
     prod_tracing: bool,
@@ -45,7 +45,7 @@ async fn main() -> Result<(), Status> {
     let firestore = FirestoreApi::connect().await?;
     let notable = notable::read(&firestore).await?;
     let classifier = GameFilter::new(notable);
-    let resolver = ResolveApi::new(opts.resolver_url);
+    let resolver = ResolveApi::new(opts.resolver_backend);
 
     info!("webhooks handler started");
 

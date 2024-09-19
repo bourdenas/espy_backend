@@ -1,7 +1,4 @@
-use crate::{
-    api::{FirestoreApi, IgdbApi},
-    util,
-};
+use crate::{api::FirestoreApi, resolver::ResolveApi, util};
 use std::sync::Arc;
 use tracing::warn;
 use warp::{self, Filter};
@@ -11,18 +8,22 @@ use super::{handlers, models, resources::*};
 /// Returns a Filter with all available routes.
 pub fn routes(
     keys: Arc<util::keys::Keys>,
-    igdb: Arc<IgdbApi>,
     firestore: Arc<FirestoreApi>,
+    resolver: Arc<ResolveApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     home()
-        .or(post_search(Arc::clone(&igdb)))
-        .or(post_resolve(Arc::clone(&firestore), Arc::clone(&igdb)))
+        .or(post_search(Arc::clone(&resolver)))
+        .or(post_resolve(Arc::clone(&firestore), Arc::clone(&resolver)))
         .or(post_delete(Arc::clone(&firestore)))
-        .or(post_match(Arc::clone(&firestore), Arc::clone(&igdb)))
+        .or(post_match(Arc::clone(&firestore), Arc::clone(&resolver)))
         .or(post_update(Arc::clone(&firestore)))
         .or(post_wishlist(Arc::clone(&firestore)))
         .or(post_unlink(Arc::clone(&firestore)))
-        .or(post_sync(keys, Arc::clone(&firestore), Arc::clone(&igdb)))
+        .or(post_sync(
+            keys,
+            Arc::clone(&firestore),
+            Arc::clone(&resolver),
+        ))
         .or(get_images())
         .or_else(|e| async {
             warn! {"Rejected route: {:?}", e};
@@ -37,25 +38,25 @@ fn home() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection>
 
 /// POST /search
 fn post_search(
-    igdb: Arc<IgdbApi>,
+    resolver: Arc<ResolveApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("search")
         .and(warp::post())
         .and(json_body::<models::Search>())
-        .and(with_igdb(igdb))
+        .and(with_resolver(resolver))
         .and_then(handlers::post_search)
 }
 
 /// POST /resolve
 fn post_resolve(
     firestore: Arc<FirestoreApi>,
-    igdb: Arc<IgdbApi>,
+    resolver: Arc<ResolveApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("resolve")
         .and(warp::post())
         .and(json_body::<models::Resolve>())
         .and(with_firestore(firestore))
-        .and(with_igdb(igdb))
+        .and(with_resolver(resolver))
         .and_then(handlers::post_resolve)
 }
 
@@ -73,13 +74,13 @@ fn post_delete(
 /// POST /library/{user_id}/match
 fn post_match(
     firestore: Arc<FirestoreApi>,
-    igdb: Arc<IgdbApi>,
+    resolver: Arc<ResolveApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("library" / String / "match")
         .and(warp::post())
         .and(json_body::<models::MatchOp>())
         .and(with_firestore(firestore))
-        .and(with_igdb(igdb))
+        .and(with_resolver(resolver))
         .and_then(handlers::post_match)
 }
 
@@ -120,13 +121,13 @@ fn post_unlink(
 fn post_sync(
     keys: Arc<util::keys::Keys>,
     firestore: Arc<FirestoreApi>,
-    igdb: Arc<IgdbApi>,
+    resolver: Arc<ResolveApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("library" / String / "sync")
         .and(warp::post())
         .and(with_keys(keys))
         .and(with_firestore(firestore))
-        .and(with_igdb(igdb))
+        .and(with_resolver(resolver))
         .and_then(handlers::post_sync)
 }
 

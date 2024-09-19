@@ -6,6 +6,8 @@ use crate::{
     Status,
 };
 
+use super::models::SearchRequest;
+
 #[derive(Clone)]
 pub struct ResolveApi {
     url: String,
@@ -28,6 +30,22 @@ impl ResolveApi {
 
     pub async fn digest(&self, id: u64) -> Result<GameDigest, Status> {
         let digest = post(&format!("{}/digest", &self.url), id).await?;
+        Ok(digest)
+    }
+
+    pub async fn search(
+        &self,
+        title: String,
+        base_game_only: bool,
+    ) -> Result<Vec<GameDigest>, Status> {
+        let digest = post(
+            &format!("{}/search", &self.url),
+            SearchRequest {
+                title,
+                base_game_only,
+            },
+        )
+        .await?;
         Ok(digest)
     }
 }

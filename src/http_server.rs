@@ -1,8 +1,5 @@
 use clap::Parser;
-use espy_backend::{
-    api::{FirestoreApi, IgdbApi},
-    http, util, Status, Tracing,
-};
+use espy_backend::{api::FirestoreApi, http, resolver::ResolveApi, util, Status, Tracing};
 use std::{env, sync::Arc};
 use warp::{self, Filter};
 
@@ -15,6 +12,10 @@ struct Opts {
     /// Port number to use for listening to gRPC requests.
     #[clap(short, long, default_value = "8080")]
     port: u16,
+
+    /// JSON file containing application keys for espy service.
+    #[clap(long, default_value = "")]
+    resolver_backend: String,
 
     #[clap(long)]
     prod_tracing: bool,
@@ -31,11 +32,6 @@ async fn main() -> Result<(), Status> {
 
     let keys = util::keys::Keys::from_file(&opts.key_store).unwrap();
 
-    let mut igdb = IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
-    igdb.connect().await?;
-
-    let firestore = FirestoreApi::connect().await?;
-
     // Let ENV VAR override flag.
     let port: u16 = match env::var("PORT") {
         Ok(port) => match port.parse::<u16>() {
@@ -45,8 +41,11 @@ async fn main() -> Result<(), Status> {
         Err(_) => opts.port,
     };
 
+    let firestore = FirestoreApi::connect().await?;
+    let resolver = ResolveApi::new(opts.resolver_backend);
+
     warp::serve(
-        http::routes::routes(Arc::new(keys), Arc::new(igdb), Arc::new(firestore)).with(
+        http::routes::routes(Arc::new(keys), Arc::new(firestore), Arc::new(resolver)).with(
             warp::cors()
                 .allow_methods(vec!["GET", "POST"])
                 .allow_headers(vec!["Content-Type", "Authorization"])
