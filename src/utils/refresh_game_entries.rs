@@ -5,17 +5,18 @@ use std::{
 
 use chrono::DateTime;
 use clap::Parser;
-use espy_backend::{api::FirestoreApi, documents::GameEntry, *};
+use espy_backend::{documents::GameEntry, *};
 use firestore::{path, FirestoreQueryDirection, FirestoreResult};
 use futures::{stream::BoxStream, StreamExt};
+use resolver::ResolveApi;
 use tracing::{error, instrument};
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
 #[derive(Parser)]
 struct Opts {
-    /// JSON file that contains application keys for espy service.
-    #[clap(long, default_value = "keys.json")]
-    key_store: String,
+    /// URL of the resolver backend.
+    #[clap(long, default_value = "")]
+    resolver_backend: String,
 
     #[clap(long, default_value = "0")]
     cursor: u64,
@@ -26,10 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Tracing::setup("utils/refresh_game_entries")?;
 
     let opts: Opts = Opts::parse();
-    let keys = util::keys::Keys::from_file(&opts.key_store).unwrap();
-
-    let mut igdb = api::IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
-    igdb.connect().await?;
+    let resolver = ResolveApi::new(opts.resolver_backend);
 
     let mut cursor = match opts.cursor {
         0 => SystemTime::now()
@@ -82,8 +80,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         .unwrap()
                         .as_millis();
 
-                    let firestore = Arc::clone(&firestore);
-                    if let Err(status) = refresh_game(firestore, game_entry, &igdb).await {
+                    if let Err(status) = refresh_game(game_entry, &resolver).await {
                         error!("{status}");
                     }
 
@@ -104,16 +101,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 #[instrument(
     level = "info",
-    skip(firestore, game_entry, igdb),
+    skip(game_entry, resolver),
     fields(event_span = "resolve_event")
 )]
-async fn refresh_game(
-    firestore: Arc<FirestoreApi>,
-    game_entry: GameEntry,
-    igdb: &api::IgdbApi,
-) -> Result<(), Status> {
-    let igdb_game = igdb.get(game_entry.id).await?;
-    igdb.resolve(firestore, igdb_game).await?;
-
+async fn refresh_game(game_entry: GameEntry, resolver: &ResolveApi) -> Result<(), Status> {
+    resolver.retrieve(game_entry.id).await?;
     Ok(())
 }
