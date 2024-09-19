@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{instrument, warn};
 
@@ -10,7 +9,7 @@ use crate::{
     Status,
 };
 
-use super::{backend::post, resolve::*, IgdbConnection};
+use super::{backend::post, endpoints, resolve::*, IgdbConnection};
 
 #[derive(Clone)]
 pub struct IgdbApi {
@@ -45,7 +44,7 @@ impl IgdbApi {
 
         let result: Vec<IgdbExternalGame> = post(
             &self.connection,
-            EXTERNAL_GAMES_ENDPOINT,
+            endpoints::EXTERNAL_GAMES,
             &format!(
                 "fields *; where uid = \"{}\" & category = {category};",
                 store_entry.id
@@ -158,12 +157,4 @@ impl IgdbApi {
 
         Ok(game_entry)
     }
-}
-
-pub const TWITCH_OAUTH_URL: &str = "https://id.twitch.tv/oauth2/token";
-
-#[derive(Debug, Serialize, Deserialize)]
-struct TwitchOAuthResponse {
-    access_token: String,
-    expires_in: i32,
 }

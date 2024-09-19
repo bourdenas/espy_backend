@@ -17,7 +17,7 @@ use async_recursion::async_recursion;
 use itertools::Itertools;
 use tracing::{error, instrument, trace_span, warn, Instrument};
 
-use super::{backend::post, IgdbConnection};
+use super::{backend::post, endpoints, IgdbConnection};
 
 /// Returns a GameEntry from IGDB that can build the GameDigest doc.
 ///
@@ -402,7 +402,7 @@ async fn get_bundle_games_ids(
 ) -> Result<Vec<IgdbGame>, Status> {
     post::<Vec<IgdbGame>>(
         &connection,
-        GAMES_ENDPOINT,
+        endpoints::GAMES,
         &format!("fields id, name; where bundles = ({bundle_id});"),
     )
     .await
@@ -413,7 +413,7 @@ async fn get_bundle_games_ids(
 pub async fn get_cover(connection: &IgdbConnection, id: u64) -> Result<Option<Image>, Status> {
     let result: Vec<Image> = post(
         connection,
-        COVERS_ENDPOINT,
+        endpoints::COVERS,
         &format!("fields *; where id={id};"),
     )
     .await?;
@@ -469,7 +469,7 @@ async fn get_digests(
 pub async fn get_game(connection: &IgdbConnection, id: u64) -> Result<IgdbGame, Status> {
     let result: Vec<IgdbGame> = post(
         connection,
-        GAMES_ENDPOINT,
+        endpoints::GAMES,
         &format!("fields *; where id={id};"),
     )
     .await?;
@@ -486,7 +486,7 @@ pub async fn get_game(connection: &IgdbConnection, id: u64) -> Result<IgdbGame, 
 async fn get_games(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<IgdbGame>, Status> {
     post::<Vec<IgdbGame>>(
         connection,
-        GAMES_ENDPOINT,
+        endpoints::GAMES,
         &format!(
             "fields *; where id = ({});",
             ids.into_iter()
@@ -510,7 +510,7 @@ async fn get_keywords(firestore: &FirestoreApi, ids: &[u64]) -> Result<Vec<Strin
 async fn get_artwork(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<Image>, Status> {
     Ok(post(
         connection,
-        ARTWORKS_ENDPOINT,
+        endpoints::ARTWORKS,
         &format!(
             "fields *; where id = ({});",
             ids.iter()
@@ -527,7 +527,7 @@ async fn get_artwork(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<Ima
 async fn get_screenshots(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<Image>, Status> {
     Ok(post(
         &connection,
-        SCREENSHOTS_ENDPOINT,
+        endpoints::SCREENSHOTS,
         &format!(
             "fields *; where id = ({});",
             ids.iter()
@@ -547,7 +547,7 @@ async fn get_websites(
 ) -> Result<Vec<IgdbWebsite>, Status> {
     Ok(post(
         &connection,
-        WEBSITES_ENDPOINT,
+        endpoints::WEBSITES,
         &format!(
             "fields *; where id = ({});",
             ids.iter()
@@ -582,7 +582,7 @@ async fn get_collections(
         collections.extend(
             post::<Vec<IgdbAnnotation>>(
                 connection,
-                COLLECTIONS_ENDPOINT,
+                endpoints::COLLECTIONS,
                 &format!(
                     "fields *; where id = ({});",
                     result
@@ -630,7 +630,7 @@ async fn get_franchises(
         franchises.extend(
             post::<Vec<IgdbAnnotation>>(
                 connection,
-                FRANCHISES_ENDPOINT,
+                endpoints::FRANCHISES,
                 &format!(
                     "fields *; where id = ({});",
                     result
@@ -684,7 +684,7 @@ async fn get_involved_companies(
     // Collect all involved companies for a game entry.
     let involved_companies: Vec<IgdbInvolvedCompany> = post(
         &connection,
-        INVOLVED_COMPANIES_ENDPOINT,
+        endpoints::INVOLVED_COMPANIES,
         &format!(
             "fields *; where id = ({});",
             ids.iter()
@@ -730,7 +730,7 @@ async fn get_involved_companies(
         companies.extend(
             post::<Vec<IgdbCompany>>(
                 &connection,
-                COMPANIES_ENDPOINT,
+                endpoints::COMPANIES,
                 &format!(
                     "fields *; where id = ({});",
                     result
@@ -767,7 +767,7 @@ async fn get_release_timestamp(
         false => {
             post::<Vec<ReleaseDate>>(
                 connection,
-                RELEASE_DATES_ENDPOINT,
+                endpoints::RELEASE_DATES,
                 &format!(
                     "fields category, date, status.name; where id = ({});",
                     igdb_game
@@ -980,17 +980,3 @@ async fn write_collection(
         CollectionType::Null => Err(Status::invalid_argument("invalid collection type")),
     }
 }
-
-pub const GAMES_ENDPOINT: &str = "games";
-pub const EXTERNAL_GAMES_ENDPOINT: &str = "external_games";
-pub const COLLECTIONS_ENDPOINT: &str = "collections";
-pub const FRANCHISES_ENDPOINT: &str = "franchises";
-pub const COMPANIES_ENDPOINT: &str = "companies";
-pub const GENRES_ENDPOINT: &str = "genres";
-pub const KEYWORDS_ENDPOINT: &str = "keywords";
-const RELEASE_DATES_ENDPOINT: &str = "release_dates";
-const COVERS_ENDPOINT: &str = "covers";
-const ARTWORKS_ENDPOINT: &str = "artworks";
-const SCREENSHOTS_ENDPOINT: &str = "screenshots";
-const WEBSITES_ENDPOINT: &str = "websites";
-const INVOLVED_COMPANIES_ENDPOINT: &str = "involved_companies";

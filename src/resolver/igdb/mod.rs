@@ -1,6 +1,7 @@
 mod backend;
 mod batch;
 mod connection;
+mod endpoints;
 mod ranking;
 mod resolve;
 mod search;

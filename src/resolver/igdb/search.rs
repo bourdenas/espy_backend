@@ -9,12 +9,7 @@ use crate::{
 use itertools::Itertools;
 use tracing::{instrument, trace_span, warn, Instrument};
 
-use super::{
-    backend::post,
-    connection::IgdbConnection,
-    ranking,
-    resolve::{get_cover, GAMES_ENDPOINT},
-};
+use super::{backend::post, connection::IgdbConnection, endpoints, ranking, resolve::get_cover};
 
 pub struct IgdbSearch {
     connection: Arc<IgdbConnection>,
@@ -119,7 +114,7 @@ impl IgdbSearch {
         let title = title.replace("\"", "");
         post::<Vec<IgdbGame>>(
             &self.connection,
-            GAMES_ENDPOINT,
+            endpoints::GAMES,
             &format!("search \"{title}\"; fields *; where platforms = (6,13);"),
         )
         .await
