@@ -1,7 +1,6 @@
-use crate::{logging::IgdbRequestCounter, Status};
-use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
-use tracing::info;
+
+use crate::{logging::IgdbRequestCounter, Status};
 
 use super::IgdbConnection;
 

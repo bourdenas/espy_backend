@@ -13,8 +13,8 @@ name = "resolver_backend"
 path = "src/resolver_backend.rs"
 
 [[bin]]
-name = "webhook_handlers"
-path = "src/webhook_handlers.rs"
+name = "webhooks_backend"
+path = "src/webhooks_backend.rs"
 
 [[bin]]
 name = "webhook_registration"
