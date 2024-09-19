@@ -61,7 +61,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         0 => {
             let igdb = Arc::clone(&igdb);
             let igdb_search = IgdbSearch::new(igdb);
-            igdb_search.search_by_title(&opts.search).await?
+            igdb_search.match_by_title(&opts.search).await?
         }
         id => vec![igdb.get(id).await?],
     };
