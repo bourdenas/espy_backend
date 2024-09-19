@@ -4,7 +4,7 @@ use warp::{self, Filter};
 
 use crate::api::{FirestoreApi, IgdbApi, IgdbGame};
 
-use super::handlers;
+use super::{handlers, models::SearchRequest};
 
 /// Returns a Filter with all available routes.
 pub fn routes(
@@ -14,6 +14,7 @@ pub fn routes(
     post_retrieve(Arc::clone(&firestore), Arc::clone(&igdb))
         .or(post_resolve(Arc::clone(&firestore), Arc::clone(&igdb)))
         .or(post_digest(Arc::clone(&firestore), Arc::clone(&igdb)))
+        .or(post_search(Arc::clone(&firestore), Arc::clone(&igdb)))
         .or_else(|e| async {
             warn! {"Rejected route: {:?}", e};
             Err(e)
@@ -57,6 +58,19 @@ fn post_digest(
         .and(with_firestore(firestore))
         .and(with_igdb(igdb))
         .and_then(handlers::post_digest)
+}
+
+/// POST /search
+fn post_search(
+    firestore: Arc<FirestoreApi>,
+    igdb: Arc<IgdbApi>,
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+    warp::path!("search")
+        .and(warp::post())
+        .and(json_body::<SearchRequest>())
+        .and(with_firestore(firestore))
+        .and(with_igdb(igdb))
+        .and_then(handlers::post_search)
 }
 
 fn json_body<T: serde::de::DeserializeOwned + Send>(
