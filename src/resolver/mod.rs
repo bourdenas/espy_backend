@@ -5,4 +5,4 @@ mod models;
 pub mod routes;
 
 pub use client::ResolveApi;
-pub use igdb::IgdbConnection;
+pub use igdb::{endpoints, IgdbConnection};
