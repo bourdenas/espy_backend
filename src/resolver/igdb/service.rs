@@ -1,76 +1,31 @@
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tracing::{instrument, warn};
+
 use crate::{
     api::FirestoreApi,
     documents::{GameDigest, GameEntry, IgdbExternalGame, IgdbGame, Image, StoreEntry},
     library::firestore,
-    logging::{IgdbCounters, IgdbResolveCounter},
-    util::rate_limiter::RateLimiter,
+    logging::IgdbResolveCounter,
     Status,
 };
-use serde::{Deserialize, Serialize};
-use std::{sync::Arc, time::Duration};
-use tracing::{instrument, warn};
 
 use super::{backend::post, resolve::*, IgdbConnection};
 
 #[derive(Clone)]
 pub struct IgdbApi {
-    secret: String,
-    client_id: String,
-    connection: Option<Arc<IgdbConnection>>,
+    connection: Arc<IgdbConnection>,
 }
 
 impl IgdbApi {
-    pub fn new(client_id: &str, secret: &str) -> IgdbApi {
-        IgdbApi {
-            secret: String::from(secret),
-            client_id: String::from(client_id),
-            connection: None,
-        }
-    }
-
-    /// Authenticate with twtich/igdb OAuth2 server and retrieve session token.
-    /// Authentication is valid for the lifetime of this instane or until the
-    /// retrieved token expires.
-    pub async fn connect(&mut self) -> Result<(), Status> {
-        let uri = format!(
-            "{TWITCH_OAUTH_URL}?client_id={}&client_secret={}&grant_type=client_credentials",
-            self.client_id, self.secret
-        );
-
-        let resp = reqwest::Client::new()
-            .post(&uri)
-            .send()
-            .await?
-            .json::<TwitchOAuthResponse>()
-            .await?;
-
-        self.connection = Some(Arc::new(IgdbConnection {
-            client_id: self.client_id.clone(),
-            oauth_token: resp.access_token,
-            qps: RateLimiter::new(4, Duration::from_secs(1), 6),
-        }));
-
-        Ok(())
-    }
-
-    pub fn connection(&self) -> Result<Arc<IgdbConnection>, Status> {
-        match &self.connection {
-            Some(connection) => Ok(Arc::clone(connection)),
-            None => {
-                let status = Status::internal(
-                    "Tried to access IGDB API without establishing a connection first.",
-                );
-                IgdbCounters::connection_fail(&status);
-                Err(status)
-            }
-        }
+    pub fn new(connection: Arc<IgdbConnection>) -> IgdbApi {
+        IgdbApi { connection }
     }
 
     /// Returns an IgdbGame based on its `id`.
     #[instrument(level = "trace", skip(self))]
     pub async fn get(&self, id: u64) -> Result<IgdbGame, Status> {
-        let connection = self.connection()?;
-        get_game(&connection, id).await
+        get_game(&self.connection, id).await
     }
 
     /// Returns an IgdbGame based on external id info in IGDB.
@@ -88,9 +43,8 @@ impl IgdbApi {
             }
         };
 
-        let connection = self.connection()?;
         let result: Vec<IgdbExternalGame> = post(
-            &connection,
+            &self.connection,
             EXTERNAL_GAMES_ENDPOINT,
             &format!(
                 "fields *; where uid = \"{}\" & category = {category};",
@@ -110,8 +64,7 @@ impl IgdbApi {
 
     #[instrument(level = "trace", skip(self))]
     pub async fn get_cover(&self, id: u64) -> Result<Option<Image>, Status> {
-        let connection = self.connection()?;
-        get_cover(&connection, id).await
+        get_cover(&self.connection, id).await
     }
 
     /// Returns a GameDigest for an IgdbGame.
@@ -128,9 +81,8 @@ impl IgdbApi {
         firestore: &FirestoreApi,
         igdb_game: IgdbGame,
     ) -> Result<GameDigest, Status> {
-        let connection = self.connection()?;
         Ok(GameDigest::from(
-            resolve_game_digest(&connection, firestore, igdb_game).await?,
+            resolve_game_digest(&self.connection, firestore, igdb_game).await?,
         ))
     }
 
@@ -147,17 +99,16 @@ impl IgdbApi {
         firestore: Arc<FirestoreApi>,
         igdb_game: IgdbGame,
     ) -> Result<GameEntry, Status> {
-        let connection = self.connection()?;
-
         let counter = IgdbResolveCounter::new();
-        let mut game_entry = match resolve_game_digest(&connection, &firestore, igdb_game).await {
-            Ok(entry) => entry,
-            Err(status) => {
-                counter.log_error(&status);
-                return Err(status);
-            }
-        };
-        match resolve_game_info(&connection, &firestore, &mut game_entry).await {
+        let mut game_entry =
+            match resolve_game_digest(&self.connection, &firestore, igdb_game).await {
+                Ok(entry) => entry,
+                Err(status) => {
+                    counter.log_error(&status);
+                    return Err(status);
+                }
+            };
+        match resolve_game_info(&self.connection, &firestore, &mut game_entry).await {
             Ok(()) => {}
             Err(status) => {
                 counter.log_error(&status);
@@ -186,18 +137,17 @@ impl IgdbApi {
         firestore: Arc<FirestoreApi>,
         igdb_game: IgdbGame,
     ) -> Result<GameEntry, Status> {
-        let connection = self.connection()?;
-
         let counter = IgdbResolveCounter::new();
-        let mut game_entry = match resolve_game_digest(&connection, &firestore, igdb_game).await {
-            Ok(entry) => entry,
-            Err(status) => {
-                counter.log_error(&status);
-                return Err(status);
-            }
-        };
+        let mut game_entry =
+            match resolve_game_digest(&self.connection, &firestore, igdb_game).await {
+                Ok(entry) => entry,
+                Err(status) => {
+                    counter.log_error(&status);
+                    return Err(status);
+                }
+            };
 
-        match resolve_game_info(&connection, &firestore, &mut game_entry).await {
+        match resolve_game_info(&self.connection, &firestore, &mut game_entry).await {
             Ok(()) => {}
             Err(status) => {
                 counter.log_error(&status);

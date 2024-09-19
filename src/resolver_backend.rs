@@ -1,7 +1,7 @@
 use clap::Parser;
 use espy_backend::{
     api::FirestoreApi,
-    resolver::{self, IgdbApi},
+    resolver::{self, IgdbConnection},
     util, Status, Tracing,
 };
 use std::{env, sync::Arc};
@@ -41,15 +41,13 @@ async fn main() -> Result<(), Status> {
     };
 
     let keys = util::keys::Keys::from_file(&opts.key_store).unwrap();
-    let mut igdb = IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
-    igdb.connect().await?;
-
     let firestore = FirestoreApi::connect().await?;
+    let connection = IgdbConnection::new(&keys.igdb.client_id, &keys.igdb.secret).await?;
 
     info!("resolver backend ready");
 
     warp::serve(
-        resolver::routes::routes(Arc::new(firestore), Arc::new(igdb)).with(
+        resolver::routes::routes(Arc::new(firestore), Arc::new(connection)).with(
             warp::cors()
                 .allow_methods(vec!["POST"])
                 .allow_headers(vec!["Content-Type", "Authorization"])

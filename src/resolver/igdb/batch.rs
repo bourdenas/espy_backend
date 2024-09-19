@@ -10,16 +10,16 @@ use super::{
         COLLECTIONS_ENDPOINT, COMPANIES_ENDPOINT, EXTERNAL_GAMES_ENDPOINT, FRANCHISES_ENDPOINT,
         GAMES_ENDPOINT, GENRES_ENDPOINT, KEYWORDS_ENDPOINT,
     },
-    IgdbApi,
+    IgdbConnection,
 };
 
 pub struct IgdbBatchApi {
-    service: IgdbApi,
+    connection: IgdbConnection,
 }
 
 impl IgdbBatchApi {
-    pub fn new(service: IgdbApi) -> IgdbBatchApi {
-        IgdbBatchApi { service }
+    pub fn new(connection: IgdbConnection) -> IgdbBatchApi {
+        IgdbBatchApi { connection }
     }
 
     #[instrument(level = "trace", skip(self))]
@@ -28,9 +28,8 @@ impl IgdbBatchApi {
         updated_since: u64,
         offset: u64,
     ) -> Result<Vec<IgdbGame>, Status> {
-        let connection = self.service.connection()?;
         post::<Vec<IgdbGame>>(
-            &connection,
+            &self.connection,
             GAMES_ENDPOINT,
             &format!("fields *; where (platforms = (6,13) | platforms = null) & updated_at >= {updated_since} & (follows > 0 | hypes > 0) & (category = 0 | category = 1 | category = 2 | category = 4 | category = 8 | category = 9); limit 500; offset {offset};"),
         )
@@ -43,9 +42,8 @@ impl IgdbBatchApi {
         collection_id: u64,
         offset: u64,
     ) -> Result<Vec<IgdbGame>, Status> {
-        let connection = self.service.connection()?;
         post::<Vec<IgdbGame>>(
-            &connection,
+            &self.connection,
             GAMES_ENDPOINT,
             &format!("fields *; where platforms = (6,13) & collection = {collection_id} & (category = 0 | category = 1 | category = 2 | category = 4 | category = 8 | category = 9); limit 500; offset {offset};"),
         )
@@ -58,9 +56,8 @@ impl IgdbBatchApi {
         franchise_id: u64,
         offset: u64,
     ) -> Result<Vec<IgdbGame>, Status> {
-        let connection = self.service.connection()?;
         post::<Vec<IgdbGame>>(
-            &connection,
+            &self.connection,
             GAMES_ENDPOINT,
             &format!("fields *; where platforms = (6,13) & (franchise = {franchise_id} | franchises = ({franchise_id})) & (category = 0 | category = 1 | category = 2 | category = 4 | category = 8 | category = 9); limit 500; offset {offset};"),
         )
@@ -73,9 +70,8 @@ impl IgdbBatchApi {
         updated_since: u64,
         offset: u64,
     ) -> Result<Vec<IgdbCollection>, Status> {
-        let connection = self.service.connection()?;
         post::<Vec<IgdbCollection>>(
-            &connection,
+            &self.connection,
             COLLECTIONS_ENDPOINT,
             &format!("fields *; where updated_at >= {updated_since}; limit 500; offset {offset};"),
         )
@@ -84,9 +80,8 @@ impl IgdbBatchApi {
 
     #[instrument(level = "trace", skip(self))]
     pub async fn search_collection(&self, slug: &str) -> Result<Vec<IgdbCollection>, Status> {
-        let connection = self.service.connection()?;
         post::<Vec<IgdbCollection>>(
-            &connection,
+            &self.connection,
             COLLECTIONS_ENDPOINT,
             &format!("fields *; where slug = \"{slug}\"; limit 500;"),
         )
@@ -99,9 +94,8 @@ impl IgdbBatchApi {
         _updated_since: u64,
         offset: u64,
     ) -> Result<Vec<IgdbCollection>, Status> {
-        let connection = self.service.connection()?;
         post::<Vec<IgdbCollection>>(
-            &connection,
+            &self.connection,
             FRANCHISES_ENDPOINT,
             &format!("fields *; limit 500; offset {offset};"),
         )
@@ -110,9 +104,8 @@ impl IgdbBatchApi {
 
     #[instrument(level = "trace", skip(self))]
     pub async fn search_franchises(&self, slug: &str) -> Result<Vec<IgdbCollection>, Status> {
-        let connection = self.service.connection()?;
         post::<Vec<IgdbCollection>>(
-            &connection,
+            &self.connection,
             FRANCHISES_ENDPOINT,
             &format!("fields *; where slug = \"{slug}\"; limit 500;"),
         )
@@ -125,9 +118,8 @@ impl IgdbBatchApi {
         updated_since: u64,
         offset: u64,
     ) -> Result<Vec<IgdbCompany>, Status> {
-        let connection = self.service.connection()?;
         post::<Vec<IgdbCompany>>(
-            &connection,
+            &self.connection,
             COMPANIES_ENDPOINT,
             &format!("fields *; where updated_at >= {updated_since}; limit 500; offset {offset};"),
         )
@@ -136,9 +128,8 @@ impl IgdbBatchApi {
 
     #[instrument(level = "trace", skip(self))]
     pub async fn search_company(&self, slug: &str) -> Result<Vec<IgdbCompany>, Status> {
-        let connection = self.service.connection()?;
         post::<Vec<IgdbCompany>>(
-            &connection,
+            &self.connection,
             COMPANIES_ENDPOINT,
             &format!("fields *; where slug = \"{slug}\"; limit 500;"),
         )
@@ -147,9 +138,8 @@ impl IgdbBatchApi {
 
     #[instrument(level = "trace", skip(self))]
     pub async fn collect_genres(&self) -> Result<Vec<IgdbGenreType>, Status> {
-        let connection = self.service.connection()?;
         post::<Vec<IgdbGenreType>>(
-            &connection,
+            &self.connection,
             GENRES_ENDPOINT,
             &format!("fields *; limit 500;"),
         )
@@ -158,9 +148,8 @@ impl IgdbBatchApi {
 
     #[instrument(level = "trace", skip(self))]
     pub async fn collect_keywords(&self, offset: u64) -> Result<Vec<Keyword>, Status> {
-        let connection = self.service.connection()?;
         post::<Vec<Keyword>>(
-            &connection,
+            &self.connection,
             KEYWORDS_ENDPOINT,
             &format!("fields *; limit 500; offset {offset};"),
         )
@@ -184,9 +173,8 @@ impl IgdbBatchApi {
             }
         };
 
-        let connection = self.service.connection()?;
         post::<Vec<IgdbExternalGame>>(
-            &connection,
+            &self.connection,
             EXTERNAL_GAMES_ENDPOINT,
             &format!("fields *; where category = {category}; limit 500; offset {offset};"),
         )

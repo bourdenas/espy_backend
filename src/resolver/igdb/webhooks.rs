@@ -4,16 +4,16 @@ use tracing::instrument;
 use super::{
     backend::create_webhook,
     resolve::{EXTERNAL_GAMES_ENDPOINT, GAMES_ENDPOINT, GENRES_ENDPOINT, KEYWORDS_ENDPOINT},
-    IgdbApi,
+    IgdbConnection,
 };
 
 pub struct IgdbWebhooksApi {
-    service: IgdbApi,
+    connection: IgdbConnection,
 }
 
 impl IgdbWebhooksApi {
-    pub fn new(service: IgdbApi) -> IgdbWebhooksApi {
-        IgdbWebhooksApi { service }
+    pub fn new(connection: IgdbConnection) -> IgdbWebhooksApi {
+        IgdbWebhooksApi { connection }
     }
 
     #[instrument(level = "trace", skip(self))]
@@ -22,9 +22,8 @@ impl IgdbWebhooksApi {
         webhook_url: &str,
         secret: &str,
     ) -> Result<(), Status> {
-        let connection = self.service.connection()?;
         create_webhook(
-            &connection,
+            &self.connection,
             GAMES_ENDPOINT,
             &format!("{webhook_url}/add_game"),
             "create",
@@ -32,7 +31,7 @@ impl IgdbWebhooksApi {
         )
         .await?;
         create_webhook(
-            &connection,
+            &self.connection,
             GAMES_ENDPOINT,
             &format!("{webhook_url}/update_game"),
             "update",
@@ -40,7 +39,7 @@ impl IgdbWebhooksApi {
         )
         .await?;
         create_webhook(
-            &connection,
+            &self.connection,
             EXTERNAL_GAMES_ENDPOINT,
             &format!("{webhook_url}/external_games"),
             "create",
@@ -48,7 +47,7 @@ impl IgdbWebhooksApi {
         )
         .await?;
         create_webhook(
-            &connection,
+            &self.connection,
             EXTERNAL_GAMES_ENDPOINT,
             &format!("{webhook_url}/external_games"),
             "update",
@@ -56,7 +55,7 @@ impl IgdbWebhooksApi {
         )
         .await?;
         create_webhook(
-            &connection,
+            &self.connection,
             GENRES_ENDPOINT,
             &format!("{webhook_url}/genres"),
             "create",
@@ -64,7 +63,7 @@ impl IgdbWebhooksApi {
         )
         .await?;
         create_webhook(
-            &connection,
+            &self.connection,
             GENRES_ENDPOINT,
             &format!("{webhook_url}/genres"),
             "update",
@@ -72,7 +71,7 @@ impl IgdbWebhooksApi {
         )
         .await?;
         create_webhook(
-            &connection,
+            &self.connection,
             KEYWORDS_ENDPOINT,
             &format!("{webhook_url}/keywords"),
             "create",
@@ -80,7 +79,7 @@ impl IgdbWebhooksApi {
         )
         .await?;
         create_webhook(
-            &connection,
+            &self.connection,
             KEYWORDS_ENDPOINT,
             &format!("{webhook_url}/keywords"),
             "update",

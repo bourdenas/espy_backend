@@ -8,7 +8,7 @@ mod service;
 mod webhooks;
 
 pub use batch::IgdbBatchApi;
-use connection::IgdbConnection;
+pub use connection::IgdbConnection;
 pub use search::IgdbSearch;
 pub use service::IgdbApi;
 pub use webhooks::IgdbWebhooksApi;

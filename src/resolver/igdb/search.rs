@@ -11,18 +11,18 @@ use tracing::{instrument, trace_span, warn, Instrument};
 
 use super::{
     backend::post,
+    connection::IgdbConnection,
     ranking,
     resolve::{get_cover, GAMES_ENDPOINT},
-    IgdbApi,
 };
 
 pub struct IgdbSearch {
-    igdb: Arc<IgdbApi>,
+    connection: Arc<IgdbConnection>,
 }
 
 impl IgdbSearch {
-    pub fn new(igdb: Arc<IgdbApi>) -> IgdbSearch {
-        IgdbSearch { igdb }
+    pub fn new(connection: Arc<IgdbConnection>) -> IgdbSearch {
+        IgdbSearch { connection }
     }
 
     /// Returns `GameDigest` for candidates matching the `title` in IGDB.
@@ -83,10 +83,9 @@ impl IgdbSearch {
         let igdb_games = ranking::sorted_by_relevance_with_threshold(title, igdb_games, 1.0);
 
         // TODO: get covers from firestore intead of IGDB.
-        let connection = self.igdb.connection()?;
         let mut handles = vec![];
         for game in igdb_games {
-            let connection = Arc::clone(&connection);
+            let connection = Arc::clone(&self.connection);
             handles.push(tokio::spawn(
                 async move {
                     let cover = match game.cover {
@@ -118,9 +117,8 @@ impl IgdbSearch {
     #[instrument(level = "trace", skip(self))]
     async fn search(&self, title: &str) -> Result<Vec<IgdbGame>, Status> {
         let title = title.replace("\"", "");
-        let connection = self.igdb.connection()?;
         post::<Vec<IgdbGame>>(
-            &connection,
+            &self.connection,
             GAMES_ENDPOINT,
             &format!("search \"{title}\"; fields *; where platforms = (6,13);"),
         )

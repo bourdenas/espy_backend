@@ -7,14 +7,16 @@ use warp::http::StatusCode;
 use super::{
     igdb::{IgdbApi, IgdbSearch},
     models::SearchRequest,
+    IgdbConnection,
 };
 
-#[instrument(level = "trace", skip(firestore, igdb,))]
+#[instrument(level = "trace", skip(firestore, connection))]
 pub async fn post_retrieve(
     id: u64,
     firestore: Arc<FirestoreApi>,
-    igdb: Arc<IgdbApi>,
+    connection: Arc<IgdbConnection>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
+    let igdb = IgdbApi::new(connection);
     match igdb.get(id).await {
         Ok(igdb_game) => match igdb.resolve_only(firestore, igdb_game).await {
             Ok(game_entry) => Ok(Box::new(warp::reply::json(&game_entry))),
@@ -32,12 +34,13 @@ pub async fn post_retrieve(
     }
 }
 
-#[instrument(level = "trace", skip(igdb_game, firestore, igdb,))]
+#[instrument(level = "trace", skip(igdb_game, firestore, connection))]
 pub async fn post_resolve(
     igdb_game: IgdbGame,
     firestore: Arc<FirestoreApi>,
-    igdb: Arc<IgdbApi>,
+    connection: Arc<IgdbConnection>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
+    let igdb = IgdbApi::new(connection);
     match igdb.resolve_only(firestore, igdb_game).await {
         Ok(game_entry) => Ok(Box::new(warp::reply::json(&game_entry))),
         Err(Status::NotFound(_)) => Ok(Box::new(StatusCode::NOT_FOUND)),
@@ -48,12 +51,13 @@ pub async fn post_resolve(
     }
 }
 
-#[instrument(level = "trace", skip(firestore, igdb))]
+#[instrument(level = "trace", skip(firestore, connection))]
 pub async fn post_digest(
     id: u64,
     firestore: Arc<FirestoreApi>,
-    igdb: Arc<IgdbApi>,
+    connection: Arc<IgdbConnection>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
+    let igdb = IgdbApi::new(connection);
     match igdb.get(id).await {
         Ok(igdb_game) => match igdb.resolve_digest(&firestore, igdb_game).await {
             Ok(digest) => Ok(Box::new(warp::reply::json(&digest))),
@@ -71,13 +75,13 @@ pub async fn post_digest(
     }
 }
 
-#[instrument(level = "trace", skip(firestore, igdb))]
+#[instrument(level = "trace", skip(firestore, connection))]
 pub async fn post_search(
     request: SearchRequest,
     firestore: Arc<FirestoreApi>,
-    igdb: Arc<IgdbApi>,
+    connection: Arc<IgdbConnection>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    let igdb_search = IgdbSearch::new(igdb);
+    let igdb_search = IgdbSearch::new(connection);
     match igdb_search
         .search_by_title(&firestore, &request.title)
         .await
