@@ -1,10 +1,11 @@
 use crate::{
     api::{
-        FirestoreApi, GogScrape, IgdbApi, IgdbExternalGame, IgdbGame, MetacriticApi, SteamDataApi,
+        FirestoreApi, GogScrape, IgdbExternalGame, IgdbGame, MetacriticApi, SteamDataApi,
         SteamScrape,
     },
     documents::{ExternalGame, GameEntry, Keyword},
     library::firestore,
+    resolver::ResolveApi,
     Status,
 };
 use chrono::Utc;
@@ -18,11 +19,11 @@ use super::{
     prefiltering::IgdbPrefilter,
 };
 
-#[instrument(level = "trace", skip(igdb_game, firestore, igdb, game_filter))]
+#[instrument(level = "trace", skip(igdb_game, firestore, resolver, game_filter))]
 pub async fn add_game_webhook(
     igdb_game: IgdbGame,
     firestore: Arc<FirestoreApi>,
-    igdb: Arc<IgdbApi>,
+    resolver: Arc<ResolveApi>,
     game_filter: Arc<GameFilter>,
 ) -> Result<impl warp::Reply, Infallible> {
     let event = AddGameEvent::new(igdb_game.id, igdb_game.name.clone());
@@ -32,7 +33,7 @@ pub async fn add_game_webhook(
         return Ok(StatusCode::OK);
     }
 
-    match igdb.resolve_only(Arc::clone(&firestore), igdb_game).await {
+    match resolver.resolve(igdb_game).await {
         Ok(mut game_entry) => {
             if !game_filter.filter(&game_entry) {
                 event.log_reject(game_filter.explain(&game_entry));
@@ -48,11 +49,11 @@ pub async fn add_game_webhook(
     Ok(StatusCode::OK)
 }
 
-#[instrument(level = "trace", skip(igdb_game, firestore, igdb, game_filter))]
+#[instrument(level = "trace", skip(igdb_game, firestore, resolver, game_filter))]
 pub async fn update_game_webhook(
     igdb_game: IgdbGame,
     firestore: Arc<FirestoreApi>,
-    igdb: Arc<IgdbApi>,
+    resolver: Arc<ResolveApi>,
     game_filter: Arc<GameFilter>,
 ) -> Result<impl warp::Reply, Infallible> {
     let event = UpdateGameEvent::new(igdb_game.id, igdb_game.name.clone());
@@ -76,8 +77,13 @@ pub async fn update_game_webhook(
                     event.log(None)
                 }
             }
-            diff if diff.needs_resolve() => match igdb.resolve(firestore, igdb_game).await {
-                Ok(_) => event.log(Some(diff)),
+            diff if diff.needs_resolve() => match resolver.resolve(igdb_game).await {
+                Ok(mut game_entry) => {
+                    match firestore::games::write(&firestore, &mut game_entry).await {
+                        Ok(()) => event.log(Some(diff)),
+                        Err(status) => event.log_error(status),
+                    }
+                }
                 Err(status) => event.log_error(status),
             },
             diff => match update_steam_data(firestore, &mut game_entry, igdb_game).await {
@@ -85,22 +91,20 @@ pub async fn update_game_webhook(
                 Err(status) => event.log_error(status),
             },
         },
-        Err(Status::NotFound(_)) => {
-            match igdb.resolve_only(Arc::clone(&firestore), igdb_game).await {
-                Ok(mut game_entry) => {
-                    if !game_filter.filter(&game_entry) {
-                        event.log_reject(game_filter.explain(&game_entry));
-                    } else if let Err(status) =
-                        firestore::games::write(&firestore, &mut game_entry).await
-                    {
-                        event.log_error(status);
-                    } else {
-                        event.log_added()
-                    }
+        Err(Status::NotFound(_)) => match resolver.resolve(igdb_game).await {
+            Ok(mut game_entry) => {
+                if !game_filter.filter(&game_entry) {
+                    event.log_reject(game_filter.explain(&game_entry));
+                } else if let Err(status) =
+                    firestore::games::write(&firestore, &mut game_entry).await
+                {
+                    event.log_error(status);
+                } else {
+                    event.log_added()
                 }
-                Err(status) => event.log_error(status),
             }
-        }
+            Err(status) => event.log_error(status),
+        },
         Err(status) => event.log_error(status),
     }
 
