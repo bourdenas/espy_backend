@@ -123,7 +123,7 @@ lazy_static = "1.5"
 phf = { version = "0.11", features = ["macros"] }
 regex = "1.10"
 reqwest = { version = "0.12", features = ["json", "cookies"] }
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0"
 soup = "0.5"
 tokio = { version = "1.40", features = ["full", "tracing"] }
@@ -131,5 +131,5 @@ warp = "0.3"
 
 tracing = "0.1"
 tracing-subscriber = "0.3"
-tracing-opentelemetry = "0.25"
+tracing-opentelemetry = "0.26"
 tracing-stackdriver = { version = "0.10", features = ["opentelemetry"] }
