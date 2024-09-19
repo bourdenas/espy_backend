@@ -41,7 +41,7 @@ pub async fn write(firestore: &FirestoreApi, franchise: &Collection) -> Result<(
         .in_col(FRANCHISES)
         .document_id(franchise.id.to_string())
         .object(franchise)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }

@@ -36,7 +36,7 @@ pub async fn write(
         .document_id(LIBRARY_DOC)
         .parent(&parent_path)
         .object(&library)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }

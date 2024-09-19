@@ -126,7 +126,7 @@ pub async fn write(
         .document_id(UNRESOLVED_DOC)
         .parent(&parent_path)
         .object(unresolved)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }

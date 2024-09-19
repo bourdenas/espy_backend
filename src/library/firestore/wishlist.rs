@@ -132,7 +132,7 @@ async fn write(
         .document_id(WISHLIST_DOC)
         .parent(&parent_path)
         .object(&library)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }

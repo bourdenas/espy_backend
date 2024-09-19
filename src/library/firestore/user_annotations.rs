@@ -32,7 +32,7 @@ async fn write(
         .document_id(TAGS_DOC)
         .parent(&parent_path)
         .object(user_annotations)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }

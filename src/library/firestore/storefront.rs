@@ -36,7 +36,7 @@ pub async fn write(
         .document_id(STOREFRONT_DOC)
         .parent(&parent_path)
         .object(storefront)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }

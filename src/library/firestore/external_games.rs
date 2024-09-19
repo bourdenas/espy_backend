@@ -97,7 +97,7 @@ pub async fn write(firestore: &FirestoreApi, external_game: &ExternalGame) -> Re
         .in_col(EXTERNAL_GAMES)
         .document_id(doc_id)
         .object(external_game)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }

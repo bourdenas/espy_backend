@@ -26,7 +26,7 @@ pub async fn write(firestore: &FirestoreApi, keyword: &Keyword) -> Result<(), St
         .in_col(KEYWORDS)
         .document_id(keyword.id.to_string())
         .object(keyword)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }

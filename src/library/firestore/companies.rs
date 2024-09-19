@@ -52,7 +52,7 @@ pub async fn write(firestore: &FirestoreApi, company: &Company) -> Result<(), St
         .in_col(COMPANIES)
         .document_id(company.id.to_string())
         .object(company)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }

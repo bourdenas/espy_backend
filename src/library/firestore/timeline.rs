@@ -11,7 +11,7 @@ pub async fn write(firestore: &FirestoreApi, timeline: &Timeline) -> Result<(), 
         .in_col("espy")
         .document_id("timeline")
         .object(timeline)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }

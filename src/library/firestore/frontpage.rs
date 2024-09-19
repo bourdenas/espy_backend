@@ -11,7 +11,7 @@ pub async fn write(firestore: &FirestoreApi, frontpage: &Frontpage) -> Result<()
         .in_col("espy")
         .document_id("frontpage")
         .object(frontpage)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }

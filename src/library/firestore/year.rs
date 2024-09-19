@@ -15,7 +15,7 @@ pub async fn write(
         .in_col("espy")
         .document_id(format!("{year}"))
         .object(review)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }

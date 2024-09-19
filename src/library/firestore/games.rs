@@ -52,7 +52,7 @@ pub async fn write(firestore: &FirestoreApi, game_entry: &mut GameEntry) -> Resu
         .in_col(GAMES)
         .document_id(game_entry.id.to_string())
         .object(game_entry)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }

@@ -22,7 +22,7 @@ pub async fn write(firestore: &FirestoreApi, genre: &Genre) -> Result<(), Status
         .in_col(GENRES)
         .document_id(genre.game_id.to_string())
         .object(genre)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }
@@ -45,7 +45,7 @@ pub async fn needs_annotation(
         .in_col(NEEDS_ANNOTATION)
         .document_id(game_entry.id.to_string())
         .object(&clone)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }

@@ -67,7 +67,7 @@ async fn main() -> Result<(), Status> {
         .in_col("espy")
         .document_id("notable")
         .object(&notable)
-        .execute()
+        .execute::<()>()
         .await?;
 
     Ok(())

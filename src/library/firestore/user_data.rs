@@ -30,7 +30,7 @@ pub async fn write(firestore: &FirestoreApi, user_data: &UserData) -> Result<(),
         .in_col(USERS)
         .document_id(&user_data.uid)
         .object(user_data)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }

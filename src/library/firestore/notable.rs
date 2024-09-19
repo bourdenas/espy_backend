@@ -20,7 +20,7 @@ pub async fn write(firestore: &FirestoreApi, notable: &Notable) -> Result<(), St
         .in_col("espy")
         .document_id("notable")
         .object(notable)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }

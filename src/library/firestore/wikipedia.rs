@@ -34,7 +34,7 @@ pub async fn write(
         .in_col(WIKIPEDIA)
         .document_id(id.to_string())
         .object(wiki_data)
-        .execute()
+        .execute::<()>()
         .await?;
     Ok(())
 }
