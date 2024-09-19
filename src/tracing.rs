@@ -13,7 +13,7 @@ impl Tracing {
             .with(
                 // Log also to stdout.
                 tracing_subscriber::fmt::Layer::new()
-                    .with_writer(std::io::stdout.with_max_level(Level::INFO)),
+                    .with_writer(std::io::stdout.with_max_level(Level::WARN)),
             )
             .try_init()
         {

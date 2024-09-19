@@ -5,10 +5,11 @@ use std::{
 };
 
 use crate::{
-    api::{common::CompanyNormalizer, FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
+    api::{CompanyNormalizer, FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
     documents::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
-        GameCategory, GameDigest, GameEntry, Image, SteamData, Website, WebsiteAuthority,
+        GameCategory, GameDigest, GameEntry, IgdbAnnotation, IgdbCompany, IgdbGame,
+        IgdbInvolvedCompany, IgdbWebsite, Image, ReleaseDate, SteamData, Website, WebsiteAuthority,
     },
     library::firestore,
     Status,
@@ -17,11 +18,7 @@ use async_recursion::async_recursion;
 use itertools::Itertools;
 use tracing::{error, instrument, trace_span, warn, Instrument};
 
-use super::{
-    backend::post,
-    docs::{self, IgdbInvolvedCompany},
-    IgdbConnection, IgdbGame,
-};
+use super::{backend::post, IgdbConnection};
 
 /// Returns a GameEntry from IGDB that can build the GameDigest doc.
 ///
@@ -544,7 +541,7 @@ async fn get_screenshots(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec
 async fn get_websites(
     connection: &IgdbConnection,
     ids: &[u64],
-) -> Result<Vec<docs::IgdbWebsite>, Status> {
+) -> Result<Vec<IgdbWebsite>, Status> {
     Ok(post(
         &connection,
         WEBSITES_ENDPOINT,
@@ -580,7 +577,7 @@ async fn get_collections(
 
     if !result.not_found.is_empty() {
         collections.extend(
-            post::<Vec<docs::IgdbAnnotation>>(
+            post::<Vec<IgdbAnnotation>>(
                 connection,
                 COLLECTIONS_ENDPOINT,
                 &format!(
@@ -628,7 +625,7 @@ async fn get_franchises(
 
     if !result.not_found.is_empty() {
         franchises.extend(
-            post::<Vec<docs::IgdbAnnotation>>(
+            post::<Vec<IgdbAnnotation>>(
                 connection,
                 FRANCHISES_ENDPOINT,
                 &format!(
@@ -682,7 +679,7 @@ async fn get_involved_companies(
     ids: &[u64],
 ) -> Result<Vec<CompanyDigest>, Status> {
     // Collect all involved companies for a game entry.
-    let involved_companies: Vec<docs::IgdbInvolvedCompany> = post(
+    let involved_companies: Vec<IgdbInvolvedCompany> = post(
         &connection,
         INVOLVED_COMPANIES_ENDPOINT,
         &format!(
@@ -726,7 +723,7 @@ async fn get_involved_companies(
 
     if !result.not_found.is_empty() {
         companies.extend(
-            post::<Vec<docs::IgdbCompany>>(
+            post::<Vec<IgdbCompany>>(
                 &connection,
                 COMPANIES_ENDPOINT,
                 &format!(
@@ -763,7 +760,7 @@ async fn get_release_timestamp(
 ) -> Result<Option<i64>, Status> {
     let mut release_dates = match igdb_game.release_dates.is_empty() {
         false => {
-            post::<Vec<docs::ReleaseDate>>(
+            post::<Vec<ReleaseDate>>(
                 connection,
                 RELEASE_DATES_ENDPOINT,
                 &format!(

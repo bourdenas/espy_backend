@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use tracing::warn;
 
 use crate::documents::{
-    GameCategory, GameEntry, GameStatus, IgdbGenre, Notable, SteamData, WebsiteAuthority,
+    GameCategory, GameEntry, GameStatus, IgdbGenreType, Notable, SteamData, WebsiteAuthority,
 };
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -136,7 +136,7 @@ fn is_indie(game: &GameEntry) -> bool {
         && game
             .igdb_genres
             .iter()
-            .any(|genre| matches!(genre, IgdbGenre::Indie))
+            .any(|genre| matches!(genre, IgdbGenreType::Indie))
 }
 
 fn is_early_access(game: &GameEntry) -> bool {

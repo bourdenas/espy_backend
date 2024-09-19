@@ -1,9 +1,6 @@
 use crate::{
-    api::{
-        FirestoreApi, GogScrape, IgdbExternalGame, IgdbGame, MetacriticApi, SteamDataApi,
-        SteamScrape,
-    },
-    documents::{ExternalGame, GameEntry, Keyword},
+    api::{FirestoreApi, GogScrape, MetacriticApi, SteamDataApi, SteamScrape},
+    documents::{ExternalGame, GameEntry, IgdbExternalGame, IgdbGame, Keyword},
     library::firestore,
     resolver::ResolveApi,
     Status,

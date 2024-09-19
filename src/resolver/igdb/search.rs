@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::{
-    api::{FirestoreApi, IgdbApi},
-    documents::{GameDigest, GameEntry},
+    api::FirestoreApi,
+    documents::{GameDigest, GameEntry, IgdbGame},
     library::firestore,
     Status,
 };
@@ -13,7 +13,7 @@ use super::{
     backend::post,
     ranking,
     resolve::{get_cover, GAMES_ENDPOINT},
-    IgdbGame,
+    IgdbApi,
 };
 
 pub struct IgdbSearch {

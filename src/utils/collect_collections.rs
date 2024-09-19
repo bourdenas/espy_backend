@@ -2,7 +2,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use clap::Parser;
 use espy_backend::{
-    api,
+    api::{self, FirestoreApi},
     documents::{Collection, GameDigest, GameEntry},
     library::firestore,
     util, Tracing,
@@ -44,11 +44,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let opts: Opts = Opts::parse();
     let keys = util::keys::Keys::from_file(&opts.key_store).unwrap();
 
-    let mut igdb = api::IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
+    let mut igdb = IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
     igdb.connect().await?;
-    let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
+    let igdb_batch = IgdbBatchApi::new(igdb.clone());
 
-    let firestore = api::FirestoreApi::connect().await?;
+    let firestore = FirestoreApi::connect().await?;
 
     let updated_timestamp = SystemTime::now()
         .checked_sub(Duration::from_secs(24 * 60 * 60 * opts.updated_since))

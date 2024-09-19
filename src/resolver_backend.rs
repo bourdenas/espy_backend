@@ -1,7 +1,8 @@
 use clap::Parser;
 use espy_backend::{
-    api::{FirestoreApi, IgdbApi},
-    resolver, util, Status, Tracing,
+    api::FirestoreApi,
+    resolver::{self, IgdbApi},
+    util, Status, Tracing,
 };
 use std::{env, sync::Arc};
 use tracing::info;

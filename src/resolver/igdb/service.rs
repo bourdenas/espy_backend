@@ -1,6 +1,6 @@
 use crate::{
     api::FirestoreApi,
-    documents::{GameDigest, GameEntry, Image, StoreEntry},
+    documents::{GameDigest, GameEntry, IgdbExternalGame, IgdbGame, Image, StoreEntry},
     library::firestore,
     logging::{IgdbCounters, IgdbResolveCounter},
     util::rate_limiter::RateLimiter,
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
 use tracing::{instrument, warn};
 
-use super::{backend::post, docs, resolve::*, IgdbConnection, IgdbGame};
+use super::{backend::post, resolve::*, IgdbConnection};
 
 #[derive(Clone)]
 pub struct IgdbApi {
@@ -89,7 +89,7 @@ impl IgdbApi {
         };
 
         let connection = self.connection()?;
-        let result: Vec<docs::IgdbExternalGame> = post(
+        let result: Vec<IgdbExternalGame> = post(
             &connection,
             EXTERNAL_GAMES_ENDPOINT,
             &format!(

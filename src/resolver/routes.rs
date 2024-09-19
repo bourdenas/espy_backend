@@ -2,9 +2,9 @@ use std::{convert::Infallible, sync::Arc};
 use tracing::warn;
 use warp::{self, Filter};
 
-use crate::api::{FirestoreApi, IgdbApi, IgdbGame};
+use crate::{api::FirestoreApi, documents::IgdbGame};
 
-use super::{handlers, models::SearchRequest};
+use super::{handlers, igdb::IgdbApi, models::SearchRequest};
 
 /// Returns a Filter with all available routes.
 pub fn routes(

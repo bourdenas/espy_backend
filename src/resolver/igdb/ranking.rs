@@ -1,4 +1,4 @@
-use super::IgdbGame;
+use crate::documents::IgdbGame;
 
 /// Sorts GameEntries by title relevance in descending order.
 pub fn sorted_by_relevance(title: &str, igdb_games: Vec<IgdbGame>) -> Vec<IgdbGame> {

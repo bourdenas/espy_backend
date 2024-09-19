@@ -13,7 +13,7 @@ struct Opts {
     #[clap(short, long, default_value = "8080")]
     port: u16,
 
-    /// JSON file containing application keys for espy service.
+    /// URL of the resolver backend.
     #[clap(long, default_value = "")]
     resolver_backend: String,
 

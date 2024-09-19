@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::api::IgdbExternalGame;
-
-use super::GogData;
+use super::{GogData, IgdbExternalGame};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct ExternalGame {

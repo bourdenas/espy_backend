@@ -3,8 +3,8 @@ use tracing::warn;
 use warp::{self, Filter};
 
 use crate::{
-    api::{FirestoreApi, IgdbExternalGame, IgdbGame},
-    documents::Keyword,
+    api::FirestoreApi,
+    documents::{IgdbExternalGame, IgdbGame, Keyword},
     resolver::ResolveApi,
 };
 

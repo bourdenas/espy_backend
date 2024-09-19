@@ -1,8 +1,7 @@
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
-    api::IgdbGame,
-    documents::{GameDigest, GameEntry},
+    documents::{GameDigest, GameEntry, IgdbGame},
     Status,
 };
 

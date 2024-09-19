@@ -1,13 +1,13 @@
-use crate::{
-    api::{FirestoreApi, IgdbApi, IgdbGame, IgdbSearch},
-    Status,
-};
+use crate::{api::FirestoreApi, documents::IgdbGame, Status};
 
 use std::{convert::Infallible, sync::Arc};
 use tracing::{error, instrument};
 use warp::http::StatusCode;
 
-use super::models::SearchRequest;
+use super::{
+    igdb::{IgdbApi, IgdbSearch},
+    models::SearchRequest,
+};
 
 #[instrument(level = "trace", skip(firestore, igdb,))]
 pub async fn post_retrieve(

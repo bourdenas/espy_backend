@@ -1,8 +1,5 @@
 use clap::Parser;
-use espy_backend::{
-    api::{IgdbApi, IgdbWebhooksApi},
-    util, Status, Tracing,
-};
+use espy_backend::{resolver::IgdbApi, util, Status, Tracing};
 use tracing::info;
 
 #[derive(Parser)]
