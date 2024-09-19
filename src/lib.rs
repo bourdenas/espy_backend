@@ -6,6 +6,7 @@ pub mod genres;
 pub mod http;
 pub mod library;
 pub mod logging;
+pub mod resolver;
 pub mod traits;
 pub mod util;
 pub mod webhooks;

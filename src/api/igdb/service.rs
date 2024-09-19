@@ -4,7 +4,6 @@ use crate::{
     library::firestore,
     logging::{IgdbCounters, IgdbResolveCounter},
     util::rate_limiter::RateLimiter,
-    webhooks::filtering::{GameFilter, RejectionReason},
     Status,
 };
 use serde::{Deserialize, Serialize};
@@ -176,7 +175,7 @@ impl IgdbApi {
 
     #[instrument(
         level = "trace",
-        skip(self, firestore, igdb_game, game_filter),
+        skip(self, firestore, igdb_game),
         fields(
             game_id = %igdb_game.id,
             title = %igdb_game.name
@@ -186,8 +185,7 @@ impl IgdbApi {
         &self,
         firestore: Arc<FirestoreApi>,
         igdb_game: IgdbGame,
-        game_filter: &GameFilter,
-    ) -> Result<(GameEntry, Option<RejectionReason>), Status> {
+    ) -> Result<GameEntry, Status> {
         let connection = self.connection()?;
 
         let counter = IgdbResolveCounter::new();
@@ -199,12 +197,6 @@ impl IgdbApi {
             }
         };
 
-        if !game_filter.filter(&game_entry) {
-            counter.log(&game_entry);
-            let rejection = game_filter.explain(&game_entry);
-            return Ok((game_entry, Some(rejection)));
-        }
-
         match resolve_game_info(&connection, &firestore, &mut game_entry).await {
             Ok(()) => {}
             Err(status) => {
@@ -214,7 +206,7 @@ impl IgdbApi {
         }
         counter.log(&game_entry);
 
-        Ok((game_entry, None))
+        Ok(game_entry)
     }
 }
 
