@@ -18,7 +18,7 @@ pub async fn post_retrieve(
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
     let igdb = IgdbApi::new(connection);
     match igdb.get(id).await {
-        Ok(igdb_game) => match igdb.resolve_only(firestore, igdb_game).await {
+        Ok(igdb_game) => match igdb.resolve(firestore, igdb_game).await {
             Ok(game_entry) => Ok(Box::new(warp::reply::json(&game_entry))),
             Err(Status::NotFound(_)) => Ok(Box::new(StatusCode::NOT_FOUND)),
             Err(status) => {
@@ -41,7 +41,7 @@ pub async fn post_resolve(
     connection: Arc<IgdbConnection>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
     let igdb = IgdbApi::new(connection);
-    match igdb.resolve_only(firestore, igdb_game).await {
+    match igdb.resolve(firestore, igdb_game).await {
         Ok(game_entry) => Ok(Box::new(warp::reply::json(&game_entry))),
         Err(Status::NotFound(_)) => Ok(Box::new(StatusCode::NOT_FOUND)),
         Err(status) => {
