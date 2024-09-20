@@ -1,6 +1,7 @@
 use crate::{
-    api::{FirestoreApi, IgdbApi, IgdbSearch},
+    api::FirestoreApi,
     documents::{GameDigest, GameEntry, LibraryEntry, StoreEntry, Unresolved},
+    resolver::ResolveApi,
     Status,
 };
 use itertools::Itertools;
@@ -27,7 +28,7 @@ impl LibraryManager {
     pub async fn batch_recon_store_entries(
         &self,
         firestore: Arc<FirestoreApi>,
-        igdb: Arc<IgdbApi>,
+        resolver: Arc<ResolveApi>,
         store_entries: Vec<StoreEntry>,
     ) -> Result<(), Status> {
         if store_entries.is_empty() {
@@ -54,12 +55,12 @@ impl LibraryManager {
 
         // Resolve from IGDB games that were not found.
         if !not_found_games.is_empty() {
-            let igdb = Arc::clone(&igdb);
+            let resolver = Arc::clone(&resolver);
             let firestore = Arc::clone(&firestore);
             let user_id = self.user_id.clone();
             tokio::spawn(
                 async move {
-                    igdb_resolve(igdb, firestore, user_id, not_found_games).await;
+                    igdb_resolve(firestore, resolver, user_id, not_found_games).await;
                 }
                 .instrument(trace_span!("spawn_igdb_resolve")),
             );
@@ -89,7 +90,7 @@ impl LibraryManager {
             let missing = externals.missing.clone();
             tokio::spawn(
                 async move {
-                    search_candidates(igdb, firestore, user_id, missing).await;
+                    search_candidates(firestore, resolver, user_id, missing).await;
                 }
                 .instrument(trace_span!("spawn_search_candidates")),
             );
@@ -231,28 +232,28 @@ impl LibraryManager {
 }
 
 async fn igdb_resolve(
-    igdb: Arc<IgdbApi>,
     firestore: Arc<FirestoreApi>,
+    resolver: Arc<ResolveApi>,
     user_id: String,
     externals: Vec<external_games::ExternalMatch>,
 ) {
     let mut library_entries = vec![];
     for m in externals {
         let id = m.external_game.igdb_id;
-        let igdb_game = match igdb.get(id).await {
-            Ok(game) => game,
+        let game_entry = match resolver.retrieve(id).await {
+            Ok(mut game_entry) => match games::write(&firestore, &mut game_entry).await {
+                Ok(()) => game_entry,
+                Err(status) => {
+                    error!("Failed to store GameEntry: {status}");
+                    continue;
+                }
+            },
             Err(status) => {
-                error!("Failed to retrieve IGDB game: {status}");
+                error!("Failed to retribe IGDB game: {status}");
                 continue;
             }
         };
-        let game_entry = match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
-            Ok(game) => game,
-            Err(status) => {
-                error!("Failed to resolve IGDB game: {status}");
-                continue;
-            }
-        };
+
         library_entries.extend(LibraryEntry::new_with_expand(game_entry, m.store_entry));
     }
 
@@ -266,25 +267,23 @@ async fn igdb_resolve(
 }
 
 async fn search_candidates(
-    igdb: Arc<IgdbApi>,
     firestore: Arc<FirestoreApi>,
+    resolver: Arc<ResolveApi>,
     user_id: String,
     missing: Vec<StoreEntry>,
 ) {
-    let igdb_search = IgdbSearch::new(igdb);
-
     let mut unresolved = vec![];
     let mut unknown = vec![];
     for store_entry in missing {
-        match igdb_search
-            .match_by_title(&firestore, &store_entry.title)
-            .await
-        {
+        match resolver.search(store_entry.title.clone(), false).await {
             Ok(candidates) => {
                 if !candidates.is_empty() {
                     unresolved.push(Unresolved {
                         store_entry,
-                        candidates,
+                        candidates: candidates
+                            .into_iter()
+                            .map(|game_entry| GameDigest::from(game_entry))
+                            .collect(),
                     });
                 } else {
                     unknown.push(store_entry);

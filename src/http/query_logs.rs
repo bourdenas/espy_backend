@@ -2,24 +2,27 @@ use std::time::SystemTime;
 
 use tracing::{error, info};
 
-use crate::{documents::GameEntry, Status};
+use crate::{
+    documents::{GameDigest, GameEntry},
+    Status,
+};
 
 use super::models;
 
-pub struct SearchEvent<'a> {
-    request: &'a models::Search,
+pub struct SearchEvent {
+    request: models::Search,
     start: SystemTime,
 }
 
-impl<'a> SearchEvent<'a> {
-    pub fn new(request: &'a models::Search) -> Self {
+impl SearchEvent {
+    pub fn new(request: models::Search) -> Self {
         Self {
             request,
             start: SystemTime::now(),
         }
     }
 
-    pub fn log(self, response: &[GameEntry]) {
+    pub fn log(self, response: &[GameDigest]) {
         info!(
             http_request.request_method = "POST",
             http_request.request_url = "/search",
@@ -54,13 +57,13 @@ impl<'a> SearchEvent<'a> {
     }
 }
 
-pub struct ResolveEvent<'a> {
-    request: &'a models::Resolve,
+pub struct ResolveEvent {
+    request: models::Resolve,
     start: SystemTime,
 }
 
-impl<'a> ResolveEvent<'a> {
-    pub fn new(request: &'a models::Resolve) -> Self {
+impl ResolveEvent {
+    pub fn new(request: models::Resolve) -> Self {
         Self {
             request,
             start: SystemTime::now(),
@@ -211,7 +214,7 @@ impl MatchEvent {
     }
 
     fn op(&self) -> &'static str {
-        match (&self.request.game_entry, &self.request.unmatch_entry) {
+        match (&self.request.game_id, &self.request.unmatch_entry) {
             (Some(_), None) => "match",
             (None, Some(_)) => "unmatch",
             (Some(_), Some(_)) => "rematch",

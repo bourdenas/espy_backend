@@ -9,8 +9,12 @@ name = "http_server"
 path = "src/http_server.rs"
 
 [[bin]]
-name = "webhook_handlers"
-path = "src/webhook_handlers.rs"
+name = "resolver_backend"
+path = "src/resolver_backend.rs"
+
+[[bin]]
+name = "webhooks_backend"
+path = "src/webhooks_backend.rs"
 
 [[bin]]
 name = "webhook_registration"
@@ -28,6 +32,22 @@ path = "src/batch/build_timeline.rs"
 [[bin]]
 name = "build_year_summary"
 path = "src/batch/build_year_summary.rs"
+
+[[bin]]
+name = "refresh_collections"
+path = "src/batch/refresh_collections.rs"
+
+[[bin]]
+name = "refresh_companies"
+path = "src/batch/refresh_companies.rs"
+
+[[bin]]
+name = "refresh_game_entries"
+path = "src/batch/refresh_game_entries.rs"
+
+[[bin]]
+name = "refresh_library_entries"
+path = "src/batch/refresh_library_entries.rs"
 
 [[bin]]
 name = "wikipedia_scrape"
@@ -48,54 +68,44 @@ name = "predict"
 path = "src/genres/utils/predict.rs"
 
 
+# IGDB batch pipelines
+[[bin]]
+name = "collect_collections"
+path = "src/resolver/batch/collect_collections.rs"
+
+[[bin]]
+name = "collect_companies"
+path = "src/resolver/batch/collect_companies.rs"
+
+[[bin]]
+name = "collect_external_games"
+path = "src/resolver/batch/collect_external_games.rs"
+
+[[bin]]
+name = "collect_games"
+path = "src/resolver/batch/collect_games.rs"
+
+[[bin]]
+name = "collect_genres"
+path = "src/resolver/batch/collect_genres.rs"
+
+[[bin]]
+name = "collect_keywords"
+path = "src/resolver/batch/collect_keywords.rs"
+
+
 # Command line utils
 [[bin]]
 name = "count_docs"
 path = "src/utils/count_docs.rs"
 
 [[bin]]
-name = "collect_collections"
-path = "src/utils/collect_collections.rs"
-
-[[bin]]
-name = "collect_companies"
-path = "src/utils/collect_companies.rs"
-
-[[bin]]
-name = "collect_external_games"
-path = "src/utils/collect_external_games.rs"
-
-[[bin]]
-name = "collect_games"
-path = "src/utils/collect_games.rs"
-
-[[bin]]
-name = "collect_genres"
-path = "src/utils/collect_genres.rs"
-
-[[bin]]
-name = "collect_keywords"
-path = "src/utils/collect_keywords.rs"
+name = "gog_scrape"
+path = "src/utils/gog_scrape.rs"
 
 [[bin]]
 name = "sync_library"
 path = "src/utils/sync_library.rs"
-
-[[bin]]
-name = "refresh_collections"
-path = "src/utils/refresh_collections.rs"
-
-[[bin]]
-name = "refresh_companies"
-path = "src/utils/refresh_companies.rs"
-
-[[bin]]
-name = "refresh_game_entries"
-path = "src/utils/refresh_game_entries.rs"
-
-[[bin]]
-name = "refresh_library_entries"
-path = "src/utils/refresh_library_entries.rs"
 
 [[bin]]
 name = "search_igdb"
@@ -104,10 +114,6 @@ path = "src/utils/search_igdb.rs"
 [[bin]]
 name = "storefront_cleanup"
 path = "src/utils/storefront_cleanup.rs"
-
-[[bin]]
-name = "gog_scrape"
-path = "src/utils/gog_scrape.rs"
 
 
 [dependencies]

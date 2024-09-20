@@ -1,38 +1,36 @@
 use std::sync::Arc;
 
 use crate::{
-    api::{FirestoreApi, IgdbApi},
-    documents::{GameDigest, GameEntry},
+    api::FirestoreApi,
+    documents::{GameDigest, GameEntry, IgdbGame},
     library::firestore,
     Status,
 };
 use itertools::Itertools;
 use tracing::{instrument, trace_span, warn, Instrument};
 
-use super::{
-    backend::post,
-    ranking,
-    resolve::{get_cover, GAMES_ENDPOINT},
-    IgdbGame,
-};
+use super::{connection::IgdbConnection, endpoints, ranking, request::post, resolve::get_cover};
 
 pub struct IgdbSearch {
-    igdb: Arc<IgdbApi>,
+    connection: Arc<IgdbConnection>,
 }
 
 impl IgdbSearch {
-    pub fn new(igdb: Arc<IgdbApi>) -> IgdbSearch {
-        IgdbSearch { igdb }
+    pub fn new(connection: Arc<IgdbConnection>) -> IgdbSearch {
+        IgdbSearch { connection }
     }
 
     /// Returns `GameDigest` for candidates matching the `title` in IGDB.
+    ///
+    /// Relies on finding matches games in Firestore. For those not found in
+    /// Firestore it generates a basic GameDigest that lack info, e.g. cover.
     #[instrument(level = "trace", skip(self, firestore))]
-    pub async fn match_by_title(
+    pub async fn search_by_title(
         &self,
         firestore: &FirestoreApi,
         title: &str,
     ) -> Result<Vec<GameDigest>, Status> {
-        let candidates = self.search_by_title(title).await?;
+        let candidates = self.match_by_title(title).await?;
         let candidate_ids = candidates.iter().map(|e| e.id).collect_vec();
 
         let result = firestore::games::batch_read(&firestore, &candidate_ids).await?;
@@ -55,7 +53,7 @@ impl IgdbSearch {
 
     /// Returns IgdbGames that match the `title` by searching in IGDB.
     #[instrument(level = "trace", skip(self))]
-    pub async fn search_by_title(&self, title: &str) -> Result<Vec<IgdbGame>, Status> {
+    async fn match_by_title(&self, title: &str) -> Result<Vec<IgdbGame>, Status> {
         Ok(ranking::sorted_by_relevance(
             title,
             self.search(title).await?,
@@ -65,7 +63,7 @@ impl IgdbSearch {
     /// Returns candidate GameEntries by searching IGDB based on game title.
     ///
     /// The returned GameEntries are shallow lookups similar to
-    /// `search_by_title()`, but have their cover image resolved.
+    /// `match_by_title()`, but have their cover image resolved.
     #[instrument(level = "trace", skip(self))]
     pub async fn search_by_title_with_cover(
         &self,
@@ -80,10 +78,9 @@ impl IgdbSearch {
         let igdb_games = ranking::sorted_by_relevance_with_threshold(title, igdb_games, 1.0);
 
         // TODO: get covers from firestore intead of IGDB.
-        let connection = self.igdb.connection()?;
         let mut handles = vec![];
         for game in igdb_games {
-            let connection = Arc::clone(&connection);
+            let connection = Arc::clone(&self.connection);
             handles.push(tokio::spawn(
                 async move {
                     let cover = match game.cover {
@@ -115,10 +112,9 @@ impl IgdbSearch {
     #[instrument(level = "trace", skip(self))]
     async fn search(&self, title: &str) -> Result<Vec<IgdbGame>, Status> {
         let title = title.replace("\"", "");
-        let connection = self.igdb.connection()?;
         post::<Vec<IgdbGame>>(
-            &connection,
-            GAMES_ENDPOINT,
+            &self.connection,
+            endpoints::GAMES,
             &format!("search \"{title}\"; fields *; where platforms = (6,13);"),
         )
         .await

@@ -1,8 +1,7 @@
 use tracing::{error, info};
 
 use crate::{
-    api::IgdbGameDiff,
-    documents::{ExternalGame, Keyword},
+    documents::{ExternalGame, IgdbGameDiff, Keyword},
     Status,
 };
 

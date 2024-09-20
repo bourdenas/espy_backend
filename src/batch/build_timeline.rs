@@ -7,12 +7,16 @@ use std::{
 use chrono::{DateTime, Datelike, Utc};
 use clap::Parser;
 use espy_backend::{
-    api::{self, FirestoreApi},
+    api::FirestoreApi,
     documents::{
         Frontpage, GameCategory, GameDigest, GameEntry, GameStatus, ReleaseEvent, Timeline,
     },
-    library::firestore::{frontpage, notable, timeline},
-    util, Status, Tracing,
+    library::{
+        self,
+        firestore::{frontpage, notable, timeline},
+    },
+    resolver::ResolveApi,
+    Status, Tracing,
 };
 use firestore::{path, FirestoreQueryDirection, FirestoreResult};
 use futures::{stream::BoxStream, TryStreamExt};
@@ -27,6 +31,13 @@ struct Opts {
     /// JSON file that contains application keys for espy service.
     #[clap(long, default_value = "keys.json")]
     key_store: String,
+
+    /// URL of the resolver backend.
+    #[clap(
+        long,
+        default_value = "https://resolver-478783154654.europe-west1.run.app"
+    )]
+    resolver_backend: String,
 
     /// JSON file that contains application keys for espy service.
     #[clap(long, default_value = "false")]
@@ -162,7 +173,7 @@ async fn main() -> Result<(), Status> {
     info!("recent = {}", recent.len());
 
     if !opts.skip_update {
-        if let Err(status) = update_recent(&opts.key_store, &mut recent).await {
+        if let Err(status) = update_recent(opts.resolver_backend, &mut recent).await {
             error!("Failed to update GameEntries: {status}");
         }
     }
@@ -358,7 +369,7 @@ async fn build_timeline(
     Ok(())
 }
 
-async fn update_recent(keys_path: &str, recent: &mut [GameEntry]) -> Result<(), Status> {
+async fn update_recent(resolver_backend: String, recent: &mut [GameEntry]) -> Result<(), Status> {
     let d7 = SystemTime::now()
         .checked_sub(Duration::from_secs(7 * DAY_IN_SECONDS))
         .unwrap()
@@ -366,19 +377,17 @@ async fn update_recent(keys_path: &str, recent: &mut [GameEntry]) -> Result<(), 
         .unwrap()
         .as_secs();
 
-    let keys = util::keys::Keys::from_file(keys_path).unwrap();
-    let mut igdb = api::IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
-    igdb.connect().await?;
-
+    let resolver = ResolveApi::new(resolver_backend);
     let firestore = Arc::new(FirestoreApi::connect().await?);
     for game in recent {
         if game.release_date as u64 >= d7 {
             info!("Updating '{}'...", game.name);
-            match igdb.get(game.id).await {
-                Ok(igdb_game) => match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
-                    Ok(update) => *game = update,
-                    Err(e) => error!("{e}"),
-                },
+
+            match resolver.retrieve(game.id).await {
+                Ok(mut game_entry) => {
+                    library::firestore::games::write(&firestore, &mut game_entry).await?;
+                    *game = game_entry
+                }
                 Err(e) => error!("{e}"),
             }
         } else {

@@ -3,26 +3,27 @@ use tracing::warn;
 use warp::{self, Filter};
 
 use crate::{
-    api::{FirestoreApi, IgdbApi, IgdbExternalGame, IgdbGame},
-    documents::Keyword,
+    api::FirestoreApi,
+    documents::{IgdbExternalGame, IgdbGame, Keyword},
+    resolver::ResolveApi,
 };
 
 use super::{filtering::GameFilter, handlers};
 
 /// Returns a Filter with all available routes.
 pub fn routes(
-    igdb: Arc<IgdbApi>,
     firestore: Arc<FirestoreApi>,
+    resolver: Arc<ResolveApi>,
     classifier: Arc<GameFilter>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     post_add_game(
         Arc::clone(&firestore),
-        Arc::clone(&igdb),
+        Arc::clone(&resolver),
         Arc::clone(&classifier),
     )
     .or(post_update_game(
         Arc::clone(&firestore),
-        Arc::clone(&igdb),
+        Arc::clone(&resolver),
         Arc::clone(&classifier),
     ))
     .or(post_external_game(Arc::clone(&firestore)))
@@ -36,14 +37,14 @@ pub fn routes(
 /// POST /add_game
 fn post_add_game(
     firestore: Arc<FirestoreApi>,
-    igdb: Arc<IgdbApi>,
+    resolver: Arc<ResolveApi>,
     classifier: Arc<GameFilter>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("add_game")
         .and(warp::post())
         .and(json_body::<IgdbGame>())
         .and(with_firestore(firestore))
-        .and(with_igdb(igdb))
+        .and(with_resolver(resolver))
         .and(with_classifier(classifier))
         .and_then(handlers::add_game_webhook)
 }
@@ -51,14 +52,14 @@ fn post_add_game(
 /// POST /update_game
 fn post_update_game(
     firestore: Arc<FirestoreApi>,
-    igdb: Arc<IgdbApi>,
+    resolver: Arc<ResolveApi>,
     classifier: Arc<GameFilter>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::path!("update_game")
         .and(warp::post())
         .and(json_body::<IgdbGame>())
         .and(with_firestore(firestore))
-        .and(with_igdb(igdb))
+        .and(with_resolver(resolver))
         .and(with_classifier(classifier))
         .and_then(handlers::update_game_webhook)
 }
@@ -90,16 +91,16 @@ fn json_body<T: serde::de::DeserializeOwned + Send>(
     warp::body::content_length_limit(32 * 1024).and(warp::body::json())
 }
 
-pub fn with_igdb(
-    igdb: Arc<IgdbApi>,
-) -> impl Filter<Extract = (Arc<IgdbApi>,), Error = Infallible> + Clone {
-    warp::any().map(move || Arc::clone(&igdb))
-}
-
 pub fn with_firestore(
     firestore: Arc<FirestoreApi>,
 ) -> impl Filter<Extract = (Arc<FirestoreApi>,), Error = Infallible> + Clone {
     warp::any().map(move || Arc::clone(&firestore))
+}
+
+pub fn with_resolver(
+    resolver: Arc<ResolveApi>,
+) -> impl Filter<Extract = (Arc<ResolveApi>,), Error = Infallible> + Clone {
+    warp::any().map(move || Arc::clone(&resolver))
 }
 
 pub fn with_classifier(

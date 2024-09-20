@@ -1,7 +1,9 @@
 use crate::{
-    api::{FirestoreApi, IgdbApi, IgdbSearch},
+    api::FirestoreApi,
+    documents::GameEntry,
     http::models,
-    library::{firestore::games, LibraryManager, User},
+    library::{self, LibraryManager, User},
+    resolver::ResolveApi,
     util, Status,
 };
 use std::{convert::Infallible, sync::Arc};
@@ -22,17 +24,13 @@ pub async fn welcome() -> Result<impl warp::Reply, Infallible> {
     Ok("welcome")
 }
 
-#[instrument(level = "trace", skip(igdb))]
+#[instrument(level = "trace", skip(resolver))]
 pub async fn post_search(
     search: models::Search,
-    igdb: Arc<IgdbApi>,
+    resolver: Arc<ResolveApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    let event = SearchEvent::new(&search);
-    let igdb_search = IgdbSearch::new(igdb);
-    match igdb_search
-        .search_by_title_with_cover(&search.title, search.base_game_only)
-        .await
-    {
+    let event = SearchEvent::new(search.clone());
+    match resolver.search(search.title, search.base_game_only).await {
         Ok(candidates) => {
             event.log(&candidates);
             Ok(Box::new(warp::reply::json(&candidates)))
@@ -44,27 +42,26 @@ pub async fn post_search(
     }
 }
 
-#[instrument(level = "trace", skip(firestore, igdb))]
+#[instrument(level = "trace", skip(firestore, resolver))]
 pub async fn post_resolve(
     resolve: models::Resolve,
     firestore: Arc<FirestoreApi>,
-    igdb: Arc<IgdbApi>,
+    resolver: Arc<ResolveApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let event = ResolveEvent::new(&resolve);
-    match igdb.get(resolve.game_id).await {
-        Ok(igdb_game) => match igdb.resolve(firestore, igdb_game).await {
-            Ok(game_entry) => {
-                event.log(game_entry);
-                Ok(StatusCode::OK)
-            }
-            Err(status) => {
-                event.log_error(status);
-                Ok(StatusCode::NOT_FOUND)
-            }
-        },
+    let event = ResolveEvent::new(resolve.clone());
+
+    match retrieve_and_store(&firestore, &resolver, resolve.game_id).await {
+        Ok(game_entry) => {
+            event.log(game_entry);
+            Ok(StatusCode::OK)
+        }
+        Err(Status::NotFound(msg)) => {
+            event.log_error(Status::not_found(msg));
+            Ok(StatusCode::NOT_FOUND)
+        }
         Err(status) => {
             event.log_error(status);
-            Ok(StatusCode::NOT_FOUND)
+            Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
@@ -74,7 +71,7 @@ pub async fn post_delete(
     resolve: models::Resolve,
     firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    match games::delete(&firestore, resolve.game_id).await {
+    match library::firestore::games::delete(&firestore, resolve.game_id).await {
         Ok(()) => Ok(StatusCode::OK),
         Err(_) => Ok(StatusCode::INTERNAL_SERVER_ERROR),
     }
@@ -88,7 +85,7 @@ pub async fn post_update(
 ) -> Result<impl warp::Reply, Infallible> {
     let event = UpdateEvent::new(&update);
 
-    let game_entry = match games::read(&firestore, update.game_id).await {
+    let game_entry = match library::firestore::games::read(&firestore, update.game_id).await {
         Ok(game_entry) => game_entry,
         Err(status) => {
             event.log_error(&user_id, status);
@@ -111,7 +108,7 @@ pub async fn post_update(
 
 #[instrument(
     level = "trace",
-    skip(match_op, firestore, igdb),
+    skip(match_op, firestore, resolver),
     fields(
         title = %match_op.store_entry.title,
     )
@@ -120,24 +117,16 @@ pub async fn post_match(
     user_id: String,
     match_op: models::MatchOp,
     firestore: Arc<FirestoreApi>,
-    igdb: Arc<IgdbApi>,
+    resolver: Arc<ResolveApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     let event = MatchEvent::new(match_op.clone());
 
-    let game_entry = match match_op.game_entry {
-        Some(game_entry) => match games::read(&firestore, game_entry.id).await {
+    let game_entry = match match_op.game_id {
+        Some(game_id) => match library::firestore::games::read(&firestore, game_id).await {
             Ok(game_entry) => Some(game_entry),
             Err(Status::NotFound(_)) => {
-                // TODO: move inside igdb service.
-                let igdb_game = match igdb.get(game_entry.id).await {
-                    Ok(igdb_game) => igdb_game,
-                    Err(status) => {
-                        event.log_error(&user_id, status);
-                        return Ok(StatusCode::NOT_FOUND);
-                    }
-                };
-                match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
-                    Ok(digest) => Some(digest),
+                match retrieve_and_store(&firestore, &resolver, game_id).await {
+                    Ok(game_entry) => Some(game_entry),
                     Err(status) => {
                         event.log_error(&user_id, status);
                         return Ok(StatusCode::NOT_FOUND);
@@ -274,12 +263,12 @@ pub async fn post_unlink(
     }
 }
 
-#[instrument(level = "trace", skip(api_keys, firestore, igdb))]
+#[instrument(level = "trace", skip(api_keys, firestore, resolver))]
 pub async fn post_sync(
     user_id: String,
     api_keys: Arc<util::keys::Keys>,
     firestore: Arc<FirestoreApi>,
-    igdb: Arc<IgdbApi>,
+    resolver: Arc<ResolveApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     let event = SyncEvent::new();
 
@@ -298,7 +287,7 @@ pub async fn post_sync(
 
     let manager = LibraryManager::new(&user_id);
     match manager
-        .batch_recon_store_entries(firestore, igdb, store_entries)
+        .batch_recon_store_entries(firestore, resolver, store_entries)
         .await
     {
         Ok(()) => {
@@ -330,5 +319,21 @@ pub async fn get_images(uri: String) -> Result<Box<dyn warp::Reply>, Infallible>
     match resp.bytes().await {
         Ok(bytes) => Ok(Box::new(bytes.to_vec())),
         Err(_) => Ok(Box::new(StatusCode::NOT_FOUND)),
+    }
+}
+
+async fn retrieve_and_store(
+    firestore: &FirestoreApi,
+    resolver: &ResolveApi,
+    id: u64,
+) -> Result<GameEntry, Status> {
+    match resolver.retrieve(id).await {
+        Ok(mut game_entry) => {
+            match library::firestore::games::write(&firestore, &mut game_entry).await {
+                Ok(()) => Ok(game_entry),
+                Err(status) => Err(status),
+            }
+        }
+        Err(status) => Err(status),
     }
 }

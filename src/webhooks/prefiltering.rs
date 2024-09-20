@@ -1,6 +1,6 @@
 use tracing::warn;
 
-use crate::api::IgdbGame;
+use crate::documents::IgdbGame;
 
 pub struct IgdbPrefilter;
 

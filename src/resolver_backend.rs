@@ -1,10 +1,8 @@
 use clap::Parser;
 use espy_backend::{
-    api::{FirestoreApi, IgdbApi},
-    library::firestore::notable,
-    util,
-    webhooks::{self, filtering::GameFilter},
-    Status, Tracing,
+    api::FirestoreApi,
+    resolver::{self, IgdbConnection},
+    util, Status, Tracing,
 };
 use std::{env, sync::Arc};
 use tracing::info;
@@ -17,7 +15,7 @@ struct Opts {
     key_store: String,
 
     /// Port number to use for listening to gRPC requests.
-    #[clap(short, long, default_value = "8080")]
+    #[clap(short, long, default_value = "8081")]
     port: u16,
 
     #[clap(long)]
@@ -29,16 +27,9 @@ async fn main() -> Result<(), Status> {
     let opts: Opts = Opts::parse();
 
     match opts.prod_tracing {
-        false => Tracing::setup("espy-webhook-handlers")?,
-        true => Tracing::setup_prod("espy-webhook-handlers")?,
+        false => Tracing::setup("espy-resolver_backend")?,
+        true => Tracing::setup_prod("espy-resolver_backend")?,
     }
-
-    let keys = util::keys::Keys::from_file(&opts.key_store).unwrap();
-
-    let mut igdb = IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
-    igdb.connect().await?;
-
-    let firestore = FirestoreApi::connect().await?;
 
     // Let ENV VAR override flag.
     let port: u16 = match env::var("PORT") {
@@ -49,13 +40,14 @@ async fn main() -> Result<(), Status> {
         Err(_) => opts.port,
     };
 
-    let notable = notable::read(&firestore).await?;
-    let classifier = GameFilter::new(notable);
+    let keys = util::keys::Keys::from_file(&opts.key_store).unwrap();
+    let firestore = FirestoreApi::connect().await?;
+    let connection = IgdbConnection::new(&keys.igdb.client_id, &keys.igdb.secret).await?;
 
-    info!("webhooks handler started");
+    info!("resolver backend ready");
 
     warp::serve(
-        webhooks::routes::routes(Arc::new(igdb), Arc::new(firestore), Arc::new(classifier)).with(
+        resolver::routes::routes(Arc::new(firestore), Arc::new(connection)).with(
             warp::cors()
                 .allow_methods(vec!["POST"])
                 .allow_headers(vec!["Content-Type", "Authorization"])

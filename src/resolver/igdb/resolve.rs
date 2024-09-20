@@ -5,23 +5,19 @@ use std::{
 };
 
 use crate::{
-    api::{common::CompanyNormalizer, FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
+    api::{CompanyNormalizer, FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
     documents::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
-        GameCategory, GameDigest, GameEntry, Image, SteamData, Website, WebsiteAuthority,
+        GameCategory, GameDigest, GameEntry, IgdbAnnotation, IgdbCompany, IgdbGame,
+        IgdbInvolvedCompany, IgdbWebsite, Image, ReleaseDate, SteamData, Website, WebsiteAuthority,
     },
-    library::firestore,
-    Status,
+    library, Status,
 };
 use async_recursion::async_recursion;
 use itertools::Itertools;
 use tracing::{error, instrument, trace_span, warn, Instrument};
 
-use super::{
-    backend::post,
-    docs::{self, IgdbInvolvedCompany},
-    IgdbConnection, IgdbGame,
-};
+use super::{endpoints, request::post, IgdbConnection};
 
 /// Returns a GameEntry from IGDB that can build the GameDigest doc.
 ///
@@ -42,14 +38,18 @@ pub async fn resolve_game_digest(
     let mut game_entry = GameEntry::from(igdb_game);
     let igdb_game = &game_entry.igdb_game;
 
-    let external_games =
-        match firestore::external_games::get_external_games(firestore, game_entry.id).await {
-            Ok(external_games) => external_games,
-            Err(status) => {
-                warn!("{status}");
-                vec![]
-            }
-        };
+    let external_games = match library::firestore::external_games::get_external_games(
+        firestore,
+        game_entry.id,
+    )
+    .await
+    {
+        Ok(external_games) => external_games,
+        Err(status) => {
+            warn!("{status}");
+            vec![]
+        }
+    };
 
     // Spawn a task to retrieve steam data.
     let steam_handle = match external_games.iter().find(|e| e.is_steam()) {
@@ -150,10 +150,10 @@ pub async fn resolve_game_digest(
     }
     game_entry.resolve_genres();
 
-    match firestore::genres::read(firestore, game_entry.id).await {
+    match library::firestore::genres::read(firestore, game_entry.id).await {
         Ok(genres) => game_entry.espy_genres = genres.espy_genres,
         Err(Status::NotFound(_)) => {
-            firestore::genres::needs_annotation(firestore, &game_entry).await?
+            library::firestore::genres::needs_annotation(firestore, &game_entry).await?
         }
         Err(status) => error!("Genre lookup failed: {status}"),
     }
@@ -170,7 +170,7 @@ pub async fn resolve_game_digest(
     }
 
     if game_entry.steam_data.is_none() || game_entry.scores.metacritic.is_none() {
-        match firestore::wikipedia::read(&firestore, game_entry.id).await {
+        match library::firestore::wikipedia::read(&firestore, game_entry.id).await {
             Ok(wiki_data) => {
                 if game_entry.scores.metacritic.is_none() && wiki_data.score.is_some() {
                     game_entry.scores.add_wikipedia(&wiki_data);
@@ -402,7 +402,7 @@ async fn get_bundle_games_ids(
 ) -> Result<Vec<IgdbGame>, Status> {
     post::<Vec<IgdbGame>>(
         &connection,
-        GAMES_ENDPOINT,
+        endpoints::GAMES,
         &format!("fields id, name; where bundles = ({bundle_id});"),
     )
     .await
@@ -413,7 +413,7 @@ async fn get_bundle_games_ids(
 pub async fn get_cover(connection: &IgdbConnection, id: u64) -> Result<Option<Image>, Status> {
     let result: Vec<Image> = post(
         connection,
-        COVERS_ENDPOINT,
+        endpoints::COVERS,
         &format!("fields *; where id={id};"),
     )
     .await?;
@@ -427,7 +427,7 @@ async fn get_digest(
     firestore: &FirestoreApi,
     id: u64,
 ) -> Result<GameDigest, Status> {
-    match firestore::games::read(firestore, id).await {
+    match library::firestore::games::read(firestore, id).await {
         Ok(game_entry) => return Ok(GameDigest::from(game_entry)),
         Err(_) => {}
     }
@@ -444,7 +444,7 @@ async fn get_digests(
     firestore: &FirestoreApi,
     ids: &[u64],
 ) -> Result<Vec<GameDigest>, Status> {
-    let result = firestore::games::batch_read(firestore, ids).await?;
+    let result = library::firestore::games::batch_read(firestore, ids).await?;
     let mut digests = result
         .documents
         .into_iter()
@@ -469,7 +469,7 @@ async fn get_digests(
 pub async fn get_game(connection: &IgdbConnection, id: u64) -> Result<IgdbGame, Status> {
     let result: Vec<IgdbGame> = post(
         connection,
-        GAMES_ENDPOINT,
+        endpoints::GAMES,
         &format!("fields *; where id={id};"),
     )
     .await?;
@@ -486,7 +486,7 @@ pub async fn get_game(connection: &IgdbConnection, id: u64) -> Result<IgdbGame, 
 async fn get_games(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<IgdbGame>, Status> {
     post::<Vec<IgdbGame>>(
         connection,
-        GAMES_ENDPOINT,
+        endpoints::GAMES,
         &format!(
             "fields *; where id = ({});",
             ids.into_iter()
@@ -501,7 +501,7 @@ async fn get_games(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<IgdbG
 /// Returns game keywords from their ids.
 #[instrument(level = "trace", skip(firestore))]
 async fn get_keywords(firestore: &FirestoreApi, ids: &[u64]) -> Result<Vec<String>, Status> {
-    let result = firestore::keywords::batch_read(firestore, ids).await?;
+    let result = library::firestore::keywords::batch_read(firestore, ids).await?;
     Ok(result.documents.into_iter().map(|kw| kw.name).collect())
 }
 
@@ -510,7 +510,7 @@ async fn get_keywords(firestore: &FirestoreApi, ids: &[u64]) -> Result<Vec<Strin
 async fn get_artwork(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<Image>, Status> {
     Ok(post(
         connection,
-        ARTWORKS_ENDPOINT,
+        endpoints::ARTWORKS,
         &format!(
             "fields *; where id = ({});",
             ids.iter()
@@ -527,7 +527,7 @@ async fn get_artwork(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<Ima
 async fn get_screenshots(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<Image>, Status> {
     Ok(post(
         &connection,
-        SCREENSHOTS_ENDPOINT,
+        endpoints::SCREENSHOTS,
         &format!(
             "fields *; where id = ({});",
             ids.iter()
@@ -544,10 +544,10 @@ async fn get_screenshots(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec
 async fn get_websites(
     connection: &IgdbConnection,
     ids: &[u64],
-) -> Result<Vec<docs::IgdbWebsite>, Status> {
+) -> Result<Vec<IgdbWebsite>, Status> {
     Ok(post(
         &connection,
-        WEBSITES_ENDPOINT,
+        endpoints::WEBSITES,
         &format!(
             "fields *; where id = ({});",
             ids.iter()
@@ -566,7 +566,7 @@ async fn get_collections(
     firestore: &FirestoreApi,
     ids: &[u64],
 ) -> Result<Vec<CollectionDigest>, Status> {
-    let result = firestore::collections::batch_read(firestore, ids).await?;
+    let result = library::firestore::collections::batch_read(firestore, ids).await?;
     let mut collections = result
         .documents
         .into_iter()
@@ -580,9 +580,9 @@ async fn get_collections(
 
     if !result.not_found.is_empty() {
         collections.extend(
-            post::<Vec<docs::IgdbAnnotation>>(
+            post::<Vec<IgdbAnnotation>>(
                 connection,
-                COLLECTIONS_ENDPOINT,
+                endpoints::COLLECTIONS,
                 &format!(
                     "fields *; where id = ({});",
                     result
@@ -614,7 +614,7 @@ async fn get_franchises(
     firestore: &FirestoreApi,
     ids: &[u64],
 ) -> Result<Vec<CollectionDigest>, Status> {
-    let result = firestore::franchises::batch_read(firestore, ids).await?;
+    let result = library::firestore::franchises::batch_read(firestore, ids).await?;
     let mut franchises = result
         .documents
         .into_iter()
@@ -628,9 +628,9 @@ async fn get_franchises(
 
     if !result.not_found.is_empty() {
         franchises.extend(
-            post::<Vec<docs::IgdbAnnotation>>(
+            post::<Vec<IgdbAnnotation>>(
                 connection,
-                FRANCHISES_ENDPOINT,
+                endpoints::FRANCHISES,
                 &format!(
                     "fields *; where id = ({});",
                     result
@@ -682,9 +682,9 @@ async fn get_involved_companies(
     ids: &[u64],
 ) -> Result<Vec<CompanyDigest>, Status> {
     // Collect all involved companies for a game entry.
-    let involved_companies: Vec<docs::IgdbInvolvedCompany> = post(
+    let involved_companies: Vec<IgdbInvolvedCompany> = post(
         &connection,
-        INVOLVED_COMPANIES_ENDPOINT,
+        endpoints::INVOLVED_COMPANIES,
         &format!(
             "fields *; where id = ({});",
             ids.iter()
@@ -707,9 +707,11 @@ async fn get_involved_companies(
             .filter(|ic| ic.company.is_some())
             .map(|ic| (ic.company.unwrap(), get_role(ic))),
     );
-    let result =
-        firestore::companies::batch_read(firestore, &involved.keys().cloned().collect_vec())
-            .await?;
+    let result = library::firestore::companies::batch_read(
+        firestore,
+        &involved.keys().cloned().collect_vec(),
+    )
+    .await?;
 
     let mut companies = result
         .documents
@@ -726,9 +728,9 @@ async fn get_involved_companies(
 
     if !result.not_found.is_empty() {
         companies.extend(
-            post::<Vec<docs::IgdbCompany>>(
+            post::<Vec<IgdbCompany>>(
                 &connection,
-                COMPANIES_ENDPOINT,
+                endpoints::COMPANIES,
                 &format!(
                     "fields *; where id = ({});",
                     result
@@ -763,9 +765,9 @@ async fn get_release_timestamp(
 ) -> Result<Option<i64>, Status> {
     let mut release_dates = match igdb_game.release_dates.is_empty() {
         false => {
-            post::<Vec<docs::ReleaseDate>>(
+            post::<Vec<ReleaseDate>>(
                 connection,
-                RELEASE_DATES_ENDPOINT,
+                endpoints::RELEASE_DATES,
                 &format!(
                     "fields category, date, status.name; where id = ({});",
                     igdb_game
@@ -859,7 +861,7 @@ async fn update_companies(firestore: &FirestoreApi, game_entry: &GameEntry) {
     );
 
     for (id, company_digest) in companies {
-        let company = match firestore::companies::read(&firestore, id).await {
+        let company = match library::firestore::companies::read(&firestore, id).await {
             // Update game in company.
             Ok(mut company) => {
                 let game_digest = GameDigest::from(game_entry.clone()).compact();
@@ -899,7 +901,7 @@ async fn update_companies(firestore: &FirestoreApi, game_entry: &GameEntry) {
             }
         };
 
-        if let Err(status) = firestore::companies::write(&firestore, &company).await {
+        if let Err(status) = library::firestore::companies::write(&firestore, &company).await {
             warn!("Failed to write company={}: {status}", company.id)
         }
     }
@@ -957,8 +959,8 @@ async fn read_collection(
     id: u64,
 ) -> Result<Collection, Status> {
     match collection_type {
-        CollectionType::Collection => firestore::collections::read(&firestore, id).await,
-        CollectionType::Franchise => firestore::franchises::read(&firestore, id).await,
+        CollectionType::Collection => library::firestore::collections::read(&firestore, id).await,
+        CollectionType::Franchise => library::firestore::franchises::read(&firestore, id).await,
         CollectionType::Null => Err(Status::invalid_argument("invalid collection type")),
     }
 }
@@ -969,22 +971,12 @@ async fn write_collection(
     collection: &Collection,
 ) -> Result<(), Status> {
     match collection_type {
-        CollectionType::Collection => firestore::collections::write(&firestore, &collection).await,
-        CollectionType::Franchise => firestore::franchises::write(&firestore, &collection).await,
+        CollectionType::Collection => {
+            library::firestore::collections::write(&firestore, &collection).await
+        }
+        CollectionType::Franchise => {
+            library::firestore::franchises::write(&firestore, &collection).await
+        }
         CollectionType::Null => Err(Status::invalid_argument("invalid collection type")),
     }
 }
-
-pub const GAMES_ENDPOINT: &str = "games";
-pub const EXTERNAL_GAMES_ENDPOINT: &str = "external_games";
-pub const COLLECTIONS_ENDPOINT: &str = "collections";
-pub const FRANCHISES_ENDPOINT: &str = "franchises";
-pub const COMPANIES_ENDPOINT: &str = "companies";
-pub const GENRES_ENDPOINT: &str = "genres";
-pub const KEYWORDS_ENDPOINT: &str = "keywords";
-const RELEASE_DATES_ENDPOINT: &str = "release_dates";
-const COVERS_ENDPOINT: &str = "covers";
-const ARTWORKS_ENDPOINT: &str = "artworks";
-const SCREENSHOTS_ENDPOINT: &str = "screenshots";
-const WEBSITES_ENDPOINT: &str = "websites";
-const INVOLVED_COMPANIES_ENDPOINT: &str = "involved_companies";

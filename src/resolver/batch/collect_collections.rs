@@ -2,20 +2,17 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use clap::Parser;
 use espy_backend::{
-    api,
+    api::FirestoreApi,
     documents::{Collection, GameDigest, GameEntry},
     library::firestore,
-    util, Tracing,
+    resolver::{IgdbBatchApi, IgdbConnection, ResolveApi},
+    util, Status, Tracing,
 };
 use tracing::{error, info};
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
 #[derive(Parser)]
 struct Opts {
-    /// JSON file that contains application keys for espy service.
-    #[clap(long, default_value = "keys.json")]
-    key_store: String,
-
     /// Collect only game entries that were updated in the last N days.
     #[clap(long, default_value = "60")]
     updated_since: u64,
@@ -35,6 +32,17 @@ struct Opts {
     /// them.
     #[clap(long)]
     count: bool,
+
+    /// JSON file that contains application keys for espy service.
+    #[clap(long, default_value = "keys.json")]
+    key_store: String,
+
+    /// URL of the resolver backend.
+    #[clap(
+        long,
+        default_value = "https://resolver-478783154654.europe-west1.run.app"
+    )]
+    resolver_backend: String,
 }
 
 #[tokio::main]
@@ -44,11 +52,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let opts: Opts = Opts::parse();
     let keys = util::keys::Keys::from_file(&opts.key_store).unwrap();
 
-    let mut igdb = api::IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
-    igdb.connect().await?;
-    let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
+    let connection = IgdbConnection::new(&keys.igdb.client_id, &keys.igdb.secret).await?;
+    let igdb_batch = IgdbBatchApi::new(connection);
 
-    let firestore = api::FirestoreApi::connect().await?;
+    let firestore = FirestoreApi::connect().await?;
+    let resolver = ResolveApi::new(opts.resolver_backend);
 
     let updated_timestamp = SystemTime::now()
         .checked_sub(Duration::from_secs(24 * 60 * 60 * opts.updated_since))
@@ -117,17 +125,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
                 info!("  Fetching {} games...", games.len());
                 for igdb_game in &games {
-                    let cover = match igdb_game.cover {
-                        Some(cover_id) => match igdb.get_cover(cover_id).await {
-                            Ok(cover) => cover,
-                            Err(_) => None,
-                        },
-                        None => None,
-                    };
-                    let mut game_entry = GameEntry::from(igdb_game.clone());
-                    game_entry.cover = cover;
-                    let digest = GameDigest::from(game_entry);
+                    match firestore::games::read(&firestore, igdb_game.id).await {
+                        Ok(game_entry) => {
+                            igdb_collection.games.push(GameDigest::from(game_entry));
+                        }
+                        Err(Status::NotFound(_)) => {
+                            let digest = match resolver.digest(igdb_game.id).await {
+                                Ok(digest) => digest,
+                                Err(e) => {
+                                    error!("  collection={}: {e}", &igdb_collection.name);
+                                    continue;
+                                }
+                            };
 
+                            info!("  #{} fetched '{}' ({})", k, digest.name, digest.id);
+                            igdb_collection.games.push(digest);
+                        }
+                        Err(e) => error!(
+                            "Failed to read from Firestore game with id={}: {e}",
+                            igdb_game.id
+                        ),
+                    }
+
+                    let digest = GameDigest::from(GameEntry::from(igdb_game.clone()));
                     info!("  #{} added '{}' ({})", k, digest.name, digest.id);
                     igdb_collection.games.push(digest);
                 }

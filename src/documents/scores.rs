@@ -2,9 +2,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use crate::api::{IgdbGame, MetacriticData};
+use crate::api::MetacriticData;
 
-use super::{GogData, SteamData, WikipediaData};
+use super::{GogData, IgdbGame, SteamData, WikipediaData};
 
 #[derive(Eq, PartialEq, Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Scores {

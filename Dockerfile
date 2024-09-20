@@ -6,7 +6,8 @@ WORKDIR /espy_server
 COPY . .
 
 RUN cargo build --release --bin http_server
-RUN cargo build --release --bin webhook_handlers
+RUN cargo build --release --bin webhooks_backend
+RUN cargo build --release --bin resolver_backend
 RUN cargo build --release --bin build_timeline
 
 # -----------------------------------------
@@ -27,13 +28,26 @@ CMD ["http_server", "--prod-tracing"]
 FROM debian as webhooks_image
 
 RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /espy_server/target/release/webhook_handlers /usr/local/bin/webhook_handlers
+COPY --from=builder /espy_server/target/release/webhooks_backend /usr/local/bin/webhooks_backend
 COPY ./keys.json ./keys.json
 COPY ./espy-library-firebase-adminsdk-sncpo-3da8ca7f57.json ./espy-library-firebase-adminsdk-sncpo-3da8ca7f57.json
 
 ENV PORT 8080
 
-CMD ["webhook_handlers", "--prod-tracing"]
+CMD ["webhooks_backend", "--prod-tracing"]
+
+# -----------------------------------------
+
+FROM debian as resolver_image
+
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /espy_server/target/release/resolver_backend /usr/local/bin/resolver_backend
+COPY ./keys.json ./keys.json
+COPY ./espy-library-firebase-adminsdk-sncpo-3da8ca7f57.json ./espy-library-firebase-adminsdk-sncpo-3da8ca7f57.json
+
+ENV PORT 8080
+
+CMD ["resolver_backend", "--prod-tracing"]
 
 # -----------------------------------------
 

@@ -15,7 +15,7 @@ impl std::fmt::Display for Search {
     }
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Resolve {
     pub game_id: u64,
 }
@@ -25,11 +25,9 @@ pub struct MatchOp {
     /// The storefront entry that is {un}matched.
     pub store_entry: documents::StoreEntry,
 
-    /// A game entry to match the storefront entry with, if one is provided.
-    /// Usually, the storefront entry will be matched with the base game of this
-    /// entry, unless `exact_match` is set to `true`.
+    /// A IGDB game id to match the storefront entry with, if one is provided.
     #[serde(default)]
-    pub game_entry: Option<documents::GameEntry>,
+    pub game_id: Option<u64>,
 
     /// The library entry that the storefront entry will be unmatched from, if
     /// one is provided. The library entry will be also be deleted from the

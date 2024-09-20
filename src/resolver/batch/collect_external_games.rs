@@ -3,6 +3,7 @@ use espy_backend::{
     api::{self, GogScrape},
     documents::ExternalGame,
     library::firestore,
+    resolver::{IgdbBatchApi, IgdbConnection},
     util, Tracing,
 };
 use tracing::{error, info, warn};
@@ -28,9 +29,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let opts: Opts = Opts::parse();
     let keys = util::keys::Keys::from_file(&opts.key_store).unwrap();
 
-    let mut igdb = api::IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
-    igdb.connect().await?;
-    let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
+    let connection = IgdbConnection::new(&keys.igdb.client_id, &keys.igdb.secret).await?;
+    let igdb_batch = IgdbBatchApi::new(connection);
 
     let firestore = api::FirestoreApi::connect().await?;
 

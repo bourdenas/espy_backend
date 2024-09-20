@@ -1,9 +1,7 @@
 use chrono::{DateTime, Datelike, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::api::IgdbGame;
-
-use super::{EspyGenre, GameDigest, GogData, Scores, SteamData};
+use super::{EspyGenre, GameDigest, GogData, IgdbGame, Scores, SteamData};
 
 /// Document type under 'games' collection that represents an espy game entry.
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -36,7 +34,7 @@ pub struct GameEntry {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub igdb_genres: Vec<IgdbGenre>,
+    pub igdb_genres: Vec<IgdbGenreType>,
 
     // Keywords from IGDB.
     #[serde(default)]
@@ -419,7 +417,7 @@ impl Default for WebsiteAuthority {
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
-pub enum IgdbGenre {
+pub enum IgdbGenreType {
     PointAndClick,
     Fighting,
     Shooter,
@@ -447,28 +445,28 @@ pub enum IgdbGenre {
 
 use phf::phf_map;
 
-static GENRES_BY_ID: phf::Map<u64, IgdbGenre> = phf_map! {
-    2u64 => IgdbGenre::PointAndClick,
-    4u64 => IgdbGenre::Fighting,
-    5u64 => IgdbGenre::Shooter,
-    7u64 => IgdbGenre::Music,
-    8u64 => IgdbGenre::Platformer,
-    9u64 => IgdbGenre::Puzzle,
-    10u64 => IgdbGenre::Racing,
-    11u64 => IgdbGenre::RealTimeStrategy,
-    12u64 => IgdbGenre::RPG,
-    13u64 => IgdbGenre::Simulator,
-    14u64 => IgdbGenre::Sports,
-    15u64 => IgdbGenre::Strategy,
-    16u64 => IgdbGenre::TurnBasedStrategy,
-    24u64 => IgdbGenre::Tactical,
-    25u64 => IgdbGenre::HackAndSlash,
-    26u64 => IgdbGenre::Quiz,
-    30u64 => IgdbGenre::Pinball,
-    31u64 => IgdbGenre::Adventure,
-    32u64 => IgdbGenre::Indie,
-    33u64 => IgdbGenre::Arcade,
-    34u64 => IgdbGenre::VisualNovel,
-    35u64 => IgdbGenre::CardAndBoard,
-    36u64 => IgdbGenre::MOBA,
+static GENRES_BY_ID: phf::Map<u64, IgdbGenreType> = phf_map! {
+    2u64 => IgdbGenreType::PointAndClick,
+    4u64 => IgdbGenreType::Fighting,
+    5u64 => IgdbGenreType::Shooter,
+    7u64 => IgdbGenreType::Music,
+    8u64 => IgdbGenreType::Platformer,
+    9u64 => IgdbGenreType::Puzzle,
+    10u64 => IgdbGenreType::Racing,
+    11u64 => IgdbGenreType::RealTimeStrategy,
+    12u64 => IgdbGenreType::RPG,
+    13u64 => IgdbGenreType::Simulator,
+    14u64 => IgdbGenreType::Sports,
+    15u64 => IgdbGenreType::Strategy,
+    16u64 => IgdbGenreType::TurnBasedStrategy,
+    24u64 => IgdbGenreType::Tactical,
+    25u64 => IgdbGenreType::HackAndSlash,
+    26u64 => IgdbGenreType::Quiz,
+    30u64 => IgdbGenreType::Pinball,
+    31u64 => IgdbGenreType::Adventure,
+    32u64 => IgdbGenreType::Indie,
+    33u64 => IgdbGenreType::Arcade,
+    34u64 => IgdbGenreType::VisualNovel,
+    35u64 => IgdbGenreType::CardAndBoard,
+    36u64 => IgdbGenreType::MOBA,
 };
