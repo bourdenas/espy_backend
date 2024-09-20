@@ -53,7 +53,7 @@ impl IgdbSearch {
 
     /// Returns IgdbGames that match the `title` by searching in IGDB.
     #[instrument(level = "trace", skip(self))]
-    pub async fn match_by_title(&self, title: &str) -> Result<Vec<IgdbGame>, Status> {
+    async fn match_by_title(&self, title: &str) -> Result<Vec<IgdbGame>, Status> {
         Ok(ranking::sorted_by_relevance(
             title,
             self.search(title).await?,

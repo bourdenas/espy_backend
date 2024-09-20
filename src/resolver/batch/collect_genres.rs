@@ -1,5 +1,8 @@
 use clap::Parser;
-use espy_backend::{api, util, Tracing};
+use espy_backend::{
+    resolver::{IgdbBatchApi, IgdbConnection},
+    util, Tracing,
+};
 
 /// Espy util for refreshing IGDB data for Genres.
 #[derive(Parser)]
@@ -26,9 +29,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let opts: Opts = Opts::parse();
     let keys = util::keys::Keys::from_file(&opts.key_store).unwrap();
 
-    let mut igdb = api::IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
-    igdb.connect().await?;
-    let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
+    let connection = IgdbConnection::new(&keys.igdb.client_id, &keys.igdb.secret).await?;
+    let igdb_batch = IgdbBatchApi::new(connection);
 
     let genres = igdb_batch.collect_genres().await?;
     for genre in genres {

@@ -4,16 +4,17 @@ use std::{
 };
 
 use clap::Parser;
-use espy_backend::{api, library::firestore, util, Tracing};
+use espy_backend::{
+    api,
+    library::firestore,
+    resolver::{IgdbBatchApi, IgdbConnection, ResolveApi},
+    util, Tracing,
+};
 use tracing::{error, info};
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
 #[derive(Parser)]
 struct Opts {
-    /// JSON file that contains application keys for espy service.
-    #[clap(long, default_value = "keys.json")]
-    key_store: String,
-
     /// Collect only game entries that were updated in the last N days.
     #[clap(long, default_value = "60")]
     updated_since: u64,
@@ -23,6 +24,17 @@ struct Opts {
 
     #[clap(long)]
     count: bool,
+
+    /// JSON file that contains application keys for espy service.
+    #[clap(long, default_value = "keys.json")]
+    key_store: String,
+
+    /// URL of the resolver backend.
+    #[clap(
+        long,
+        default_value = "https://resolver-478783154654.europe-west1.run.app"
+    )]
+    resolver_backend: String,
 }
 
 #[tokio::main]
@@ -32,11 +44,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let opts: Opts = Opts::parse();
     let keys = util::keys::Keys::from_file(&opts.key_store).unwrap();
 
-    let mut igdb = api::IgdbApi::new(&keys.igdb.client_id, &keys.igdb.secret);
-    igdb.connect().await?;
-    let igdb_batch = api::IgdbBatchApi::new(igdb.clone());
+    let connection = IgdbConnection::new(&keys.igdb.client_id, &keys.igdb.secret).await?;
+    let igdb_batch = IgdbBatchApi::new(connection);
 
     let firestore = api::FirestoreApi::connect().await?;
+    let resolver = ResolveApi::new(opts.resolver_backend);
 
     let updated_timestamp = SystemTime::now()
         .checked_sub(Duration::from_secs(24 * 60 * 60 * opts.updated_since))
@@ -69,7 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             info!("{k} Processing '{}'", igdb_game.name);
             match firestore::games::read(&firestore, igdb_game.id).await {
                 Ok(_) => {}
-                Err(_) => match igdb.resolve(Arc::clone(&firestore), igdb_game).await {
+                Err(_) => match resolver.resolve(igdb_game).await {
                     Ok(game_entry) => {
                         info!("#{} Resolved '{}' ({})", k, game_entry.name, game_entry.id);
                         counter += 1;

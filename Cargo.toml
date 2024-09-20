@@ -52,34 +52,36 @@ name = "predict"
 path = "src/genres/utils/predict.rs"
 
 
+# IGDB batch pipelines
+[[bin]]
+name = "collect_collections"
+path = "src/resolver/batch/collect_collections.rs"
+
+[[bin]]
+name = "collect_companies"
+path = "src/resolver/batch/collect_companies.rs"
+
+[[bin]]
+name = "collect_external_games"
+path = "src/resolver/batch/collect_external_games.rs"
+
+[[bin]]
+name = "collect_games"
+path = "src/resolver/batch/collect_games.rs"
+
+[[bin]]
+name = "collect_genres"
+path = "src/resolver/batch/collect_genres.rs"
+
+[[bin]]
+name = "collect_keywords"
+path = "src/resolver/batch/collect_keywords.rs"
+
+
 # Command line utils
 [[bin]]
 name = "count_docs"
 path = "src/utils/count_docs.rs"
-
-[[bin]]
-name = "collect_collections"
-path = "src/utils/collect_collections.rs"
-
-[[bin]]
-name = "collect_companies"
-path = "src/utils/collect_companies.rs"
-
-[[bin]]
-name = "collect_external_games"
-path = "src/utils/collect_external_games.rs"
-
-[[bin]]
-name = "collect_games"
-path = "src/utils/collect_games.rs"
-
-[[bin]]
-name = "collect_genres"
-path = "src/utils/collect_genres.rs"
-
-[[bin]]
-name = "collect_keywords"
-path = "src/utils/collect_keywords.rs"
 
 [[bin]]
 name = "sync_library"
