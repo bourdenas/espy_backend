@@ -33,7 +33,10 @@ struct Opts {
     key_store: String,
 
     /// URL of the resolver backend.
-    #[clap(long, default_value = "")]
+    #[clap(
+        long,
+        default_value = "https://resolver-478783154654.europe-west1.run.app"
+    )]
     resolver_backend: String,
 
     /// JSON file that contains application keys for espy service.

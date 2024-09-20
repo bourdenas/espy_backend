@@ -15,7 +15,10 @@ use tracing::{error, instrument};
 #[derive(Parser)]
 struct Opts {
     /// URL of the resolver backend.
-    #[clap(long, default_value = "")]
+    #[clap(
+        long,
+        default_value = "https://resolver-478783154654.europe-west1.run.app"
+    )]
     resolver_backend: String,
 
     #[clap(long, default_value = "0")]

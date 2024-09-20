@@ -16,7 +16,11 @@ struct Opts {
     key_store: String,
 
     /// Espy user name for managing a game library.
-    #[clap(short, long, default_value = "")]
+    #[clap(
+        short,
+        long,
+        default_value = "https://resolver-478783154654.europe-west1.run.app"
+    )]
     resolver_backend: String,
 }
 
