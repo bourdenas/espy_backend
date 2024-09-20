@@ -8,7 +8,7 @@ use crate::{
     Status,
 };
 
-use super::{backend::post, endpoints, resolve::*, IgdbConnection};
+use super::{endpoints, request::post, resolve::*, IgdbConnection};
 
 #[derive(Clone)]
 pub struct IgdbApi {

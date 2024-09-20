@@ -17,7 +17,7 @@ use async_recursion::async_recursion;
 use itertools::Itertools;
 use tracing::{error, instrument, trace_span, warn, Instrument};
 
-use super::{backend::post, endpoints, IgdbConnection};
+use super::{endpoints, request::post, IgdbConnection};
 
 /// Returns a GameEntry from IGDB that can build the GameDigest doc.
 ///

@@ -9,7 +9,7 @@ use crate::{
 use itertools::Itertools;
 use tracing::{instrument, trace_span, warn, Instrument};
 
-use super::{backend::post, connection::IgdbConnection, endpoints, ranking, resolve::get_cover};
+use super::{connection::IgdbConnection, endpoints, ranking, request::post, resolve::get_cover};
 
 pub struct IgdbSearch {
     connection: Arc<IgdbConnection>,

@@ -1,8 +1,8 @@
-mod backend;
 mod batch;
 mod connection;
 pub mod endpoints;
 mod ranking;
+mod request;
 mod resolve;
 mod search;
 mod service;

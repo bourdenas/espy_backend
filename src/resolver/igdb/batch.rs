@@ -4,7 +4,7 @@ use crate::{
 };
 use tracing::instrument;
 
-use super::{backend::post, endpoints, IgdbConnection};
+use super::{endpoints, request::post, IgdbConnection};
 
 pub struct IgdbBatchApi {
     connection: IgdbConnection,
