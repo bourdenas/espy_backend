@@ -60,6 +60,23 @@ pub async fn update_game_webhook(
         return Ok(StatusCode::OK);
     }
 
+    tokio::spawn(
+        async move {
+            handle_update_game(igdb_game, firestore, resolver, game_filter, event).await;
+        }
+        .instrument(trace_span!("spawn_handle_update_game")),
+    );
+
+    Ok(StatusCode::OK)
+}
+
+async fn handle_update_game(
+    igdb_game: IgdbGame,
+    firestore: Arc<FirestoreApi>,
+    resolver: Arc<ResolveApi>,
+    game_filter: Arc<GameFilter>,
+    log_event: UpdateGameEvent,
+) {
     let game_entry = firestore::games::read(&firestore, igdb_game.id).await;
 
     match game_entry {
@@ -67,45 +84,43 @@ pub async fn update_game_webhook(
             diff if diff.empty() => {
                 if needs_update(&game_entry) {
                     match update_steam_data(firestore, &mut game_entry, igdb_game).await {
-                        Ok(()) => event.log(Some(diff)),
-                        Err(status) => event.log_error(status),
+                        Ok(()) => log_event.log(Some(diff)),
+                        Err(status) => log_event.log_error(status),
                     }
                 } else {
-                    event.log(None)
+                    log_event.log(None)
                 }
             }
             diff if diff.needs_resolve() => match resolver.resolve(igdb_game).await {
                 Ok(mut game_entry) => {
                     match firestore::games::write(&firestore, &mut game_entry).await {
-                        Ok(()) => event.log(Some(diff)),
-                        Err(status) => event.log_error(status),
+                        Ok(()) => log_event.log(Some(diff)),
+                        Err(status) => log_event.log_error(status),
                     }
                 }
-                Err(status) => event.log_error(status),
+                Err(status) => log_event.log_error(status),
             },
             diff => match update_steam_data(firestore, &mut game_entry, igdb_game).await {
-                Ok(()) => event.log(Some(diff)),
-                Err(status) => event.log_error(status),
+                Ok(()) => log_event.log(Some(diff)),
+                Err(status) => log_event.log_error(status),
             },
         },
         Err(Status::NotFound(_)) => match resolver.resolve(igdb_game).await {
             Ok(mut game_entry) => {
                 if !game_filter.filter(&game_entry) {
-                    event.log_reject(game_filter.explain(&game_entry));
+                    log_event.log_reject(game_filter.explain(&game_entry));
                 } else if let Err(status) =
                     firestore::games::write(&firestore, &mut game_entry).await
                 {
-                    event.log_error(status);
+                    log_event.log_error(status);
                 } else {
-                    event.log_added()
+                    log_event.log_added()
                 }
             }
-            Err(status) => event.log_error(status),
+            Err(status) => log_event.log_error(status),
         },
-        Err(status) => event.log_error(status),
+        Err(status) => log_event.log_error(status),
     }
-
-    Ok(StatusCode::OK)
 }
 
 fn needs_update(game_entry: &GameEntry) -> bool {
