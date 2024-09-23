@@ -29,7 +29,7 @@ impl IgdbConnection {
         Ok(IgdbConnection {
             client_id: client_id.to_string(),
             oauth_token: resp.access_token,
-            qps: RateLimiter::new(4, Duration::from_secs(1), 6),
+            qps: RateLimiter::new(4, Duration::from_secs(1), 7),
         })
     }
 }
