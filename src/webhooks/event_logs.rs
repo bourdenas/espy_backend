@@ -7,134 +7,90 @@ use crate::{
 
 use super::{filtering::RejectionReason, prefiltering::PrefilterRejectionReason};
 
-pub struct AddGameEvent {
-    id: u64,
-    name: String,
-}
-
-impl AddGameEvent {
-    pub fn new(id: u64, name: String) -> Self {
-        AddGameEvent { id, name }
-    }
-
-    pub fn log(self) {
-        info!(
-            labels.log_type = WEBHOOK_LOGS,
-            labels.handler = ADD_GAME_HANDLER,
-            add_game.id = self.id,
-            add_game.name = self.name,
-            "added game {}",
-            self.id
-        )
-    }
-
-    pub fn log_reject(self, rejection: RejectionReason) {
-        info!(
-            labels.log_type = WEBHOOK_LOGS,
-            labels.handler = ADD_GAME_HANDLER,
-            labels.rejection = rejection.to_string(),
-            update_game.id = self.id,
-            update_game.name = self.name,
-            "rejected game {}",
-            self.id
-        )
-    }
-
-    pub fn log_prefilter_reject(self, rejection: PrefilterRejectionReason) {
-        info!(
-            labels.log_type = WEBHOOK_LOGS,
-            labels.handler = ADD_GAME_HANDLER,
-            labels.rejection = rejection.to_string(),
-            update_game.id = self.id,
-            update_game.name = self.name,
-            "prefilter game {}",
-            self.id
-        )
-    }
-
-    pub fn log_error(self, status: Status) {
-        error!(
-            labels.log_type = WEBHOOK_LOGS,
-            labels.handler = ADD_GAME_HANDLER,
-            labels.status = status.to_string(),
-            add_game.id = self.id,
-            add_game.name = self.name,
-            "failed to add game {}",
-            self.id
-        )
-    }
-}
-
 pub struct UpdateGameEvent {
-    id: u64,
-    name: String,
+    game_id: u64,
+    game_name: String,
+    handler_name: String,
 }
 
 impl UpdateGameEvent {
-    pub fn new(id: u64, name: String) -> Self {
-        UpdateGameEvent { id, name }
-    }
-
-    pub fn log(self, diff: Option<IgdbGameDiff>) {
-        info!(
-            labels.log_type = WEBHOOK_LOGS,
-            labels.handler = UPDATE_GAME_HANDLER,
-            update_game.id = self.id,
-            update_game.name = self.name,
-            update_game.diff = match diff {
-                Some(diff) => diff.to_string(),
-                None => "null".to_owned(),
-            },
-            "updated game {}",
-            self.id
-        )
+    pub fn new(game_id: u64, game_name: String, handler_name: String) -> Self {
+        UpdateGameEvent {
+            game_id,
+            game_name,
+            handler_name,
+        }
     }
 
     pub fn log_added(self) {
         info!(
             labels.log_type = WEBHOOK_LOGS,
-            labels.handler = UPDATE_GAME_HANDLER,
-            update_game.id = self.id,
-            update_game.name = self.name,
+            labels.handler = self.handler_name,
+            update_game.id = self.game_id,
+            update_game.name = self.game_name,
             update_game.added = true,
-            "discovered game {}",
-            self.id
+            "added game {}",
+            self.game_id
+        )
+    }
+
+    pub fn log_updated(self, diff: IgdbGameDiff) {
+        info!(
+            labels.log_type = WEBHOOK_LOGS,
+            labels.handler = self.handler_name,
+            update_game.id = self.game_id,
+            update_game.name = self.game_name,
+            update_game.diff = diff.to_string(),
+            "updated game {}",
+            self.game_id
+        )
+    }
+
+    pub fn log_no_update(self) {
+        info!(
+            labels.log_type = WEBHOOK_LOGS,
+            labels.handler = self.handler_name,
+            update_game.id = self.game_id,
+            update_game.name = self.game_name,
+            update_game.diff = "none".to_owned(),
+            "nothing to update for {}",
+            self.game_id
         )
     }
 
     pub fn log_reject(self, rejection: RejectionReason) {
         info!(
             labels.log_type = WEBHOOK_LOGS,
-            labels.handler = UPDATE_GAME_HANDLER,
+            labels.handler = self.handler_name,
             labels.rejection = rejection.to_string(),
-            update_game.id = self.id,
-            update_game.name = self.name,
+            update_game.id = self.game_id,
+            update_game.name = self.game_name,
             "rejected game {}",
-            self.id
+            self.game_id
         )
     }
 
     pub fn log_prefilter_reject(self, rejection: PrefilterRejectionReason) {
         info!(
             labels.log_type = WEBHOOK_LOGS,
-            labels.handler = UPDATE_GAME_HANDLER,
+            labels.handler = self.handler_name,
             labels.rejection = rejection.to_string(),
-            update_game.id = self.id,
-            update_game.name = self.name,
+            update_game.id = self.game_id,
+            update_game.name = self.game_name,
             "prefilter game {}",
-            self.id
+            self.game_id
         )
     }
 
     pub fn log_error(self, status: Status) {
         error!(
             labels.log_type = WEBHOOK_LOGS,
-            labels.handler = UPDATE_GAME_HANDLER,
+            labels.handler = self.handler_name,
             labels.status = status.to_string(),
-            update_game.id = self.id,
-            update_game.name = self.name,
+            update_game.id = self.game_id,
+            update_game.name = self.game_name,
             "failed to update game {}",
-            self.id
+            self.game_id
         )
     }
 }
@@ -204,7 +160,5 @@ impl KeywordsEvent {
 }
 
 const WEBHOOK_LOGS: &str = "webhook_logs";
-const ADD_GAME_HANDLER: &str = "post_add_game";
-const UPDATE_GAME_HANDLER: &str = "post_update_game";
 const EXTERNAL_GAME_HANDLER: &str = "post_external_game";
 const KEYWORDS_HANDLER: &str = "post_keywords";
