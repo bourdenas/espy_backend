@@ -77,8 +77,9 @@ impl UpdateGameEvent {
             labels.rejection = rejection.to_string(),
             update_game.id = self.game_id,
             update_game.name = self.game_name,
-            "prefilter game {}",
-            self.game_id
+            "prefilter game {} -- {}",
+            self.game_id,
+            rejection.to_string()
         )
     }
 
@@ -95,34 +96,44 @@ impl UpdateGameEvent {
     }
 }
 
-pub struct ExternalGameEvent {
-    external_game: ExternalGame,
-}
+pub struct ExternalGameEvent;
 
 impl ExternalGameEvent {
-    pub fn new(external_game: ExternalGame) -> Self {
-        ExternalGameEvent { external_game }
+    pub fn new() -> Self {
+        ExternalGameEvent {}
     }
 
-    pub fn log(self) {
+    pub fn log(self, external_game: ExternalGame) {
         info!(
             labels.log_type = WEBHOOK_LOGS,
             labels.handler = EXTERNAL_GAME_HANDLER,
-            extenal_game.store = self.external_game.store_name,
-            extenal_game.store_id = self.external_game.store_id,
-            extenal_game.igdb_id = self.external_game.igdb_id,
-            "external game updated"
+            extenal_game.store = external_game.store_name,
+            extenal_game.store_id = external_game.store_id,
+            extenal_game.igdb_id = external_game.igdb_id,
+            "{} game updated",
+            external_game.store_name,
         )
     }
 
-    pub fn log_error(self, status: Status) {
+    pub fn log_unsupported(self, external_game: ExternalGame) {
+        info!(
+            labels.log_type = WEBHOOK_LOGS,
+            labels.handler = EXTERNAL_GAME_HANDLER,
+            extenal_game.store = "unsupported",
+            extenal_game.store_id = external_game.store_id,
+            extenal_game.igdb_id = external_game.igdb_id,
+            "unsupported game store update"
+        )
+    }
+
+    pub fn log_error(self, external_game: ExternalGame, status: Status) {
         error!(
             labels.log_type = WEBHOOK_LOGS,
             labels.handler = EXTERNAL_GAME_HANDLER,
             labels.status = status.to_string(),
-            extenal_game.store = self.external_game.store_name,
-            extenal_game.store_id = self.external_game.store_id,
-            extenal_game.igdb_id = self.external_game.igdb_id,
+            extenal_game.store = external_game.store_name,
+            extenal_game.store_id = external_game.store_id,
+            extenal_game.igdb_id = external_game.igdb_id,
             "failed to update external game"
         )
     }
