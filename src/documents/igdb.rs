@@ -225,6 +225,7 @@ impl IgdbGame {
 #[derive(Deserialize, Default, Debug, Clone)]
 pub struct IgdbExternalGame {
     pub id: u64,
+    pub name: String,
 
     // IGDB game id.
     pub game: u64,

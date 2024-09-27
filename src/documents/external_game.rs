@@ -7,6 +7,8 @@ pub struct ExternalGame {
     pub igdb_id: u64,
     pub store_id: String,
 
+    #[serde(default)]
+    pub name: String,
     pub store_name: String,
 
     #[serde(default)]
@@ -40,8 +42,10 @@ impl From<IgdbExternalGame> for ExternalGame {
     fn from(external: IgdbExternalGame) -> Self {
         ExternalGame {
             store_name: external.store().to_owned(),
+
             igdb_id: external.game,
             store_id: external.uid,
+            name: external.name,
             store_url: external.url,
 
             ..Default::default()

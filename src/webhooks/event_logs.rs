@@ -111,7 +111,8 @@ impl ExternalGameEvent {
             extenal_game.store = external_game.store_name,
             extenal_game.store_id = external_game.store_id,
             extenal_game.igdb_id = external_game.igdb_id,
-            "{} game updated",
+            "update '{}' mapping on {}",
+            external_game.name,
             external_game.store_name,
         )
     }
@@ -123,7 +124,8 @@ impl ExternalGameEvent {
             extenal_game.store = "unsupported",
             extenal_game.store_id = external_game.store_id,
             extenal_game.igdb_id = external_game.igdb_id,
-            "unsupported game store update"
+            "ignored '{}' mapping on unsupported store",
+            external_game.store_name,
         )
     }
 
@@ -135,7 +137,9 @@ impl ExternalGameEvent {
             extenal_game.store = external_game.store_name,
             extenal_game.store_id = external_game.store_id,
             extenal_game.igdb_id = external_game.igdb_id,
-            "failed to update external game"
+            "failed to update '{}' game on {}",
+            external_game.name,
+            external_game.store_name,
         )
     }
 }
