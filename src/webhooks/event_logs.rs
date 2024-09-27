@@ -29,8 +29,8 @@ impl UpdateGameEvent {
             update_game.id = self.game_id,
             update_game.name = self.game_name,
             update_game.added = true,
-            "added game {}",
-            self.game_id
+            "added game '{}'",
+            self.game_name,
         )
     }
 
@@ -41,8 +41,8 @@ impl UpdateGameEvent {
             update_game.id = self.game_id,
             update_game.name = self.game_name,
             update_game.diff = diff.to_string(),
-            "updated game {}",
-            self.game_id
+            "updated game '{}'",
+            self.game_name,
         )
     }
 
@@ -53,8 +53,8 @@ impl UpdateGameEvent {
             update_game.id = self.game_id,
             update_game.name = self.game_name,
             update_game.diff = "none".to_owned(),
-            "nothing to update for {}",
-            self.game_id
+            "nothing to update for '{}'",
+            self.game_name,
         )
     }
 
@@ -65,8 +65,9 @@ impl UpdateGameEvent {
             labels.rejection = rejection.to_string(),
             update_game.id = self.game_id,
             update_game.name = self.game_name,
-            "rejected game {}",
-            self.game_id
+            "rejected game '{}' -> {}",
+            self.game_name,
+            rejection.to_string(),
         )
     }
 
@@ -77,8 +78,8 @@ impl UpdateGameEvent {
             labels.rejection = rejection.to_string(),
             update_game.id = self.game_id,
             update_game.name = self.game_name,
-            "prefilter game {} -- {}",
-            self.game_id,
+            "prefilter game '{}' -> {}",
+            self.game_name,
             rejection.to_string()
         )
     }
@@ -90,8 +91,8 @@ impl UpdateGameEvent {
             labels.status = status.to_string(),
             update_game.id = self.game_id,
             update_game.name = self.game_name,
-            "failed to update game {}",
-            self.game_id
+            "failed to update game '{}'",
+            self.game_name,
         )
     }
 }
