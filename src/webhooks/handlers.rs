@@ -143,6 +143,10 @@ fn needs_steam_update(game_entry: &GameEntry) -> bool {
 
 const DAY_SECS: i64 = 24 * 60 * 60;
 
+/// Refresh data from Steam.
+///
+/// Steam data are refreshed periodically since they are more dynamic than other
+/// sources.
 async fn update_steam_data(
     firestore: Arc<FirestoreApi>,
     game_entry: &mut GameEntry,
