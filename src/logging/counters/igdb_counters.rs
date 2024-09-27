@@ -57,29 +57,29 @@ impl IgdbResolveCounter {
 
 pub struct IgdbRequestCounter<'a> {
     request: &'a str,
-    start: SystemTime,
+    _start: SystemTime,
 }
 
 impl<'a> IgdbRequestCounter<'a> {
     pub fn new(request: &'a str) -> Self {
         Self {
             request,
-            start: SystemTime::now(),
+            _start: SystemTime::now(),
         }
     }
 
     pub fn log(self) {
-        info!(
-            labels.log_type = COUNTERS,
-            counter.group = IGDB,
-            counter.name = self.request,
-            counter.latency = SystemTime::now()
-                .duration_since(self.start)
-                .unwrap()
-                .as_millis(),
-            "IGDB request: {}",
-            self.request,
-        );
+        // info!(
+        //     labels.log_type = COUNTERS,
+        //     counter.group = IGDB,
+        //     counter.name = self.request,
+        //     counter.latency = SystemTime::now()
+        //         .duration_since(self.start)
+        //         .unwrap()
+        //         .as_millis(),
+        //     "IGDB request: {}",
+        //     self.request,
+        // );
     }
 
     pub fn log_error(self, status: &Status) {

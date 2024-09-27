@@ -30,6 +30,10 @@ impl ExternalGame {
     pub fn is_egs(&self) -> bool {
         self.store_name == "egs"
     }
+
+    pub fn is_supported_store(&self) -> bool {
+        self.store_name != "unknown"
+    }
 }
 
 impl From<IgdbExternalGame> for ExternalGame {

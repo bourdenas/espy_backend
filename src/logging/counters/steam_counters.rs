@@ -15,7 +15,7 @@ impl SteamFetchCounter {
         }
     }
 
-    pub fn log(self) {
+    pub fn log(self, name: &str) {
         info!(
             labels.log_type = COUNTERS,
             counter.group = STEAM,
@@ -24,27 +24,18 @@ impl SteamFetchCounter {
                 .duration_since(self.start)
                 .unwrap()
                 .as_millis(),
-            "Steam fetch",
+            "Steam fetch '{}'",
+            name,
         )
     }
 
-    pub fn log_warning(&self, warning: &str, status: &Status) {
+    pub fn log_error(&self, appid: &str, error: &str, status: &Status) {
         info!(
             labels.log_type = COUNTERS,
             counter.group = STEAM,
-            counter.name = warning,
+            counter.name = error,
             counter.status = status.to_string(),
-            "Steam warning: {warning}",
-        )
-    }
-
-    pub fn log_error(self, status: &Status) {
-        info!(
-            labels.log_type = COUNTERS,
-            counter.group = STEAM,
-            counter.name = "fetch_fail",
-            counter.status = status.to_string(),
-            "Steam fetch fail",
+            "Steam {error} appid={appid}",
         )
     }
 }

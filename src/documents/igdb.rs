@@ -178,10 +178,13 @@ impl IgdbGame {
             status: self.status != other.status,
 
             url: self.url != other.url,
+            slug: self.slug != other.slug,
             summary: self.summary != other.summary,
             storyline: self.storyline != other.storyline,
 
             first_release_date: self.first_release_date != other.first_release_date,
+            release_dates: vec_diff(&self.release_dates, &other.release_dates),
+
             aggregated_rating: self.aggregated_rating != other.aggregated_rating,
             total_rating: self.total_rating != other.total_rating,
 
@@ -190,6 +193,7 @@ impl IgdbGame {
 
             genres: vec_diff(&self.genres, &other.genres),
             keywords: vec_diff(&self.keywords, &other.keywords),
+
             expansions: vec_diff(&self.expansions, &other.expansions),
             standalone_expansions: vec_diff(
                 &self.standalone_expansions,
@@ -385,12 +389,17 @@ pub struct IgdbGameDiff {
     #[serde(default, skip_serializing_if = "is_default")]
     pub url: bool,
     #[serde(default, skip_serializing_if = "is_default")]
+    pub slug: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
     pub summary: bool,
     #[serde(default, skip_serializing_if = "is_default")]
     pub storyline: bool,
 
     #[serde(default, skip_serializing_if = "is_default")]
     pub first_release_date: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub release_dates: bool,
+
     #[serde(default, skip_serializing_if = "is_default")]
     pub aggregated_rating: bool,
     #[serde(default, skip_serializing_if = "is_default")]
@@ -469,9 +478,11 @@ impl IgdbGameDiff {
             || self.category
             || self.status
             || self.url
+            || self.slug
             || self.summary
             || self.storyline
             || self.first_release_date
+            || self.release_dates
             || self.aggregated_rating
             || self.follows
             || self.hypes
@@ -499,6 +510,7 @@ impl IgdbGameDiff {
 
     pub fn needs_resolve(&self) -> bool {
         self.first_release_date
+            || self.release_dates
             || self.genres
             || self.keywords
             || self.expansions

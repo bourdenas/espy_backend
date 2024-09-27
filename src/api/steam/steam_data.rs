@@ -25,7 +25,7 @@ impl SteamDataApi {
         let score = match SteamApi::get_app_score(steam_appid).await {
             Ok(result) => Some(result),
             Err(status) => {
-                counter.log_warning("fetch_score_fail", &status);
+                counter.log_error(steam_appid, "fetch_score_fail", &status);
                 None
             }
         };
@@ -36,12 +36,12 @@ impl SteamDataApi {
                 steam_data
             }
             Err(status) => {
-                counter.log_error(&status);
+                counter.log_error(steam_appid, "fetch_fail", &status);
                 return Err(status);
             }
         };
 
-        counter.log();
+        counter.log(&steam_data.name);
         Ok(steam_data)
     }
 }
