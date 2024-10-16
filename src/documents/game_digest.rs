@@ -156,16 +156,61 @@ fn extract_keywords(game_entry: &GameEntry) -> Vec<String> {
 }
 
 static KW_SETS: [&'static phf::Map<&'static str, &'static str>; 7] = [
-    &SETTING_KWS,
-    &HISTORICAL_SETTING_KWS,
     &GAMEPLAY_KWS,
     &VISUAL_STYLE_KWS,
+    &SETTING_KWS,
+    &HISTORICAL_SETTING_KWS,
     &MATURE_KWS,
     &MULTIPLAYER_KWS,
-    &TRIGGER_KWS,
+    &WARNING_KWS,
 ];
 
+static GAMEPLAY_KWS: phf::Map<&'static str, &'static str> = phf_map! {
+    "roguelike" => "rogue-like",
+    "roguelite" => "rogue-lite",
+    "soulslike" => "souls-like",
+    "turnbased" => "turn-based",
+    "boomershooter" => "boomer shooter",
+    "lootershooter" => "looter shooter",
+    "twinstickshooter" => "twin-stick shooter",
+    "turnbasedcombat" => "turn-based",
+    "tacticalturnbasedcombat" => "turn-based",
+    "turnbasedrpg" => "turn-based",
+    "rtwp" => "RTwP",
+    "realtimewithpause" => "RTwP",
+    "pausablerealtimecombal" => "RTwP",
+    "dungeoncrawler" => "dungeon crawler",
+    "metroidvania" => "metroidvania",
+    "precisionplatformer" => "precision platformer",
+    "bullethell" => "bullet hell",
+    "bullettime" => "bullet hell",
+    "deckbuilder" => "deckbuilder",
+    "deckbuilding" => "deckbuilder",
+};
+
+static VISUAL_STYLE_KWS: phf::Map<&'static str, &'static str> = phf_map! {
+    "pixelart" => "pixel art",
+    "pixelgraphics" => "pixel art",
+    "handdrawn" => "hand-drawn",
+    "cartoon" => "cartoon",
+    "cartoongraphics" => "cartoon",
+    "cartoony" => "cartoon",
+    "anime" => "anime",
+    "voxel" => "voxel",
+    "fmv" => "FMV",
+    "fullmotionvideo" => "FMV",
+};
+
 static SETTING_KWS: phf::Map<&'static str, &'static str> = phf_map! {
+    "scifi" => "sci-fi",
+    "cyberpunk" => "cyberpunk",
+    "steampunk" => "steampunk",
+    "darkfantasy" => "dark fantasy",
+    "lovecraftian" => "lovecraftian",
+    "postapocalyptic" => "post-apocalyptic",
+    "dystopian" => "dystopian",
+    "heavy metal" => "heavy metal",
+
     "aliens" => "aliens",
     "alien" => "aliens",
     "vampires" => "vampires",
@@ -174,15 +219,6 @@ static SETTING_KWS: phf::Map<&'static str, &'static str> = phf_map! {
     "zombie" => "zombies",
     "mechs" => "mechs",
     "mech" => "mechs",
-
-    "scifi" => "sci-fi",
-    "cyberpunk" => "cyberpunk",
-    "steampunk" => "steampunk",
-    "darkfantasy" => "dark fantasy",
-    "postapocalyptic" => "post-apocalyptic",
-    "dystopian" => "dystopian",
-    "lovecraftian" => "lovecraftian",
-    "heavy metal" => "heavy metal",
 
     "space" => "space",
     "spacebattle" => "space",
@@ -196,61 +232,23 @@ static SETTING_KWS: phf::Map<&'static str, &'static str> = phf_map! {
 };
 
 static HISTORICAL_SETTING_KWS: phf::Map<&'static str, &'static str> = phf_map! {
-    "ancientgreece" => "ancient world",
-    "romanempire" => "ancient world",
-    "rome" => "ancient world",
-
-    "mythology" => "mythology",
-    "greekmythology" => "mythology",
-
-    "coldwar" => "cold war",
     "worldwari" => "WW1",
     "worldwariww1" => "WW1",
     "worldwarii" => "WW2",
     "worldwariiww2" => "WW2",
+    "coldwar" => "cold war",
     "modernwarfare" => "modern warefare",
     "modernmilitary" => "modern warefare",
+
+    "ancientgreece" => "ancient world",
+    "romanempire" => "ancient world",
+    "rome" => "ancient world",
+    "mythology" => "mythology",
+    "greekmythology" => "mythology",
 
     "historical" => "historical",
     "alternatehistory" => "alternate history",
     "alternativehistory" => "alternate history",
-};
-
-static GAMEPLAY_KWS: phf::Map<&'static str, &'static str> = phf_map! {
-    "roguelike" => "roguelike",
-    "roguelite" => "roguelite",
-    "turnbased" => "turn-based",
-    "turnbasedcombat" => "turn-based",
-    "tacticalturnbasedcombat" => "turn-based",
-    "turnbasedrpg" => "turn-based",
-    "rtwp" => "RTwP",
-    "realtimewithpause" => "RTwP",
-    "pausablerealtimecombal" => "RTwP",
-    "dungeoncrawler" => "dungeon crawler",
-    "boomershooter" => "boomer shooter",
-    "lootershooter" => "looter shooter",
-    "bullethell" => "bullet hell",
-    "bullettime" => "bullet hell",
-    "metroidvania" => "metroidvania",
-    "precisionplatformer" => "precision platformer",
-    "twinstickshooter" => "twin stick shooter",
-    "soulslike" => "souls-like",
-    "deckbuilder" => "deckbuilder",
-    "deckbuilding" => "deckbuilder",
-    "indie" => "indie",
-};
-
-static VISUAL_STYLE_KWS: phf::Map<&'static str, &'static str> = phf_map! {
-    "anime" => "anime",
-    "cartoon" => "cartoon",
-    "cartoongraphics" => "cartoon",
-    "cartoony" => "cartoon",
-    "handdrawn" => "hand-drawn",
-    "fmv" => "FMV",
-    "fullmotionvideo" => "FMV",
-    "pixelart" => "pixel art",
-    "pixelgraphics" => "pixel art",
-    "voxel" => "voxel",
 };
 
 static MATURE_KWS: phf::Map<&'static str, &'static str> = phf_map! {
@@ -259,9 +257,8 @@ static MATURE_KWS: phf::Map<&'static str, &'static str> = phf_map! {
     "horror" => "horror",
     "psychologicalhorror" => "psychological horror",
     "psychologicalthriller" => "psychological horror",
-    "nsfw" => "NSFW",
-    "nudity" => "nudity",
     "sexualcontent" => "sexual content",
+    "nudity" => "nudity",
     "familyfriendly" => "family friendly",
 };
 
@@ -275,8 +272,8 @@ static MULTIPLAYER_KWS: phf::Map<&'static str, &'static str> = phf_map! {
     "playervplayer" => "PvP",
 };
 
-static TRIGGER_KWS: phf::Map<&'static str, &'static str> = phf_map! {
+static WARNING_KWS: phf::Map<&'static str, &'static str> = phf_map! {
     "freetoplay" => "free-to-play",
-    "microtransaction" => "microtransaction",
     "paytoplay" => "pay-to-play",
+    "microtransaction" => "microtransaction",
 };
