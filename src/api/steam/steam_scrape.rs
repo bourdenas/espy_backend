@@ -26,14 +26,14 @@ impl SteamScrape {
         let resp = match client.get(url).send().await {
             Ok(resp) => resp,
             Err(status) => {
-                warn!("{status}");
+                warn!("Failed steam scrape request for {url}: {status}");
                 return None;
             }
         };
         let text = match resp.text().await {
             Ok(text) => text,
             Err(status) => {
-                warn!("{status}");
+                warn!("Failed to parse steam scrape response for {url}: {status}");
                 return None;
             }
         };

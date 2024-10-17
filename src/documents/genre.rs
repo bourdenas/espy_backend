@@ -97,6 +97,8 @@ pub enum EspyGenre {
     FishingSim,
     SailingSim,
     Deckbuilder,
+    Shooter,
+    RPG,
 }
 
 impl EspyGenre {

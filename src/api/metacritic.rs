@@ -16,14 +16,14 @@ impl MetacriticApi {
         let resp = match reqwest::get(&uri).await {
             Ok(resp) => resp,
             Err(status) => {
-                warn!("{status}");
+                warn!("Failed metacritic request for {slug}: {status}");
                 return None;
             }
         };
         let text = match resp.text().await {
             Ok(text) => text,
             Err(status) => {
-                warn!("{status}");
+                warn!("Failed parsing metacritic response for {slug}: {status}");
                 return None;
             }
         };
