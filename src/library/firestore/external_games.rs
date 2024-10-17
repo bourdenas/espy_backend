@@ -117,7 +117,10 @@ pub async fn delete(firestore: &FirestoreApi, store: &str, store_id: &str) -> Re
     Ok(())
 }
 
-pub async fn get_steam_id(firestore: &FirestoreApi, igdb_id: u64) -> Result<String, Status> {
+pub async fn get_steam_id(
+    firestore: &FirestoreApi,
+    igdb_id: u64,
+) -> Result<Option<String>, Status> {
     let external_games: BoxStream<FirestoreResult<ExternalGame>> = firestore
         .db()
         .fluent()
@@ -134,12 +137,10 @@ pub async fn get_steam_id(firestore: &FirestoreApi, igdb_id: u64) -> Result<Stri
         .await?;
 
     let external_games = external_games.try_collect::<Vec<ExternalGame>>().await?;
-    match external_games.is_empty() {
-        false => Ok(external_games[0].store_id.clone()),
-        true => Err(Status::not_found(format!(
-            "Steam Id for {igdb_id} was not found"
-        ))),
-    }
+    Ok(match external_games.is_empty() {
+        false => Some(external_games[0].store_id.clone()),
+        true => None,
+    })
 }
 
 pub async fn get_external_games(

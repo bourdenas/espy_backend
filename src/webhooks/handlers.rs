@@ -157,13 +157,15 @@ async fn update_steam_data(
     // Spawn a task to retrieve steam data.
     let steam_handle =
         match firestore::external_games::get_steam_id(&firestore, game_entry.id).await {
-            Ok(steam_appid) => Some(tokio::spawn(
-                async move {
-                    let steam = SteamDataApi::new();
-                    steam.retrieve_steam_data(&steam_appid).await
-                }
-                .instrument(trace_span!("spawn_steam_request")),
-            )),
+            Ok(steam_appid) => steam_appid.and_then(|steam_appid| {
+                Some(tokio::spawn(
+                    async move {
+                        let steam = SteamDataApi::new();
+                        steam.retrieve_steam_data(&steam_appid).await
+                    }
+                    .instrument(trace_span!("spawn_steam_request")),
+                ))
+            }),
             Err(status) => {
                 warn!("{status}");
                 None
