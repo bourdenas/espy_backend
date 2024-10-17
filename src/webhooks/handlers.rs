@@ -152,7 +152,7 @@ async fn update_steam_data(
     game_entry: &mut GameEntry,
     igdb_game: IgdbGame,
 ) -> Result<(), Status> {
-    game_entry.update(igdb_game);
+    game_entry.update_igdb(igdb_game);
 
     // Spawn a task to retrieve steam data.
     let steam_handle =

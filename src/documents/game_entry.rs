@@ -108,16 +108,31 @@ pub struct GameEntry {
 }
 
 impl GameEntry {
-    pub fn resolve_genres(&mut self) {
-        self.igdb_genres = self
-            .igdb_game
-            .genres
-            .iter()
-            .filter_map(|igdb_genre_id| match GENRES_BY_ID.get(&igdb_genre_id) {
-                Some(genre) => Some(*genre),
-                None => None,
-            })
-            .collect();
+    pub fn is_indie(&self) -> bool {
+        self.release_year() > 2007
+            && self
+                .igdb_genres
+                .iter()
+                .any(|genre| matches!(genre, IgdbGenreType::Indie))
+    }
+
+    pub fn is_early_access(&self) -> bool {
+        self.release_year() > 2018
+            && matches!(self.status, GameStatus::EarlyAccess)
+            && self.scores.metacritic.is_none()
+    }
+
+    pub fn is_released(&self) -> bool {
+        self.has_release_date() && self.release_date < Utc::now().naive_utc().and_utc().timestamp()
+    }
+    pub fn has_release_date(&self) -> bool {
+        self.release_date > 0
+    }
+
+    pub fn release_year(&self) -> i32 {
+        DateTime::from_timestamp(self.release_date, 0)
+            .unwrap()
+            .year()
     }
 
     pub fn get_steam_appid(&self) -> Option<String> {
@@ -145,36 +160,47 @@ impl GameEntry {
         self.gog_data = Some(gog_data);
     }
 
-    pub fn update(&mut self, igdb_game: IgdbGame) {
+    pub fn update_igdb(&mut self, igdb_game: IgdbGame) {
         self.name = igdb_game.name.clone();
         self.category = Self::extract_category(&igdb_game);
         self.status = GameStatus::from(igdb_game.status);
         self.scores.add_igdb(&igdb_game);
 
         self.igdb_game = igdb_game;
+        self.resolve_genres();
     }
 
-    pub fn release_year(&self) -> i32 {
-        DateTime::from_timestamp(self.release_date, 0)
-            .unwrap()
-            .year()
-    }
-
-    pub fn is_released(&self) -> bool {
-        self.release_date > 0 && self.release_date < Utc::now().naive_utc().and_utc().timestamp()
-    }
-
+    /// Determines the GameCategory of the GameEntry.
+    ///
+    /// The function tries to account for a common mistake in IGDB data that
+    /// entries that have a version parent are not annotated correctly as
+    /// Version.
     fn extract_category(igdb_game: &IgdbGame) -> GameCategory {
         match igdb_game.version_parent {
             Some(_) => GameCategory::Version,
             None => GameCategory::from(igdb_game.category),
         }
     }
+
+    /// Produces IGDB genre descriptions based on igdb_game genre ids.
+    ///
+    /// There are only a handful IGDB genres so the mapping is hard-coded.
+    fn resolve_genres(&mut self) {
+        self.igdb_genres = self
+            .igdb_game
+            .genres
+            .iter()
+            .filter_map(|igdb_genre_id| match GENRES_BY_ID.get(&igdb_genre_id) {
+                Some(genre) => Some(*genre),
+                None => None,
+            })
+            .collect();
+    }
 }
 
 impl From<IgdbGame> for GameEntry {
     fn from(igdb_game: IgdbGame) -> Self {
-        GameEntry {
+        let mut game_entry = GameEntry {
             id: igdb_game.id,
             name: igdb_game.name.clone(),
 
@@ -213,7 +239,9 @@ impl From<IgdbGame> for GameEntry {
             igdb_game,
 
             ..Default::default()
-        }
+        };
+        game_entry.resolve_genres();
+        game_entry
     }
 }
 

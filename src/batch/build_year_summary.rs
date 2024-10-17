@@ -7,10 +7,14 @@ use std::{
 use chrono::Utc;
 use clap::Parser;
 use espy_backend::{
+    api,
     documents::*,
-    library::firestore::{notable, year},
-    webhooks::filtering::{GameEntryClass, GameFilter},
-    *,
+    library::{
+        self,
+        firestore::{notable, year},
+    },
+    webhooks::filtering::GameFilter,
+    Tracing,
 };
 use firestore::{path, FirestoreQueryDirection, FirestoreResult};
 use futures::{stream::BoxStream, TryStreamExt};
@@ -92,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         let mut partitions = games
             .into_iter()
-            .into_group_map_by(|game| classifier.classify(&game));
+            .into_group_map_by(|game| classifier.filter(&game));
 
         for (_, digests) in &mut partitions {
             digests.sort_by(|a, b| b.scores.cmp(&a.scores))
@@ -104,57 +108,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .unwrap()
                 .as_secs(),
             releases: partitions
-                .remove(&GameEntryClass::Main)
+                .remove(&true)
                 .unwrap_or_default()
                 .into_iter()
                 .map(|game| GameDigest::from(game))
                 .collect(),
-            indies: partitions
-                .remove(&GameEntryClass::Indie)
-                .unwrap_or_default()
-                .into_iter()
-                .map(|game| GameDigest::from(game))
-                .collect(),
-            remasters: partitions
-                .remove(&GameEntryClass::Remaster)
-                .unwrap_or_default()
-                .into_iter()
-                .map(|game| GameDigest::from(game))
-                .collect(),
-            expansions: partitions
-                .remove(&GameEntryClass::Expansion)
-                .unwrap_or_default()
-                .into_iter()
-                .map(|game| GameDigest::from(game))
-                .collect(),
-            casual: partitions
-                .remove(&GameEntryClass::Casual)
-                .unwrap_or_default()
-                .into_iter()
-                .map(|game| GameDigest::from(game))
-                .collect(),
-            early_access: partitions
-                .remove(&GameEntryClass::EarlyAccess)
-                .unwrap_or_default()
-                .into_iter()
-                .map(|game| GameDigest::from(game))
-                .collect(),
-            debug: partitions
-                .remove(&GameEntryClass::Debug)
-                .unwrap_or_default()
-                .into_iter()
-                .map(|game| GameDigest::from(game))
-                .collect(),
+            // debug: partitions
+            //     .remove(&false)
+            //     .unwrap_or_default()
+            //     .into_iter()
+            //     .map(|game| GameDigest::from(game))
+            //     .collect(),
+            ..Default::default()
         };
 
         if opts.cleanup {
             println!("Cleaning up the obsolete entries...");
             let mut i = 0;
-            for game in partitions
-                .remove(&GameEntryClass::Ignore)
-                .unwrap_or_default()
-                .iter()
-            {
+            for game in partitions.remove(&false).unwrap_or_default().iter() {
                 println!(
                     "#{i} deleting {}({}) -- {}",
                     game.name,

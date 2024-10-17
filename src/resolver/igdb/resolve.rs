@@ -148,7 +148,6 @@ pub async fn resolve_game_digest(
         );
         game_entry.add_steam_data(steam_data);
     }
-    game_entry.resolve_genres();
 
     match library::firestore::genres::read(firestore, game_entry.id).await {
         Ok(genres) => game_entry.espy_genres = genres.espy_genres,
