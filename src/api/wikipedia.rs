@@ -215,12 +215,16 @@ use super::common::CompanyNormalizer;
 
 fn parse_score(input: &str) -> Option<u64> {
     lazy_static! {
-        static ref RE: Regex = Regex::new(
-            r"^(\(PC\) )?(PC: )?((?P<score>\d+\.?\d*)(%|((/|( out of ))(?P<div>\d+)))?)(( \(PC\))|\[)"
-        )
-        .unwrap();
+        static ref REF_RE: Regex = Regex::new(r"\[\d+\]").unwrap();
     }
-    let score = RE.captures(input).and_then(|cap| {
+
+    lazy_static! {
+        static ref RE: Regex =
+            Regex::new(r"(?P<score>\d+\.?\d*)(%|((/|( out of ))(?P<div>\d+)))?").unwrap();
+    }
+
+    let input = REF_RE.replace_all(input, "");
+    let score = RE.captures(&input).and_then(|cap| {
         let score = cap
             .name("score")
             .map(|score| match score.as_str().parse::<f64>() {
@@ -235,10 +239,13 @@ fn parse_score(input: &str) -> Option<u64> {
             });
 
         match (score, div) {
+            (Some(0.0), _) => None,
             (Some(score), Some(div)) => Some((score * (100.0 / div)) as u64),
             (Some(score), None) => {
                 if score < 10.0 {
                     Some((score * 10.0) as u64)
+                } else if score > 100.0 {
+                    Some((score / 10.0) as u64)
                 } else {
                     Some(score as u64)
                 }
