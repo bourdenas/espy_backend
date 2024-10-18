@@ -29,9 +29,9 @@ pub enum EspyGenre {
     WalkingSimulator,
 
     // Arcade
+    Arcade,
     Fighting,
     BeatEmUp,
-    Pinball,
     CardAndBoard,
 
     // Casual
@@ -41,7 +41,6 @@ pub enum EspyGenre {
     Puzzle,
     VisualNovel,
     Exploration,
-    EndlessRunner,
     Rhythm,
     PartyGame,
 
@@ -99,6 +98,8 @@ pub enum EspyGenre {
     Deckbuilder,
     Shooter,
     RPG,
+    EndlessRunner,
+    Pinball,
 }
 
 impl EspyGenre {
@@ -117,9 +118,9 @@ impl EspyGenre {
             "Walking Simulator" => EspyGenre::WalkingSimulator,
 
             // Arcade
+            "Arcade" => EspyGenre::Arcade,
             "Fighting" => EspyGenre::Fighting,
             "Beat'em Up" => EspyGenre::BeatEmUp,
-            "Pinball" => EspyGenre::Pinball,
             "Card & Board Game" => EspyGenre::CardAndBoard,
 
             // Casual
@@ -196,9 +197,9 @@ impl From<&str> for EspyGenre {
             "WalkingSimulator" => EspyGenre::WalkingSimulator,
 
             // Arcade
+            "Arcade" => EspyGenre::Arcade,
             "Fighting" => EspyGenre::Fighting,
             "BeatEmUp" => EspyGenre::BeatEmUp,
-            "Pinball" => EspyGenre::Pinball,
             "CardAndBoard" => EspyGenre::CardAndBoard,
 
             // Casual
