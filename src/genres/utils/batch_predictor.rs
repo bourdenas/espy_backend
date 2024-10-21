@@ -11,7 +11,7 @@ use firestore::{path, FirestoreQueryDirection, FirestoreResult};
 use futures::{stream::BoxStream, StreamExt};
 use genres::GenrePredictor;
 use library::firestore::wikipedia;
-use tracing::error;
+use tracing::{error, warn};
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
 #[derive(Parser)]
@@ -78,10 +78,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         Err(status) => panic!("{status}"),
                     };
 
-                    let espy_genres = predictor.predict(&game_entry, wiki_data).await?;
+                    let mut parent = match &game_entry.parent {
+                        Some(parent) => {
+                            match library::firestore::games::read(&firestore, parent.id).await {
+                                Ok(parent) => Some(parent),
+                                Err(Status::NotFound(_)) => {
+                                    warn!(
+                                        "Missing parent '{}' ({}) for entry '{}' ({})",
+                                        parent.name, parent.id, game_entry.name, game_entry.id
+                                    );
+                                    None
+                                }
+                                Err(status) => {
+                                    warn!(
+                                        "Failed to retrieve parent for entry '{}' ({}): {status}",
+                                        game_entry.name, game_entry.id
+                                    );
+                                    None
+                                }
+                            }
+                        }
+                        None => None,
+                    };
+                    let parent_wiki_data = match &game_entry.parent {
+                        Some(parent) => match wikipedia::read(&firestore, parent.id).await {
+                            Ok(wiki_data) => Some(wiki_data),
+                            Err(Status::NotFound(_)) => None,
+                            Err(status) => panic!("{status}"),
+                        },
+                        None => None,
+                    };
+
+                    let espy_genres = predictor
+                        .predict(&game_entry, wiki_data, parent.as_ref(), parent_wiki_data)
+                        .await?;
+
                     if !espy_genres.is_empty() {
                         println!("  predicted genres={:?}", &espy_genres);
                         game_entry.espy_genres = espy_genres.clone();
+
+                        if let Some(parent) = &mut parent {
+                            parent.espy_genres = espy_genres.clone();
+                        }
 
                         library::firestore::genres::write(
                             &firestore,
@@ -93,6 +131,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         .await?;
 
                         library::firestore::games::write(&firestore, &mut game_entry).await?;
+                        if let Some(parent) = &mut parent {
+                            library::firestore::games::write(&firestore, parent).await?;
+                        }
                     }
 
                     let finish = SystemTime::now()

@@ -23,11 +23,29 @@ impl GenrePredictor {
         &self,
         game_entry: &GameEntry,
         wiki_data: Option<WikipediaData>,
+        parent: Option<&GameEntry>,
+        parent_wiki_data: Option<WikipediaData>,
     ) -> Result<Vec<EspyGenre>, Status> {
+        let request = GenrePredictRequest::new(game_entry, wiki_data);
+        let parent_request = match parent {
+            Some(parent) => Some(GenrePredictRequest::new(parent, parent_wiki_data)),
+            None => None,
+        };
+
+        let request = match (request, parent_request) {
+            (request, Some(parent_request)) => {
+                match parent_request.signal_size() >= request.signal_size() {
+                    true => parent_request,
+                    false => request,
+                }
+            }
+            (request, None) => request,
+        };
+
         let client = reqwest::Client::new();
         let resp = client
             .post(format!("{}/genres", &self.url))
-            .json(&GenrePredictRequest::new(game_entry, wiki_data))
+            .json(&request)
             .send()
             .await?;
 
@@ -50,11 +68,29 @@ impl GenrePredictor {
         &self,
         game_entry: &GameEntry,
         wiki_data: Option<WikipediaData>,
+        parent: Option<&GameEntry>,
+        parent_wiki_data: Option<WikipediaData>,
     ) -> Result<GenreDebugInfo, Status> {
+        let request = GenrePredictRequest::new(game_entry, wiki_data);
+        let parent_request = match parent {
+            Some(parent) => Some(GenrePredictRequest::new(parent, parent_wiki_data)),
+            None => None,
+        };
+
+        let request = match (request, parent_request) {
+            (request, Some(parent_request)) => {
+                match parent_request.signal_size() >= request.signal_size() {
+                    true => parent_request,
+                    false => request,
+                }
+            }
+            (request, None) => request,
+        };
+
         let client = reqwest::Client::new();
         let resp = client
             .post(format!("{}/genres_debug", &self.url))
-            .json(&GenrePredictRequest::new(game_entry, wiki_data))
+            .json(&request)
             .send()
             .await?;
 
@@ -139,6 +175,17 @@ impl GenrePredictRequest {
                 None => game_entry.igdb_game.summary.replace("\n", " "),
             },
         }
+    }
+
+    fn signal_size(&self) -> usize {
+        self.igdb_genres.len()
+            + self.igdb_keywords.len()
+            + self.steam_genres.len()
+            + self.steam_tags.len()
+            + self.gog_genres.len()
+            + self.gog_tags.len()
+            + self.wiki_genres.len()
+            + self.wiki_tags.len()
     }
 }
 
