@@ -8,7 +8,7 @@ use crate::{
     Status,
 };
 
-use super::{endpoints, request::post, resolve::*, IgdbConnection};
+use super::{endpoints, request::post, resolve::*, IgdbConnection, IgdbLookup};
 
 #[derive(Clone)]
 pub struct IgdbApi {
@@ -23,7 +23,8 @@ impl IgdbApi {
     /// Returns an IgdbGame based on its `id`.
     #[instrument(level = "trace", skip(self))]
     pub async fn get(&self, id: u64) -> Result<IgdbGame, Status> {
-        get_game(&self.connection, id).await
+        let lookup = IgdbLookup::new(&self.connection);
+        lookup.get_game(id).await
     }
 
     /// Returns a GameDigest for an IgdbGame.

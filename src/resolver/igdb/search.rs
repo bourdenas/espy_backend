@@ -7,9 +7,9 @@ use crate::{
     Status,
 };
 use itertools::Itertools;
-use tracing::{instrument, trace_span, warn, Instrument};
+use tracing::instrument;
 
-use super::{connection::IgdbConnection, endpoints, ranking, request::post, resolve::get_cover};
+use super::{connection::IgdbConnection, endpoints, ranking, request::post};
 
 pub struct IgdbSearch {
     connection: Arc<IgdbConnection>,
@@ -38,14 +38,13 @@ impl IgdbSearch {
         Ok(candidates
             .into_iter()
             .map(|igdb_game| {
-                if let Some(game) = result
+                match result
                     .documents
                     .iter()
                     .find(|game_entry| game_entry.id == igdb_game.id)
                 {
-                    GameDigest::from(game.clone())
-                } else {
-                    GameDigest::from(GameEntry::from(igdb_game))
+                    Some(game) => GameDigest::from(game.clone()),
+                    _ => GameDigest::from(GameEntry::from(igdb_game)),
                 }
             })
             .collect_vec())
@@ -58,55 +57,6 @@ impl IgdbSearch {
             title,
             self.search(title).await?,
         ))
-    }
-
-    /// Returns candidate GameEntries by searching IGDB based on game title.
-    ///
-    /// The returned GameEntries are shallow lookups similar to
-    /// `match_by_title()`, but have their cover image resolved.
-    #[instrument(level = "trace", skip(self))]
-    pub async fn search_by_title_with_cover(
-        &self,
-        title: &str,
-        base_games_only: bool,
-    ) -> Result<Vec<GameEntry>, Status> {
-        let mut igdb_games = self.search(title).await?;
-        if base_games_only {
-            igdb_games.retain(|game| game.parent_game.is_none());
-        }
-
-        let igdb_games = ranking::sorted_by_relevance_with_threshold(title, igdb_games, 1.0);
-
-        // TODO: get covers from firestore intead of IGDB.
-        let mut handles = vec![];
-        for game in igdb_games {
-            let connection = Arc::clone(&self.connection);
-            handles.push(tokio::spawn(
-                async move {
-                    let cover = match game.cover {
-                        Some(id) => match get_cover(&connection, id).await {
-                            Ok(cover) => cover,
-                            Err(e) => {
-                                warn!("Failed to retrieve cover: {e}");
-                                None
-                            }
-                        },
-                        None => None,
-                    };
-
-                    let mut game_entry = GameEntry::from(game);
-                    game_entry.cover = cover;
-                    game_entry
-                }
-                .instrument(trace_span!("spawn_get_cover")),
-            ));
-        }
-
-        Ok(futures::future::join_all(handles)
-            .await
-            .into_iter()
-            .filter_map(|x| x.ok())
-            .collect::<Vec<_>>())
     }
 
     #[instrument(level = "trace", skip(self))]

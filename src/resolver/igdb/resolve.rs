@@ -8,8 +8,8 @@ use crate::{
     api::{CompanyNormalizer, FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
     documents::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
-        GameCategory, GameDigest, GameEntry, IgdbAnnotation, IgdbCompany, IgdbGame,
-        IgdbInvolvedCompany, IgdbWebsite, Image, ReleaseDate, SteamData, Website, WebsiteAuthority,
+        GameCategory, GameDigest, GameEntry, IgdbGame, IgdbInvolvedCompany, SteamData, Website,
+        WebsiteAuthority,
     },
     library, Status,
 };
@@ -17,7 +17,7 @@ use async_recursion::async_recursion;
 use itertools::Itertools;
 use tracing::{error, instrument, trace_span, warn, Instrument};
 
-use super::{endpoints, request::post, IgdbConnection};
+use super::{endpoints, request::post, IgdbConnection, IgdbLookup};
 
 /// Returns a GameEntry from IGDB that can build the GameDigest doc.
 ///
@@ -74,7 +74,8 @@ pub async fn resolve_game_digest(
     );
 
     if let Some(cover) = igdb_game.cover {
-        game_entry.cover = get_cover(connection, cover).await?;
+        let lookup = IgdbLookup::new(connection);
+        game_entry.cover = lookup.get_cover(cover).await?;
     }
 
     let mut collections = [
@@ -285,8 +286,9 @@ pub async fn resolve_game_info(
         game_entry.keywords = get_keywords(firestore, &igdb_game.keywords).await?;
     }
 
+    let lookup = IgdbLookup::new(connection);
     if igdb_game.websites.len() > 0 {
-        if let Ok(websites) = get_websites(connection, &igdb_game.websites).await {
+        if let Ok(websites) = lookup.get_websites(&igdb_game.websites).await {
             game_entry.websites.extend(
                 websites
                     .into_iter()
@@ -312,12 +314,12 @@ pub async fn resolve_game_info(
 
     // Skip screenshots if they already exist from steam data.
     if !igdb_game.screenshots.is_empty() && game_entry.steam_data.is_none() {
-        if let Ok(screenshots) = get_screenshots(connection, &igdb_game.screenshots).await {
+        if let Ok(screenshots) = lookup.get_screenshots(&igdb_game.screenshots).await {
             game_entry.screenshots = screenshots;
         }
     }
     if !igdb_game.artworks.is_empty() {
-        if let Ok(artwork) = get_artwork(connection, &igdb_game.artworks).await {
+        if let Ok(artwork) = lookup.get_artwork(&igdb_game.artworks).await {
             game_entry.artwork = artwork;
         }
     }
@@ -407,34 +409,6 @@ async fn get_bundle_games_ids(
     .await
 }
 
-/// Returns game image cover based on id from the igdb/covers endpoint.
-#[instrument(level = "trace", skip(connection))]
-pub async fn get_cover(connection: &IgdbConnection, id: u64) -> Result<Option<Image>, Status> {
-    let result: Vec<Image> = post(
-        connection,
-        endpoints::COVERS,
-        &format!("fields *; where id={id};"),
-    )
-    .await?;
-
-    Ok(result.into_iter().next())
-}
-
-#[instrument(level = "trace", skip(connection))]
-pub async fn get_company_logo(
-    connection: &IgdbConnection,
-    id: u64,
-) -> Result<Option<Image>, Status> {
-    let result: Vec<Image> = post(
-        connection,
-        endpoints::COVERS,
-        &format!("fields *; where id={id};"),
-    )
-    .await?;
-
-    Ok(result.into_iter().next())
-}
-
 #[instrument(level = "trace", skip(connection, firestore))]
 async fn get_digest(
     connection: &IgdbConnection,
@@ -446,7 +420,8 @@ async fn get_digest(
         Err(_) => {}
     }
 
-    let igdb_game = get_game(connection, id).await?;
+    let lookup = IgdbLookup::new(connection);
+    let igdb_game = lookup.get_game(id).await?;
     Ok(GameDigest::from(
         resolve_game_digest(connection, firestore, igdb_game).await?,
     ))
@@ -465,8 +440,9 @@ async fn get_digests(
         .map(|entry| GameDigest::from(entry))
         .collect_vec();
 
+    let lookup = IgdbLookup::new(connection);
     if !result.not_found.is_empty() {
-        let games = get_games(connection, &result.not_found).await?;
+        let games = lookup.get_games(&result.not_found).await?;
         for igdb_game in games {
             digests.push(GameDigest::from(
                 resolve_game_digest(connection, firestore, igdb_game).await?,
@@ -476,101 +452,11 @@ async fn get_digests(
     Ok(digests)
 }
 
-/// Returns an IgdbGame doc from IGDB for given game `id`.
-///
-/// Does not perform any lookups on tables beyond Game.
-#[instrument(level = "trace", skip(connection))]
-pub async fn get_game(connection: &IgdbConnection, id: u64) -> Result<IgdbGame, Status> {
-    let result: Vec<IgdbGame> = post(
-        connection,
-        endpoints::GAMES,
-        &format!("fields *; where id={id};"),
-    )
-    .await?;
-
-    match result.into_iter().next() {
-        Some(igdb_game) => Ok(igdb_game),
-        None => Err(Status::not_found(format!(
-            "Failed to retrieve game with id={id}"
-        ))),
-    }
-}
-
-#[instrument(level = "trace", skip(connection))]
-async fn get_games(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<IgdbGame>, Status> {
-    post::<Vec<IgdbGame>>(
-        connection,
-        endpoints::GAMES,
-        &format!(
-            "fields *; where id = ({});",
-            ids.into_iter()
-                .map(|id| id.to_string())
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
-    )
-    .await
-}
-
 /// Returns game keywords from their ids.
 #[instrument(level = "trace", skip(firestore))]
 async fn get_keywords(firestore: &FirestoreApi, ids: &[u64]) -> Result<Vec<String>, Status> {
     let result = library::firestore::keywords::batch_read(firestore, ids).await?;
     Ok(result.documents.into_iter().map(|kw| kw.name).collect())
-}
-
-/// Returns game screenshots based on id from the igdb/screenshots endpoint.
-#[instrument(level = "trace", skip(connection))]
-async fn get_artwork(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<Image>, Status> {
-    Ok(post(
-        connection,
-        endpoints::ARTWORKS,
-        &format!(
-            "fields *; where id = ({});",
-            ids.iter()
-                .map(|id| id.to_string())
-                .collect::<Vec<String>>()
-                .join(",")
-        ),
-    )
-    .await?)
-}
-
-/// Returns game screenshots based on id from the igdb/screenshots endpoint.
-#[instrument(level = "trace", skip(connection))]
-async fn get_screenshots(connection: &IgdbConnection, ids: &[u64]) -> Result<Vec<Image>, Status> {
-    Ok(post(
-        &connection,
-        endpoints::SCREENSHOTS,
-        &format!(
-            "fields *; where id = ({});",
-            ids.iter()
-                .map(|id| id.to_string())
-                .collect::<Vec<String>>()
-                .join(",")
-        ),
-    )
-    .await?)
-}
-
-/// Returns game websites based on id from the igdb/websites endpoint.
-#[instrument(level = "trace", skip(connection))]
-async fn get_websites(
-    connection: &IgdbConnection,
-    ids: &[u64],
-) -> Result<Vec<IgdbWebsite>, Status> {
-    Ok(post(
-        &connection,
-        endpoints::WEBSITES,
-        &format!(
-            "fields *; where id = ({});",
-            ids.iter()
-                .map(|id| id.to_string())
-                .collect::<Vec<String>>()
-                .join(",")
-        ),
-    )
-    .await?)
 }
 
 /// Returns game collection based on id from the igdb/collections endpoint.
@@ -592,29 +478,19 @@ async fn get_collections(
         })
         .collect_vec();
 
+    let lookup = IgdbLookup::new(connection);
     if !result.not_found.is_empty() {
         collections.extend(
-            post::<Vec<IgdbAnnotation>>(
-                connection,
-                endpoints::COLLECTIONS,
-                &format!(
-                    "fields *; where id = ({});",
-                    result
-                        .not_found
-                        .iter()
-                        .map(|id| id.to_string())
-                        .collect::<Vec<_>>()
-                        .join(",")
-                ),
-            )
-            .await?
-            .into_iter()
-            .map(|e| CollectionDigest {
-                id: e.id,
-                name: e.name,
-                slug: e.slug,
-                igdb_type: CollectionType::Collection,
-            }),
+            lookup
+                .get_collections(&result.not_found)
+                .await?
+                .into_iter()
+                .map(|e| CollectionDigest {
+                    id: e.id,
+                    name: e.name,
+                    slug: e.slug,
+                    igdb_type: CollectionType::Collection,
+                }),
         );
     }
 
@@ -640,29 +516,19 @@ async fn get_franchises(
         })
         .collect_vec();
 
+    let lookup = IgdbLookup::new(connection);
     if !result.not_found.is_empty() {
         franchises.extend(
-            post::<Vec<IgdbAnnotation>>(
-                connection,
-                endpoints::FRANCHISES,
-                &format!(
-                    "fields *; where id = ({});",
-                    result
-                        .not_found
-                        .iter()
-                        .map(|id| id.to_string())
-                        .collect::<Vec<String>>()
-                        .join(",")
-                ),
-            )
-            .await?
-            .into_iter()
-            .map(|e| CollectionDigest {
-                id: e.id,
-                name: e.name,
-                slug: e.slug,
-                igdb_type: CollectionType::Franchise,
-            }),
+            lookup
+                .get_franchises(&result.not_found)
+                .await?
+                .into_iter()
+                .map(|e| CollectionDigest {
+                    id: e.id,
+                    name: e.name,
+                    slug: e.slug,
+                    igdb_type: CollectionType::Franchise,
+                }),
         );
     }
 
@@ -695,19 +561,8 @@ async fn get_involved_companies(
     firestore: &FirestoreApi,
     ids: &[u64],
 ) -> Result<Vec<CompanyDigest>, Status> {
-    // Collect all involved companies for a game entry.
-    let involved_companies: Vec<IgdbInvolvedCompany> = post(
-        &connection,
-        endpoints::INVOLVED_COMPANIES,
-        &format!(
-            "fields *; where id = ({});",
-            ids.iter()
-                .map(|id| id.to_string())
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
-    )
-    .await?;
+    let lookup = IgdbLookup::new(connection);
+    let involved_companies = lookup.get_involved_companies(ids).await?;
 
     let involved = HashMap::<u64, CompanyRole>::from_iter(
         involved_companies
@@ -732,8 +587,6 @@ async fn get_involved_companies(
         .into_iter()
         .map(|company_doc| CompanyDigest {
             id: company_doc.id,
-            // TODO: Change the source to `company_doc.slug` when "/companies"
-            // collection get updated with the new slug definition.
             slug: CompanyNormalizer::slug(&company_doc.name),
             name: company_doc.name,
             role: involved[&company_doc.id],
@@ -742,27 +595,16 @@ async fn get_involved_companies(
 
     if !result.not_found.is_empty() {
         companies.extend(
-            post::<Vec<IgdbCompany>>(
-                &connection,
-                endpoints::COMPANIES,
-                &format!(
-                    "fields *; where id = ({});",
-                    result
-                        .not_found
-                        .into_iter()
-                        .map(|id| id.to_string())
-                        .collect_vec()
-                        .join(",")
-                ),
-            )
-            .await?
-            .into_iter()
-            .map(|igdb_company| CompanyDigest {
-                id: igdb_company.id,
-                slug: CompanyNormalizer::slug(&igdb_company.name),
-                name: igdb_company.name,
-                role: involved[&igdb_company.id],
-            }),
+            lookup
+                .get_companies(&result.not_found)
+                .await?
+                .into_iter()
+                .map(|igdb_company| CompanyDigest {
+                    id: igdb_company.id,
+                    slug: CompanyNormalizer::slug(&igdb_company.name),
+                    name: igdb_company.name,
+                    role: involved[&igdb_company.id],
+                }),
         );
     }
 
@@ -777,23 +619,9 @@ async fn get_release_timestamp(
     igdb_game: &IgdbGame,
     steam_data: &Option<SteamData>,
 ) -> Result<Option<i64>, Status> {
+    let lookup = IgdbLookup::new(connection);
     let mut release_dates = match igdb_game.release_dates.is_empty() {
-        false => {
-            post::<Vec<ReleaseDate>>(
-                connection,
-                endpoints::RELEASE_DATES,
-                &format!(
-                    "fields category, date, status.name; where id = ({});",
-                    igdb_game
-                        .release_dates
-                        .iter()
-                        .map(|id| id.to_string())
-                        .collect::<Vec<String>>()
-                        .join(",")
-                ),
-            )
-            .await?
-        }
+        false => lookup.get_release_dates(&igdb_game.release_dates).await?,
         true => vec![],
     };
 
