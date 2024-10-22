@@ -16,6 +16,17 @@ impl std::fmt::Display for Search {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct CompanyFetch {
+    pub name: String,
+}
+
+impl std::fmt::Display for CompanyFetch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Resolve {
     pub game_id: u64,
 }

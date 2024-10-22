@@ -1,5 +1,6 @@
+use firestore::{path, FirestoreResult};
 use futures::{stream::BoxStream, StreamExt};
-use tracing::instrument;
+use tracing::{error, instrument};
 
 use crate::{api::FirestoreApi, documents::Company, Status};
 
@@ -34,6 +35,28 @@ pub async fn batch_read(
 #[instrument(name = "companies::read", level = "trace", skip(firestore))]
 pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<Company, Status> {
     utils::read(firestore, COMPANIES, doc_id.to_string()).await
+}
+
+#[instrument(name = "companies::read", level = "trace", skip(firestore))]
+pub async fn fetch(firestore: &FirestoreApi, slug: &str) -> Result<Vec<Company>, Status> {
+    let mut companies: BoxStream<FirestoreResult<Company>> = firestore
+        .db()
+        .fluent()
+        .select()
+        .from(COMPANIES)
+        .filter(|q| q.for_all([q.field(path!(Company::slug)).equal(slug)]))
+        .obj()
+        .stream_query_with_errors()
+        .await?;
+
+    let mut result = vec![];
+    while let Some(company) = companies.next().await {
+        match company {
+            Ok(company) => result.push(company),
+            Err(err) => error!("{err}"),
+        }
+    }
+    Ok(result)
 }
 
 #[instrument(

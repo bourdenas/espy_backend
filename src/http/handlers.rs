@@ -1,5 +1,5 @@
 use crate::{
-    api::FirestoreApi,
+    api::{CompanyNormalizer, FirestoreApi},
     documents::GameEntry,
     http::models,
     library::{self, LibraryManager, User},
@@ -38,6 +38,26 @@ pub async fn post_search(
         Err(status) => {
             event.log_error(status);
             Ok(Box::new(StatusCode::NOT_FOUND))
+        }
+    }
+}
+
+#[instrument(level = "trace", skip(firestore))]
+pub async fn post_company_fetch(
+    company_fetch: models::CompanyFetch,
+    firestore: Arc<FirestoreApi>,
+) -> Result<Box<dyn warp::Reply>, Infallible> {
+    let event = CompanyFetchEvent::new(company_fetch.clone());
+
+    let slug = CompanyNormalizer::slug(&company_fetch.name);
+    match library::firestore::companies::fetch(&firestore, &slug).await {
+        Ok(companies) => {
+            event.log(&slug, &companies);
+            Ok(Box::new(warp::reply::json(&companies)))
+        }
+        Err(status) => {
+            event.log_error(status);
+            Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR))
         }
     }
 }

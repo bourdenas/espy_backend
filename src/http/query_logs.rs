@@ -3,7 +3,7 @@ use std::time::SystemTime;
 use tracing::{error, info};
 
 use crate::{
-    documents::{GameDigest, GameEntry},
+    documents::{Company, GameDigest, GameEntry},
     Status,
 };
 
@@ -57,6 +57,54 @@ impl SearchEvent {
     }
 }
 
+pub struct CompanyFetchEvent {
+    request: models::CompanyFetch,
+    start: SystemTime,
+}
+
+impl CompanyFetchEvent {
+    pub fn new(request: models::CompanyFetch) -> Self {
+        Self {
+            request,
+            start: SystemTime::now(),
+        }
+    }
+
+    pub fn log(self, slug: &str, response: &[Company]) {
+        info!(
+            http_request.request_method = "POST",
+            http_request.request_url = "/company_fetch",
+            labels.log_type = QUERY_LOGS,
+            labels.handler = COMPANY_FETCH_HANDLER,
+            request.title = self.request.name,
+            response.slug = slug,
+            response.companies = response.len(),
+            search.latency = SystemTime::now()
+                .duration_since(self.start)
+                .unwrap()
+                .as_millis(),
+            "company_fetch '{}'",
+            self.request.name
+        )
+    }
+
+    pub fn log_error(self, status: Status) {
+        error!(
+            http_request.request_method = "POST",
+            http_request.request_url = "/company_fetch",
+            labels.log_type = QUERY_LOGS,
+            labels.handler = COMPANY_FETCH_HANDLER,
+            labels.status = status.to_string(),
+            request.title = self.request.name,
+            search.latency = SystemTime::now()
+                .duration_since(self.start)
+                .unwrap()
+                .as_millis(),
+            "company_fetch '{}' failed",
+            self.request.name
+        )
+    }
+}
 pub struct ResolveEvent {
     request: models::Resolve,
     start: SystemTime,
@@ -386,6 +434,7 @@ impl SyncEvent {
 
 const QUERY_LOGS: &str = "query_logs";
 const SEARCH_HANDLER: &str = "search";
+const COMPANY_FETCH_HANDLER: &str = "company_fetch";
 const RESOLVE_HANDLER: &str = "resolve";
 const UPDATE_HANDLER: &str = "update";
 const MATCH_HANDLER: &str = "match";

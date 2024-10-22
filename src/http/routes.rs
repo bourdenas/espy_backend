@@ -13,6 +13,7 @@ pub fn routes(
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     home()
         .or(post_search(Arc::clone(&resolver)))
+        .or(post_company_fetch(Arc::clone(&firestore)))
         .or(post_resolve(Arc::clone(&firestore), Arc::clone(&resolver)))
         .or(post_delete(Arc::clone(&firestore)))
         .or(post_match(Arc::clone(&firestore), Arc::clone(&resolver)))
@@ -45,6 +46,17 @@ fn post_search(
         .and(json_body::<models::Search>())
         .and(with_resolver(resolver))
         .and_then(handlers::post_search)
+}
+
+/// POST /company
+fn post_company_fetch(
+    firestore: Arc<FirestoreApi>,
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+    warp::path!("company_fetch")
+        .and(warp::post())
+        .and(json_body::<models::CompanyFetch>())
+        .and(with_firestore(firestore))
+        .and_then(handlers::post_company_fetch)
 }
 
 /// POST /resolve
