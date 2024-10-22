@@ -7,7 +7,9 @@ use clap::Parser;
 use espy_backend::{
     api::{CompanyNormalizer, FirestoreApi},
     documents::{Company, GameDigest},
-    library, Tracing,
+    library,
+    resolver::{IgdbConnection, IgdbLookup},
+    util, Tracing,
 };
 use firestore::{struct_path::path, FirestoreQueryDirection, FirestoreResult};
 use futures::{stream::BoxStream, StreamExt};
@@ -19,6 +21,10 @@ use tracing::{error, warn};
 struct Opts {
     #[clap(long, default_value = "0")]
     cursor: u64,
+
+    /// JSON file that contains application keys for espy service.
+    #[clap(long, default_value = "keys.json")]
+    key_store: String,
 }
 
 #[tokio::main]
@@ -27,6 +33,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let opts: Opts = Opts::parse();
     let mut cursor = opts.cursor;
+
+    let keys = util::keys::Keys::from_file(&opts.key_store).unwrap();
+    let connection = IgdbConnection::new(&keys.igdb.client_id, &keys.igdb.secret).await?;
+    let lookup = IgdbLookup::new(&connection);
 
     let mut i = 0;
     while i % BATCH_SIZE == 0 {
@@ -50,13 +60,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 Ok(mut company) => {
                     cursor = company.id;
 
+                    let start = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis();
+
+                    let igdb_company = lookup
+                        .get_companies(&vec![company.id])
+                        .await?
+                        .first()
+                        .unwrap()
+                        .clone();
+                    company.description = igdb_company.description.clone();
+                    if let Some(logo) = igdb_company.logo {
+                        company.logo = lookup.get_company_logo(logo).await?;
+                    }
                     company.slug = CompanyNormalizer::slug(&company.name);
+
                     company
                         .developed
                         .retain(|digest| digest.category.is_main_category());
+                    company.developed.sort_by(|l, r| l.id.cmp(&r.id));
+                    company.developed.dedup_by_key(|e| e.id);
+
                     company
                         .published
                         .retain(|digest| digest.category.is_main_category());
+                    company.published.sort_by(|l, r| l.id.cmp(&r.id));
+                    company.published.dedup_by_key(|e| e.id);
 
                     println!(
                         "#{i} -- {} -- id={} -- developed {} games -- published {} games)",
@@ -69,11 +100,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     if company.developed.len() + company.published.len() == 0 {
                         tbd.push(company.clone());
                     }
-
-                    let start = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_millis();
 
                     let mut developed_games = vec![];
                     if !company.developed.is_empty() {
@@ -137,7 +163,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         id: company.id,
                         slug: CompanyNormalizer::slug(&company.name),
                         name: company.name,
-                        logo: String::new(),
+                        description: company.description,
+                        logo: company.logo,
                         developed: developed_games
                             .into_iter()
                             .map(|e| GameDigest::from(e).compact())

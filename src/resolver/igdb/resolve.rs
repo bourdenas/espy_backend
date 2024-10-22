@@ -723,8 +723,8 @@ async fn update_companies(firestore: &FirestoreApi, game_entry: &GameEntry) {
                 id: company_digest.id,
                 name: company_digest.name.clone(),
                 slug: company_digest.slug.clone(),
-                logo: String::default(),
                 description: String::default(),
+                logo: None,
                 developed: match company_digest.role {
                     CompanyRole::Developer | CompanyRole::DevPub => {
                         vec![GameDigest::from(game_entry.clone()).compact()]

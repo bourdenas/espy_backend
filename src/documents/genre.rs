@@ -99,7 +99,10 @@ pub enum EspyGenre {
     Shooter,
     RPG,
     EndlessRunner,
+    Simulator,
     Pinball,
+    Adventure,
+    Indie,
 }
 
 impl EspyGenre {

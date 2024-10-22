@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::GameDigest;
+use super::{GameDigest, Image};
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Company {
@@ -13,10 +13,12 @@ pub struct Company {
     pub slug: String,
 
     #[serde(default)]
-    pub logo: String,
+    pub description: String,
 
     #[serde(default)]
-    pub description: String,
+    #[serde(skip_deserializing)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logo: Option<Image>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]

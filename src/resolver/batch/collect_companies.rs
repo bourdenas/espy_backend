@@ -92,7 +92,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 id: igdb_company.id,
                 slug: CompanyNormalizer::slug(&igdb_company.name),
                 name: igdb_company.name,
-                logo: String::default(),
+                logo: None,
                 description: igdb_company.description,
                 developed: vec![],
                 published: vec![],
