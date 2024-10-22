@@ -1,6 +1,7 @@
 pub const ARTWORKS: &str = "artworks";
 pub const COLLECTIONS: &str = "collections";
 pub const COMPANIES: &str = "companies";
+pub const COMPANY_LOGOS: &str = "company_logos";
 pub const COVERS: &str = "covers";
 pub const EXTERNAL_GAMES: &str = "external_games";
 pub const FRANCHISES: &str = "franchises";

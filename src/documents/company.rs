@@ -16,6 +16,9 @@ pub struct Company {
     pub logo: String,
 
     #[serde(default)]
+    pub description: String,
+
+    #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub developed: Vec<GameDigest>,
 

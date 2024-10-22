@@ -420,6 +420,21 @@ pub async fn get_cover(connection: &IgdbConnection, id: u64) -> Result<Option<Im
     Ok(result.into_iter().next())
 }
 
+#[instrument(level = "trace", skip(connection))]
+pub async fn get_company_logo(
+    connection: &IgdbConnection,
+    id: u64,
+) -> Result<Option<Image>, Status> {
+    let result: Vec<Image> = post(
+        connection,
+        endpoints::COVERS,
+        &format!("fields *; where id={id};"),
+    )
+    .await?;
+
+    Ok(result.into_iter().next())
+}
+
 #[instrument(level = "trace", skip(connection, firestore))]
 async fn get_digest(
     connection: &IgdbConnection,
@@ -881,6 +896,7 @@ async fn update_companies(firestore: &FirestoreApi, game_entry: &GameEntry) {
                 name: company_digest.name.clone(),
                 slug: company_digest.slug.clone(),
                 logo: String::default(),
+                description: String::default(),
                 developed: match company_digest.role {
                     CompanyRole::Developer | CompanyRole::DevPub => {
                         vec![GameDigest::from(game_entry.clone()).compact()]
