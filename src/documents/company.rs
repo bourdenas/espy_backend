@@ -16,7 +16,6 @@ pub struct Company {
     pub description: String,
 
     #[serde(default)]
-    #[serde(skip_deserializing)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub logo: Option<Image>,
 
