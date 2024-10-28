@@ -224,11 +224,14 @@ async fn build_frontpage(
     let today = Utc::now();
 
     let games = future.iter().chain(past.iter()).filter(|game_entry| {
-        let release_date = DateTime::from_timestamp(game_entry.release_date, 0).unwrap();
-        let diff = today.signed_duration_since(release_date);
+        let diff = DateTime::from_timestamp(game_entry.release_date, 0)
+            .unwrap()
+            .signed_duration_since(today);
         diff.num_days().abs() <= 30
     });
 
+    // Returns a tuple of two strings that represent date and year of the
+    // GameEntry's release.
     let release_group = |entry: &GameEntry| -> (String, String) {
         let release_date = DateTime::from_timestamp(entry.release_date, 0).unwrap();
         (
@@ -237,7 +240,7 @@ async fn build_frontpage(
         )
     };
 
-    let releases = games
+    let timeline = games
         .into_iter()
         .chunk_by(|entry| release_group(entry))
         .into_iter()
@@ -259,20 +262,65 @@ async fn build_frontpage(
         .unwrap()
         .as_secs();
 
+    let today_label = today.format("%-d %b").to_string();
+    let today_releases = match timeline.iter().find(|event| event.label == today_label) {
+        Some(event) => event.games.clone(),
+        None => vec![],
+    };
+
+    let upcoming_releases = future
+        .iter()
+        .filter(|game_entry| {
+            let diff = DateTime::from_timestamp(game_entry.release_date, 0)
+                .unwrap()
+                .signed_duration_since(today);
+            diff.num_days().abs() <= 30
+        })
+        .map(|game| GameDigest::from(game.clone()))
+        .sorted_by(|a, b| b.scores.cmp(&a.scores))
+        .collect();
+
+    let recent_releases = past
+        .iter()
+        .filter(|game_entry| {
+            let diff = DateTime::from_timestamp(game_entry.release_date, 0)
+                .unwrap()
+                .signed_duration_since(today);
+            diff.num_days().abs() <= 30
+        })
+        .filter(|game| {
+            game.scores.metacritic.is_some() || game.scores.popularity.unwrap_or_default() > 1000
+        })
+        .map(|game| GameDigest::from(game.clone()))
+        .sorted_by(|a, b| b.scores.cmp(&a.scores))
+        .collect();
+
+    let hyped = future
+        .iter()
+        .filter(|game| game.has_release_date())
+        .sorted_by(|a, b| b.scores.hype.cmp(&a.scores.hype))
+        .take(20)
+        .map(|game| GameDigest::from(game.clone()))
+        .collect();
+
     let frontpage = Frontpage {
         last_updated: now,
-        releases,
-        today: vec![],
-        recent: vec![],
-        upcoming: vec![],
-        new: vec![],
-        hyped: vec![],
+        timeline,
+        today_releases,
+        upcoming_releases,
+        recent_releases,
+        recent_release_dates: vec![],
+        recent_announcements: vec![],
+        hyped,
     };
 
     frontpage::write(&firestore, &frontpage).await?;
 
     let serialized = serde_json::to_string(&frontpage)?;
-    info!("created timeline size: {}KB", serialized.len() / 1024);
+    info!(
+        "created frontpage document size: {}KB",
+        serialized.len() / 1024
+    );
 
     Ok(())
 }
@@ -364,7 +412,10 @@ async fn build_timeline(
     timeline::write(&firestore, &timeline).await?;
 
     let serialized = serde_json::to_string(&timeline)?;
-    info!("created timeline size: {}KB", serialized.len() / 1024);
+    info!(
+        "created timeline document size: {}KB",
+        serialized.len() / 1024
+    );
 
     Ok(())
 }
