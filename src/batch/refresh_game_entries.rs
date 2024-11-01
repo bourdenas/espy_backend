@@ -3,6 +3,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use api::FirestoreApi;
 use chrono::DateTime;
 use clap::Parser;
 use espy_backend::{documents::GameEntry, *};
@@ -23,6 +24,9 @@ struct Opts {
 
     #[clap(long, default_value = "0")]
     cursor: u64,
+
+    #[clap(long)]
+    id: Option<u64>,
 }
 
 #[tokio::main]
@@ -31,6 +35,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let opts: Opts = Opts::parse();
     let resolver = ResolveApi::new(opts.resolver_backend);
+
+    if let Some(id) = opts.id {
+        let firestore = api::FirestoreApi::connect().await?;
+        if let Err(status) = refresh_game(id, &resolver, &firestore).await {
+            error!("{status}");
+        }
+        return Ok(());
+    }
 
     let mut cursor = match opts.cursor {
         0 => SystemTime::now()
@@ -83,7 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         .unwrap()
                         .as_millis();
 
-                    if let Err(status) = refresh_game(game_entry, &resolver).await {
+                    if let Err(status) = refresh_game(game_entry.id, &resolver, &firestore).await {
                         error!("{status}");
                     }
 
@@ -104,10 +116,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 #[instrument(
     level = "info",
-    skip(game_entry, resolver),
+    skip(resolver, firestore),
     fields(event_span = "resolve_event")
 )]
-async fn refresh_game(game_entry: GameEntry, resolver: &ResolveApi) -> Result<(), Status> {
-    resolver.retrieve(game_entry.id).await?;
+async fn refresh_game(
+    id: u64,
+    resolver: &ResolveApi,
+    firestore: &FirestoreApi,
+) -> Result<(), Status> {
+    let mut game_entry = resolver.retrieve(id).await?;
+    library::firestore::games::write(firestore, &mut game_entry).await?;
     Ok(())
 }
