@@ -274,7 +274,7 @@ async fn build_frontpage(
             let diff = DateTime::from_timestamp(game_entry.release_date, 0)
                 .unwrap()
                 .signed_duration_since(today);
-            diff.num_days().abs() <= 30
+            diff.num_days().abs() > 0 && diff.num_days().abs() <= 30
         })
         .map(|game| GameDigest::from(game.clone()))
         .sorted_by(|a, b| b.scores.cmp(&a.scores))
@@ -286,7 +286,7 @@ async fn build_frontpage(
             let diff = DateTime::from_timestamp(game_entry.release_date, 0)
                 .unwrap()
                 .signed_duration_since(today);
-            diff.num_days().abs() <= 30
+            diff.num_days().abs() > 0 && diff.num_days().abs() <= 30
         })
         .filter(|game| {
             game.scores.metacritic.is_some() || game.scores.popularity.unwrap_or_default() > 1000
@@ -297,7 +297,12 @@ async fn build_frontpage(
 
     let hyped = future
         .iter()
-        .filter(|game| game.has_release_date())
+        .filter(|game_entry| {
+            let diff = DateTime::from_timestamp(game_entry.release_date, 0)
+                .unwrap()
+                .signed_duration_since(today);
+            diff.num_days().abs() > 0 && game_entry.has_release_date()
+        })
         .sorted_by(|a, b| b.scores.hype.cmp(&a.scores.hype))
         .take(20)
         .map(|game| GameDigest::from(game.clone()))
