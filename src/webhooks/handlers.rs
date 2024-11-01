@@ -50,7 +50,7 @@ async fn handle_add_game(
 ) {
     match resolver.resolve(igdb_game).await {
         Ok(mut game_entry) => {
-            if !game_filter.filter(&game_entry) {
+            if !game_filter.apply(&game_entry) {
                 log_event.log_reject(game_filter.explain(&game_entry));
             } else if let Err(status) = firestore::games::write(&firestore, &mut game_entry).await {
                 log_event.log_error(status);

@@ -92,11 +92,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         println!("Retained {} titles.", games.len());
 
         let notable = notable::read(&firestore).await?;
-        let classifier = GameFilter::new(notable);
+        let filter = GameFilter::new(notable);
 
-        let mut partitions = games
-            .into_iter()
-            .into_group_map_by(|game| classifier.filter(&game));
+        #[derive(Hash, PartialEq, Eq, Debug)]
+        enum Partition {
+            Releases,
+            BelowFold,
+            Debug,
+        }
+
+        let mut partitions = games.into_iter().into_group_map_by(|game| {
+            if filter.apply(&game) {
+                if !is_below_fold(game, &filter) {
+                    Partition::Releases
+                } else if let Some(parent) = &game.parent {
+                    if !is_parent_below_fold(&parent, &filter) {
+                        Partition::Releases
+                    } else {
+                        Partition::BelowFold
+                    }
+                } else {
+                    Partition::BelowFold
+                }
+            } else {
+                Partition::Debug
+            }
+        });
 
         for (_, digests) in &mut partitions {
             digests.sort_by(|a, b| b.scores.cmp(&a.scores))
@@ -108,7 +129,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .unwrap()
                 .as_secs(),
             releases: partitions
-                .remove(&true)
+                .remove(&Partition::Releases)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|game| GameDigest::from(game))
+                .collect(),
+            below_fold: partitions
+                .remove(&Partition::BelowFold)
                 .unwrap_or_default()
                 .into_iter()
                 .map(|game| GameDigest::from(game))
@@ -125,12 +152,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if opts.cleanup {
             println!("Cleaning up the obsolete entries...");
             let mut i = 0;
-            for game in partitions.remove(&false).unwrap_or_default().iter() {
+            for game in partitions
+                .remove(&Partition::Debug)
+                .unwrap_or_default()
+                .iter()
+            {
                 println!(
                     "#{i} deleting {}({}) -- {}",
                     game.name,
                     game.id,
-                    classifier.explain(&game)
+                    filter.explain(&game)
                 );
                 i += 1;
                 library::firestore::games::delete(&firestore, game.id).await?;
@@ -147,4 +178,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     Ok(())
+}
+
+fn is_below_fold(game: &GameEntry, filter: &GameFilter) -> bool {
+    matches!(game.status, GameStatus::Cancelled)
+        || (game.release_year() >= 2000
+            && game.scores.espy_score.is_none()
+            && game.scores.popularity.unwrap_or_default() < 1000
+            && !filter.is_notable(&game))
+}
+
+fn is_parent_below_fold(game: &GameDigest, filter: &GameFilter) -> bool {
+    game.release_year() >= 2000
+        && game.scores.espy_score.is_none()
+        && game.scores.popularity.unwrap_or_default() < 1000
+        && !filter.is_notable(&GameEntry {
+            developers: game
+                .developers
+                .iter()
+                .map(|c| CompanyDigest {
+                    name: c.clone(),
+                    ..Default::default()
+                })
+                .collect(),
+            publishers: game
+                .publishers
+                .iter()
+                .map(|c| CompanyDigest {
+                    name: c.clone(),
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        })
 }

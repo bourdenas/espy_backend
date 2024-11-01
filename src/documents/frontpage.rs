@@ -9,30 +9,35 @@ pub struct Frontpage {
     pub last_updated: u64,
 
     // Subset of recent/upcoming releases of the timeline that is included
-    // directly in the frontpage.
+    // directly in the frontpage. Games released last or next 30 days.
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub releases: Vec<ReleaseEvent>,
+    pub timeline: Vec<ReleaseEvent>,
 
     // Games released today.
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub today: Vec<GameDigest>,
-
-    // Games released in the past X weeks.
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub recent: Vec<GameDigest>,
+    pub today_releases: Vec<GameDigest>,
 
     // Games released in the next X weeks.
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub upcoming: Vec<GameDigest>,
+    pub upcoming_releases: Vec<GameDigest>,
 
-    // Future games that added or got release date recently.
+    // Games released in the past X weeks.
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub new: Vec<GameDigest>,
+    pub recent_releases: Vec<GameDigest>,
+
+    // Future games that got a release date recently.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub recent_release_dates: Vec<GameDigest>,
+
+    // Future games that got announced recently.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub recent_announcements: Vec<GameDigest>,
 
     // Most hyped upcoming games.
     #[serde(default)]
