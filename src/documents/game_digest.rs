@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use chrono::{DateTime, Datelike};
 use itertools::Itertools;
 use phf::phf_map;
 use serde::{Deserialize, Serialize};
@@ -63,6 +64,12 @@ impl GameDigest {
         self.developers.clear();
         self.publishers.clear();
         self
+    }
+
+    pub fn release_year(&self) -> i32 {
+        DateTime::from_timestamp(self.release_date.unwrap_or_default(), 0)
+            .unwrap()
+            .year()
     }
 }
 

@@ -17,16 +17,15 @@ impl GameFilter {
         }
     }
 
-    pub fn filter(&self, game: &GameEntry) -> bool {
+    pub fn apply(&self, game: &GameEntry) -> bool {
         game.scores.metacritic.is_some()
             || is_popular(game)
             || is_popular_early_access(game)
             || is_hyped(game)
             || game.category.is_expansion()
             || is_remaster(game)
-            || is_notable(game, &self.companies, &self.collections)
+            || self.is_notable(game)
             || is_gog_classic(game)
-        // !matches!(self.classify(game), GameEntryClass::Ignore)
     }
 
     pub fn explain(&self, game: &GameEntry) -> RejectionReason {
@@ -51,6 +50,16 @@ impl GameFilter {
             );
             RejectionReason::Unknown
         }
+    }
+
+    pub fn is_notable(&self, game: &GameEntry) -> bool {
+        game.developers
+            .iter()
+            .any(|c| self.companies.contains(&c.name))
+            || game
+                .collections
+                .iter()
+                .any(|c| self.collections.contains(&c.name))
     }
 }
 
@@ -94,18 +103,6 @@ fn is_remaster(game: &GameEntry) -> bool {
         GameCategory::Remake | GameCategory::Remaster => true,
         _ => false,
     }
-}
-
-fn is_notable(
-    game: &GameEntry,
-    companies: &HashSet<String>,
-    collections: &HashSet<String>,
-) -> bool {
-    game.developers.iter().any(|c| companies.contains(&c.name))
-        || game
-            .collections
-            .iter()
-            .any(|c| collections.contains(&c.name))
 }
 
 fn is_gog_classic(game: &GameEntry) -> bool {
