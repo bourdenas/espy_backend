@@ -372,23 +372,7 @@ async fn build_timeline(
     releases.extend(
         future
             .into_iter()
-            .chunk_by(|entry| release_group(&entry))
-            .into_iter()
-            .map(|(key, games)| {
-                let mut games = games
-                    .map(|game| GameDigest::from(game.clone()))
-                    .collect_vec();
-                games.sort_by(|a, b| b.scores.cmp(&a.scores));
-                ReleaseEvent {
-                    label: key.0,
-                    year: key.1,
-                    games,
-                }
-            }),
-    );
-
-    releases.extend(
-        past.into_iter()
+            .chain(past.into_iter())
             .chunk_by(|entry| release_group(&entry))
             .into_iter()
             .map(|(key, games)| {
