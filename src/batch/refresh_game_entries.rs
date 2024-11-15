@@ -117,7 +117,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 #[instrument(
     level = "info",
     skip(resolver, firestore),
-    fields(event_span = "resolve_event")
+    fields(event = "resolve_event")
 )]
 async fn refresh_game(
     id: u64,
