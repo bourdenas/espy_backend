@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 use valuable::Valuable;
 
 use super::FirestoreEvent;
@@ -40,4 +41,23 @@ impl Default for LogEvent {
     fn default() -> Self {
         LogEvent::InvalidEvent {}
     }
+}
+
+impl LogEvent {
+    pub fn encode(&self) -> String {
+        match serde_json::to_string(self) {
+            Ok(json) => json,
+            Err(e) => {
+                warn!("{}", e);
+                String::default()
+            }
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! log {
+    ($event:expr) => {
+        debug!(event = $event.encode());
+    };
 }

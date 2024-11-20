@@ -1,8 +1,9 @@
 use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
-use tracing::warn;
 use valuable::Valuable;
+
+use crate::logging::LogEvent;
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
 pub struct FirestoreEvent {
@@ -19,8 +20,8 @@ pub struct FirestoreEvent {
 }
 
 impl FirestoreEvent {
-    pub fn read(collection: String, doc: String, error: Option<String>) -> Self {
-        FirestoreEvent {
+    pub fn read(collection: String, doc: String, error: Option<String>) -> LogEvent {
+        LogEvent::FirestoreEvent(FirestoreEvent {
             op: Op::Read(ReadStats {
                 read: 1,
                 not_found: 0,
@@ -31,11 +32,11 @@ impl FirestoreEvent {
                 Some(error) => vec![error],
                 None => vec![],
             },
-        }
+        })
     }
 
-    pub fn read_not_found(collection: String, doc: String, error: Option<String>) -> Self {
-        FirestoreEvent {
+    pub fn read_not_found(collection: String, doc: String, error: Option<String>) -> LogEvent {
+        LogEvent::FirestoreEvent(FirestoreEvent {
             op: Op::Read(ReadStats {
                 read: 1,
                 not_found: 1,
@@ -46,11 +47,16 @@ impl FirestoreEvent {
                 Some(error) => vec![error],
                 None => vec![],
             },
-        }
+        })
     }
 
-    pub fn batch(collection: String, num: usize, not_found: usize, errors: Vec<String>) -> Self {
-        FirestoreEvent {
+    pub fn batch(
+        collection: String,
+        num: usize,
+        not_found: usize,
+        errors: Vec<String>,
+    ) -> LogEvent {
+        LogEvent::FirestoreEvent(FirestoreEvent {
             op: Op::Read(ReadStats {
                 read: num,
                 not_found,
@@ -58,11 +64,11 @@ impl FirestoreEvent {
             collection,
             doc: None,
             errors,
-        }
+        })
     }
 
-    pub fn write(collection: String, doc: String, error: Option<String>) -> Self {
-        FirestoreEvent {
+    pub fn write(collection: String, doc: String, error: Option<String>) -> LogEvent {
+        LogEvent::FirestoreEvent(FirestoreEvent {
             op: Op::Write,
             collection,
             doc: Some(doc),
@@ -70,11 +76,11 @@ impl FirestoreEvent {
                 Some(error) => vec![error],
                 None => vec![],
             },
-        }
+        })
     }
 
-    pub fn delete(collection: String, doc: String, error: Option<String>) -> Self {
-        FirestoreEvent {
+    pub fn delete(collection: String, doc: String, error: Option<String>) -> LogEvent {
+        LogEvent::FirestoreEvent(FirestoreEvent {
             op: Op::Delete,
             collection,
             doc: Some(doc),
@@ -82,17 +88,7 @@ impl FirestoreEvent {
                 Some(error) => vec![error],
                 None => vec![],
             },
-        }
-    }
-
-    pub fn encode(&self) -> String {
-        match serde_json::to_string(self) {
-            Ok(json) => json,
-            Err(e) => {
-                warn!("{}", e);
-                String::default()
-            }
-        }
+        })
     }
 }
 

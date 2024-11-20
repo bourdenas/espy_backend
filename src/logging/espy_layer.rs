@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, time::SystemTime};
 
-use crate::logging::{EventSpan, FirestoreEvent, LogEvent};
+use crate::logging::{EventSpan, LogEvent};
 use tracing::{info, Level};
 use tracing_subscriber::Layer;
 use valuable::Valuable;
@@ -72,14 +72,14 @@ where
         let collector = FieldCollector::new(event);
         if let Some(field) = collector.fields.get("event") {
             if let Field::Str(encoded) = field {
-                let log: FirestoreEvent = serde_json::from_str(encoded)
-                    .expect("Failed to prase FirestoreOp from event field.");
+                let log: LogEvent = serde_json::from_str(encoded)
+                    .expect("Failed to prase LogEvent from event field.");
 
                 if let Some(scope) = ctx.event_scope(event) {
                     if let Some(span) = scope.into_iter().next() {
                         let mut extensions = span.extensions_mut();
                         if let Some(event_span) = extensions.get_mut::<EventSpan>() {
-                            event_span.events.push(LogEvent::FirestoreEvent(log));
+                            event_span.events.push(log);
                         }
                     }
                 }
