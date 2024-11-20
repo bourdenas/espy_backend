@@ -20,31 +20,28 @@ pub async fn read<Document: serde::de::DeserializeOwned + Send>(
         .one(doc_id.clone())
         .await;
 
+    let collection = format!("/{collection}");
     match doc {
         Ok(doc) => match doc {
             Some(doc) => {
-                log!(FirestoreEvent::read(collection.to_owned(), doc_id, None));
+                log!(FirestoreEvent::read(collection, doc_id, None));
                 Ok(doc)
             }
             None => {
                 let status = Status::not_found(format!(
                     "Firestore '{collection}/{doc_id}' document was not found"
                 ));
-                log!(FirestoreEvent::read_not_found(
-                    collection.to_owned(),
-                    doc_id,
-                    None,
-                ));
+                log!(FirestoreEvent::read_not_found(collection, doc_id, None));
                 Err(status)
             }
         },
         Err(e) => {
             log!(FirestoreEvent::read(
-                collection.to_owned(),
+                collection.clone(),
                 doc_id.to_owned(),
                 Some(e.to_string()),
             ));
-            Err(make_status(e, collection, doc_id))
+            Err(make_status(e, &collection, doc_id))
         }
     }
 }
@@ -69,7 +66,7 @@ pub async fn users_read<Document: serde::de::DeserializeOwned + Default + Send>(
         .one(doc_id)
         .await;
 
-    let collection = format!("{USERS}/{user_id}/{collection}");
+    let collection = format!("/{USERS}/{user_id}/{collection}");
     match doc {
         Ok(doc) => match doc {
             Some(doc) => {
@@ -129,7 +126,7 @@ pub async fn batch_read<Document: serde::de::DeserializeOwned + Send>(
     }
 
     log!(FirestoreEvent::batch(
-        collection.to_owned(),
+        format!("/{collection}"),
         documents.len(),
         not_found.len(),
         errors,
@@ -157,22 +154,19 @@ pub async fn write<Document: serde::Serialize + serde::de::DeserializeOwned + Se
         .execute::<()>()
         .await;
 
+    let collection = format!("/{collection}");
     match result {
         Ok(()) => {
-            log!(FirestoreEvent::write(
-                collection.to_owned(),
-                doc_id.to_owned(),
-                None,
-            ));
+            log!(FirestoreEvent::write(collection, doc_id.to_owned(), None,));
             Ok(())
         }
         Err(e) => {
             log!(FirestoreEvent::write(
-                collection.to_owned(),
+                collection.clone(),
                 doc_id.to_owned(),
                 Some(e.to_string()),
             ));
-            Err(make_status(e, collection, doc_id))
+            Err(make_status(e, &collection, doc_id))
         }
     }
 }
