@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use firestore::{errors::FirestoreError, FirestoreResult};
 use futures::{stream::BoxStream, StreamExt};
-use tracing::info;
+use tracing::debug;
 
 use crate::{api::FirestoreApi, logging::FirestoreEvent, Status};
 
@@ -23,14 +23,14 @@ pub async fn read<Document: serde::de::DeserializeOwned + Send>(
     match doc {
         Ok(doc) => match doc {
             Some(doc) => {
-                info!(event = FirestoreEvent::read(collection.to_owned(), doc_id, None).encode());
+                debug!(event = FirestoreEvent::read(collection.to_owned(), doc_id, None).encode());
                 Ok(doc)
             }
             None => {
                 let status = Status::not_found(format!(
                     "Firestore '{collection}/{doc_id}' document was not found"
                 ));
-                info!(
+                debug!(
                     event = FirestoreEvent::read_not_found(collection.to_owned(), doc_id, None)
                         .encode()
                 );
@@ -38,7 +38,7 @@ pub async fn read<Document: serde::de::DeserializeOwned + Send>(
             }
         },
         Err(e) => {
-            info!(
+            debug!(
                 event = FirestoreEvent::read(
                     collection.to_owned(),
                     doc_id.to_owned(),
@@ -75,14 +75,14 @@ pub async fn users_read<Document: serde::de::DeserializeOwned + Default + Send>(
     match doc {
         Ok(doc) => match doc {
             Some(doc) => {
-                info!(
+                debug!(
                     event = FirestoreEvent::read(collection.to_owned(), doc_id.to_owned(), None)
                         .encode()
                 );
                 Ok(doc)
             }
             None => {
-                info!(
+                debug!(
                     event = FirestoreEvent::read_not_found(
                         collection.to_owned(),
                         doc_id.to_owned(),
@@ -94,7 +94,7 @@ pub async fn users_read<Document: serde::de::DeserializeOwned + Default + Send>(
             }
         },
         Err(e) => {
-            info!(
+            debug!(
                 event = FirestoreEvent::read(
                     collection.to_owned(),
                     doc_id.to_owned(),
@@ -135,7 +135,7 @@ pub async fn batch_read<Document: serde::de::DeserializeOwned + Send>(
         }
     }
 
-    info!(
+    debug!(
         event = FirestoreEvent::batch(
             collection.to_owned(),
             documents.len(),
@@ -169,14 +169,14 @@ pub async fn write<Document: serde::Serialize + serde::de::DeserializeOwned + Se
 
     match result {
         Ok(()) => {
-            info!(
+            debug!(
                 event =
                     FirestoreEvent::write(collection.to_owned(), doc_id.to_owned(), None).encode()
             );
             Ok(())
         }
         Err(e) => {
-            info!(
+            debug!(
                 event = FirestoreEvent::write(
                     collection.to_owned(),
                     doc_id.to_owned(),
