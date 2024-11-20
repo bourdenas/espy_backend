@@ -15,7 +15,7 @@ where
 {
     fn on_new_span(
         &self,
-        attrs: &tracing::span::Attributes<'_>,
+        _attrs: &tracing::span::Attributes<'_>,
         id: &tracing::span::Id,
         ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
@@ -23,10 +23,6 @@ where
         if *span.metadata().level() > Level::INFO {
             return;
         }
-
-        let mut fields = BTreeMap::new();
-        let mut visitor = JsonVisitor(&mut fields);
-        attrs.record(&mut visitor);
 
         let mut extensions = span.extensions_mut();
         extensions.insert(EventSpan::new(
@@ -73,19 +69,18 @@ where
     }
 
     fn on_event(&self, event: &tracing::Event<'_>, ctx: tracing_subscriber::layer::Context<'_, S>) {
-        let mut fields = BTreeMap::new();
-        let mut visitor = JsonVisitor(&mut fields);
-        event.record(&mut visitor);
+        let collector = FieldCollector::new(event);
+        if let Some(field) = collector.fields.get("event") {
+            if let Field::Str(encoded) = field {
+                let log: FirestoreEvent = serde_json::from_str(encoded)
+                    .expect("Failed to prase FirestoreOp from event field.");
 
-        if let Some(e) = fields.get("event") {
-            let log: FirestoreEvent = serde_json::from_str(e.as_str().unwrap())
-                .expect("Failed to prase FirestoreOp from event field.");
-
-            if let Some(scope) = ctx.event_scope(event) {
-                if let Some(span) = scope.into_iter().next() {
-                    let mut extensions = span.extensions_mut();
-                    if let Some(event_span) = extensions.get_mut::<EventSpan>() {
-                        event_span.events.push(LogEvent::FirestoreEvent(log));
+                if let Some(scope) = ctx.event_scope(event) {
+                    if let Some(span) = scope.into_iter().next() {
+                        let mut extensions = span.extensions_mut();
+                        if let Some(event_span) = extensions.get_mut::<EventSpan>() {
+                            event_span.events.push(LogEvent::FirestoreEvent(log));
+                        }
                     }
                 }
             }
@@ -95,32 +90,48 @@ where
 
 struct StartTime(SystemTime);
 
-struct JsonVisitor<'a>(&'a mut BTreeMap<String, serde_json::Value>);
+struct FieldCollector {
+    fields: BTreeMap<&'static str, Field>,
+}
 
-impl<'a> tracing::field::Visit for JsonVisitor<'a> {
-    fn record_f64(&mut self, field: &tracing::field::Field, value: f64) {
-        self.0
-            .insert(field.name().to_string(), serde_json::json!(value));
+enum Field {
+    Float,
+    Int,
+    Unsigned,
+    Bool,
+    Str(String),
+}
+
+impl FieldCollector {
+    fn new(event: &tracing::Event<'_>) -> Self {
+        let mut collector = FieldCollector {
+            fields: BTreeMap::new(),
+        };
+        event.record(&mut collector);
+        collector
+    }
+}
+
+impl tracing::field::Visit for FieldCollector {
+    fn record_f64(&mut self, field: &tracing::field::Field, _value: f64) {
+        self.fields.insert(field.name(), Field::Float);
     }
 
-    fn record_i64(&mut self, field: &tracing::field::Field, value: i64) {
-        self.0
-            .insert(field.name().to_string(), serde_json::json!(value));
+    fn record_i64(&mut self, field: &tracing::field::Field, _value: i64) {
+        self.fields.insert(field.name(), Field::Int);
     }
 
-    fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
-        self.0
-            .insert(field.name().to_string(), serde_json::json!(value));
+    fn record_u64(&mut self, field: &tracing::field::Field, _value: u64) {
+        self.fields.insert(field.name(), Field::Unsigned);
     }
 
-    fn record_bool(&mut self, field: &tracing::field::Field, value: bool) {
-        self.0
-            .insert(field.name().to_string(), serde_json::json!(value));
+    fn record_bool(&mut self, field: &tracing::field::Field, _value: bool) {
+        self.fields.insert(field.name(), Field::Bool);
     }
 
     fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
-        self.0
-            .insert(field.name().to_string(), serde_json::json!(value));
+        self.fields
+            .insert(field.name(), Field::Str(value.to_owned()));
     }
 
     fn record_error(
@@ -128,16 +139,12 @@ impl<'a> tracing::field::Visit for JsonVisitor<'a> {
         field: &tracing::field::Field,
         value: &(dyn std::error::Error + 'static),
     ) {
-        self.0.insert(
-            field.name().to_string(),
-            serde_json::json!(value.to_string()),
-        );
+        self.fields
+            .insert(field.name(), Field::Str(value.to_string()));
     }
 
     fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
-        self.0.insert(
-            field.name().to_string(),
-            serde_json::json!(format!("{:?}", value)),
-        );
+        self.fields
+            .insert(field.name(), Field::Str(format!("{:?}", value)));
     }
 }
