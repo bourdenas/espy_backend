@@ -25,6 +25,7 @@ impl FirestoreEvent {
             op: Op::Read(ReadStats {
                 read: 1,
                 not_found: 0,
+                criteria: vec![],
             }),
             collection,
             doc: Some(doc),
@@ -40,6 +41,7 @@ impl FirestoreEvent {
             op: Op::Read(ReadStats {
                 read: 1,
                 not_found: 1,
+                criteria: vec![],
             }),
             collection,
             doc: Some(doc),
@@ -50,16 +52,18 @@ impl FirestoreEvent {
         })
     }
 
-    pub fn batch(
+    pub fn search(
         collection: String,
-        num: usize,
+        criteria: Vec<Criterion>,
+        read: usize,
         not_found: usize,
         errors: Vec<String>,
     ) -> LogEvent {
         LogEvent::FirestoreEvent(FirestoreEvent {
             op: Op::Read(ReadStats {
-                read: num,
+                read,
                 not_found,
+                criteria,
             }),
             collection,
             doc: None,
@@ -105,6 +109,22 @@ struct ReadStats {
 
     #[serde(skip_serializing_if = "is_zero")]
     not_found: usize,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    criteria: Vec<Criterion>,
+}
+
+#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
+pub struct Criterion {
+    field: String,
+    value: String,
+}
+
+impl Criterion {
+    pub fn new(field: String, value: String) -> Self {
+        Criterion { field, value }
+    }
 }
 
 fn is_zero(num: &usize) -> bool {

@@ -24,19 +24,10 @@ pub async fn batch_read(
 #[instrument(name = "wikipedia::write", level = "trace", skip(firestore, wiki_data))]
 pub async fn write(
     firestore: &FirestoreApi,
-    id: u64,
+    doc_id: u64,
     wiki_data: &WikipediaData,
 ) -> Result<(), Status> {
-    firestore
-        .db()
-        .fluent()
-        .update()
-        .in_col(WIKIPEDIA)
-        .document_id(id.to_string())
-        .object(wiki_data)
-        .execute::<()>()
-        .await?;
-    Ok(())
+    utils::write(firestore, WIKIPEDIA, doc_id.to_string(), wiki_data).await
 }
 
 const WIKIPEDIA: &str = "wikipedia";

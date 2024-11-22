@@ -4,7 +4,12 @@ use firestore::{errors::FirestoreError, FirestoreResult};
 use futures::{stream::BoxStream, StreamExt};
 use tracing::debug;
 
-use crate::{api::FirestoreApi, log, logging::FirestoreEvent, Status};
+use crate::{
+    api::FirestoreApi,
+    log,
+    logging::{Criterion, FirestoreEvent},
+    Status,
+};
 
 pub async fn read<Document: serde::de::DeserializeOwned + Send>(
     firestore: &FirestoreApi,
@@ -48,11 +53,11 @@ pub async fn read<Document: serde::de::DeserializeOwned + Send>(
 
 // Reads from the /users/{id} collection. Returns a default doc if one is not
 // found.
-pub async fn users_read<Document: serde::de::DeserializeOwned + Default + Send>(
+pub async fn auth_read<Document: serde::de::DeserializeOwned + Default + Send>(
     firestore: &FirestoreApi,
     user_id: &str,
     collection: &str,
-    doc_id: &str,
+    doc_id: String,
 ) -> Result<Document, Status> {
     let parent_path = firestore.db().parent_path(USERS, user_id)?;
 
@@ -63,24 +68,20 @@ pub async fn users_read<Document: serde::de::DeserializeOwned + Default + Send>(
         .by_id_in(collection)
         .parent(&parent_path)
         .obj()
-        .one(doc_id)
+        .one(&doc_id)
         .await;
 
     let collection = format!("/{USERS}/{user_id}/{collection}");
     match doc {
         Ok(doc) => match doc {
             Some(doc) => {
-                log!(FirestoreEvent::read(
-                    collection.to_owned(),
-                    doc_id.to_owned(),
-                    None
-                ));
+                log!(FirestoreEvent::read(collection.to_owned(), doc_id, None));
                 Ok(doc)
             }
             None => {
                 log!(FirestoreEvent::read_not_found(
                     collection.to_owned(),
-                    doc_id.to_owned(),
+                    doc_id,
                     None,
                 ));
                 Ok(Document::default())
@@ -89,7 +90,7 @@ pub async fn users_read<Document: serde::de::DeserializeOwned + Default + Send>(
         Err(e) => {
             log!(FirestoreEvent::read(
                 collection.to_owned(),
-                doc_id.to_owned(),
+                doc_id.clone(),
                 Some(e.to_string()),
             ));
             Err(make_status(e, &collection, doc_id))
@@ -125,10 +126,14 @@ pub async fn batch_read<Document: serde::de::DeserializeOwned + Send>(
         }
     }
 
-    log!(FirestoreEvent::batch(
+    log!(FirestoreEvent::search(
         format!("/{collection}"),
+        vec![Criterion::new(
+            "by_id".to_owned(),
+            doc_ids.len().to_string()
+        )],
         documents.len(),
-        not_found.len(),
+        not_found.len() + errors.len(),
         errors,
     ));
 
@@ -141,7 +146,7 @@ pub async fn batch_read<Document: serde::de::DeserializeOwned + Send>(
 pub async fn write<Document: serde::Serialize + serde::de::DeserializeOwned + Send + Sync>(
     firestore: &FirestoreApi,
     collection: &str,
-    doc_id: &str,
+    doc_id: String,
     document: &Document,
 ) -> Result<(), Status> {
     let result = firestore
@@ -149,7 +154,7 @@ pub async fn write<Document: serde::Serialize + serde::de::DeserializeOwned + Se
         .fluent()
         .update()
         .in_col(collection)
-        .document_id(doc_id)
+        .document_id(&doc_id)
         .object(document)
         .execute::<()>()
         .await;
@@ -157,13 +162,81 @@ pub async fn write<Document: serde::Serialize + serde::de::DeserializeOwned + Se
     let collection = format!("/{collection}");
     match result {
         Ok(()) => {
-            log!(FirestoreEvent::write(collection, doc_id.to_owned(), None,));
+            log!(FirestoreEvent::write(collection, doc_id, None,));
             Ok(())
         }
         Err(e) => {
             log!(FirestoreEvent::write(
                 collection.clone(),
-                doc_id.to_owned(),
+                doc_id.clone(),
+                Some(e.to_string()),
+            ));
+            Err(make_status(e, &collection, doc_id))
+        }
+    }
+}
+
+pub async fn auth_write<Document: serde::Serialize + serde::de::DeserializeOwned + Send + Sync>(
+    firestore: &FirestoreApi,
+    user_id: &str,
+    collection: &str,
+    doc_id: String,
+    document: &Document,
+) -> Result<(), Status> {
+    let parent_path = firestore.db().parent_path(USERS, user_id)?;
+
+    let result = firestore
+        .db()
+        .fluent()
+        .update()
+        .in_col(collection)
+        .document_id(&doc_id)
+        .parent(&parent_path)
+        .object(document)
+        .execute::<()>()
+        .await;
+
+    let collection = format!("/{USERS}/{user_id}/{collection}");
+    match result {
+        Ok(()) => {
+            log!(FirestoreEvent::write(collection, doc_id, None,));
+            Ok(())
+        }
+        Err(e) => {
+            log!(FirestoreEvent::write(
+                collection.clone(),
+                doc_id.clone(),
+                Some(e.to_string()),
+            ));
+            Err(make_status(e, &collection, doc_id))
+        }
+    }
+}
+
+pub async fn delete(
+    firestore: &FirestoreApi,
+    collection: &str,
+    doc_id: String,
+) -> Result<(), Status> {
+    let result = firestore
+        .db()
+        .fluent()
+        .delete()
+        .from(collection)
+        .document_id(&doc_id)
+        .execute()
+        .await;
+
+    let collection = format!("/{collection}");
+    match result {
+        Ok(()) => {
+            log!(FirestoreEvent::delete(collection, doc_id, None));
+            Ok(())
+        }
+        Err(e) => {
+            log!(FirestoreEvent::delete(
+                collection.clone(),
+                doc_id.clone(),
                 Some(e.to_string()),
             ));
             Err(make_status(e, &collection, doc_id))

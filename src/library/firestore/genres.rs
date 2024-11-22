@@ -15,16 +15,7 @@ pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<Genre, Status
 
 #[instrument(name = "genres::write", level = "trace", skip(firestore))]
 pub async fn write(firestore: &FirestoreApi, genre: &Genre) -> Result<(), Status> {
-    firestore
-        .db()
-        .fluent()
-        .update()
-        .in_col(GENRES)
-        .document_id(genre.game_id.to_string())
-        .object(genre)
-        .execute::<()>()
-        .await?;
-    Ok(())
+    utils::write(firestore, GENRES, genre.game_id.to_string(), genre).await
 }
 
 #[instrument(name = "genres::needs_annotation", level = "trace", skip(firestore))]
@@ -38,16 +29,13 @@ pub async fn needs_annotation(
         ..Default::default()
     };
 
-    firestore
-        .db()
-        .fluent()
-        .update()
-        .in_col(NEEDS_ANNOTATION)
-        .document_id(game_entry.id.to_string())
-        .object(&clone)
-        .execute::<()>()
-        .await?;
-    Ok(())
+    utils::write(
+        firestore,
+        NEEDS_ANNOTATION,
+        game_entry.id.to_string(),
+        &clone,
+    )
+    .await
 }
 
 const GENRES: &str = "genres";

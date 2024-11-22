@@ -9,10 +9,6 @@ pub async fn read(firestore: &FirestoreApi, doc_id: u64) -> Result<Collection, S
     utils::read(firestore, FRANCHISES, doc_id.to_string()).await
 }
 
-/// Batch reads franchises by id.
-///
-/// Returns a tuple with two vectors. The first one contains the found Franchice
-/// docs and the second contains the doc ids that were not found.
 #[instrument(
     name = "franchices::batch_read",
     level = "trace",
@@ -29,21 +25,9 @@ pub async fn batch_read(
     name = "franchises::write",
     level = "trace",
     skip(firestore, franchise)
-    fields(
-        franchise = %franchise.slug,
-    )
 )]
 pub async fn write(firestore: &FirestoreApi, franchise: &Collection) -> Result<(), Status> {
-    firestore
-        .db()
-        .fluent()
-        .update()
-        .in_col(FRANCHISES)
-        .document_id(franchise.id.to_string())
-        .object(franchise)
-        .execute::<()>()
-        .await?;
-    Ok(())
+    utils::write(firestore, FRANCHISES, franchise.id.to_string(), franchise).await
 }
 
 const FRANCHISES: &str = "franchises";

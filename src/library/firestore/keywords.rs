@@ -19,16 +19,7 @@ pub async fn batch_read(
 
 #[instrument(name = "keywords::write", level = "trace", skip(firestore))]
 pub async fn write(firestore: &FirestoreApi, keyword: &Keyword) -> Result<(), Status> {
-    firestore
-        .db()
-        .fluent()
-        .update()
-        .in_col(KEYWORDS)
-        .document_id(keyword.id.to_string())
-        .object(keyword)
-        .execute::<()>()
-        .await?;
-    Ok(())
+    utils::write(firestore, KEYWORDS, keyword.id.to_string(), keyword).await
 }
 
 const KEYWORDS: &str = "keywords";

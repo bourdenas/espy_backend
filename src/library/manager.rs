@@ -84,10 +84,10 @@ impl LibraryManager {
 
         // For games that were not found in ExternalGames generate candidates
         // by searching their titles in IGDB.
-        if !externals.missing.is_empty() {
+        if !externals.not_found.is_empty() {
             let firestore = Arc::clone(&firestore);
             let user_id = self.user_id.clone();
-            let missing = externals.missing.clone();
+            let missing = externals.not_found.clone();
             tokio::spawn(
                 async move {
                     search_candidates(firestore, resolver, user_id, missing).await;
@@ -103,7 +103,7 @@ impl LibraryManager {
                 .matches
                 .into_iter()
                 .map(|m| m.store_entry)
-                .chain(externals.missing)
+                .chain(externals.not_found)
                 .collect_vec(),
         )
         .await?;

@@ -45,20 +45,12 @@ pub async fn write(firestore: &FirestoreApi, game_entry: &mut GameEntry) -> Resu
         .unwrap()
         .as_secs() as i64;
 
-    utils::write(firestore, GAMES, &game_entry.id.to_string(), game_entry).await
+    utils::write(firestore, GAMES, game_entry.id.to_string(), game_entry).await
 }
 
 #[instrument(name = "games::delete", level = "trace", skip(firestore))]
 pub async fn delete(firestore: &FirestoreApi, doc_id: u64) -> Result<(), Status> {
-    firestore
-        .db()
-        .fluent()
-        .delete()
-        .from(GAMES)
-        .document_id(doc_id.to_string())
-        .execute()
-        .await?;
-    Ok(())
+    utils::delete(firestore, GAMES, doc_id.to_string()).await
 }
 
 const GAMES: &str = "games";

@@ -50,7 +50,7 @@ pub async fn post_company_fetch(
     let event = CompanyFetchEvent::new(company_fetch.clone());
 
     let slug = CompanyNormalizer::slug(&company_fetch.name);
-    match library::firestore::companies::fetch(&firestore, &slug).await {
+    match library::firestore::companies::search(&firestore, &slug).await {
         Ok(companies) => {
             event.log(&slug, &companies);
             Ok(Box::new(warp::reply::json(&companies)))

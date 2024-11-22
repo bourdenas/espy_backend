@@ -13,14 +13,5 @@ pub async fn read(firestore: &FirestoreApi) -> Result<Notable, Status> {
 
 #[instrument(name = "notable::write", level = "trace", skip(firestore))]
 pub async fn write(firestore: &FirestoreApi, notable: &Notable) -> Result<(), Status> {
-    firestore
-        .db()
-        .fluent()
-        .update()
-        .in_col("espy")
-        .document_id("notable")
-        .object(notable)
-        .execute::<()>()
-        .await?;
-    Ok(())
+    utils::write(firestore, "espy", "notable".to_string(), notable).await
 }

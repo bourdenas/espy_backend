@@ -10,7 +10,7 @@ use super::utils;
 /// Reads `users/{user_id}/games/storefront` document in Firestore.
 #[instrument(name = "storefront::read", level = "trace", skip(firestore, user_id))]
 pub async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<Storefront, Status> {
-    utils::users_read(firestore, user_id, GAMES, STOREFRONT_DOC).await
+    utils::auth_read(firestore, user_id, GAMES, STOREFRONT_DOC.to_owned()).await
 }
 
 /// Writes the Storefront doc containing games owned by user.
@@ -26,19 +26,14 @@ pub async fn write(
     user_id: &str,
     storefront: &Storefront,
 ) -> Result<(), Status> {
-    let parent_path = firestore.db().parent_path(utils::USERS, user_id)?;
-
-    firestore
-        .db()
-        .fluent()
-        .update()
-        .in_col(GAMES)
-        .document_id(STOREFRONT_DOC)
-        .parent(&parent_path)
-        .object(storefront)
-        .execute::<()>()
-        .await?;
-    Ok(())
+    utils::auth_write(
+        firestore,
+        user_id,
+        GAMES,
+        STOREFRONT_DOC.to_owned(),
+        storefront,
+    )
+    .await
 }
 
 /// Returns input StoreEntries that are not already contained in user's
