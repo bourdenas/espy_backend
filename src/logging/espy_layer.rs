@@ -6,7 +6,9 @@ use tracing_subscriber::Layer;
 use valuable::Valuable;
 
 #[derive(Default)]
-pub struct EspyLogsLayer;
+pub struct EspyLogsLayer {
+    pub prod: bool,
+}
 
 impl<S> Layer<S> for EspyLogsLayer
 where
@@ -56,12 +58,15 @@ where
                 }
                 None => {
                     if !(event_span.children.is_empty() && event_span.events.is_empty()) {
-                        info!(
-                            // "top log entry ==> {}",
-                            // serde_json::to_string_pretty(&event_span).unwrap(),
-                            entry = event_span.as_value(),
-                            "log entry",
-                        )
+                        if self.prod {
+                            info!(entry = event_span.as_value(), "'{}' log entry", span.name());
+                        } else {
+                            info!(
+                                "'{}' log entry ==> {}",
+                                span.name(),
+                                serde_json::to_string_pretty(&event_span).unwrap(),
+                            )
+                        }
                     }
                 }
             }

@@ -11,7 +11,7 @@ impl Tracing {
     pub fn setup(_name: &str) -> Result<(), Status> {
         match tracing_subscriber::registry()
             // .with(tracing_opentelemetry::layer().with_tracer(jaeger_tracer))
-            .with(EspyLogsLayer.with_filter(LevelFilter::DEBUG))
+            .with(EspyLogsLayer { prod: false }.with_filter(LevelFilter::DEBUG))
             .with(
                 // Log also to stdout.
                 tracing_subscriber::fmt::Layer::new()
@@ -29,6 +29,7 @@ impl Tracing {
 
     pub fn setup_prod(project_id: &str) -> Result<(), Status> {
         match tracing_subscriber::registry()
+            .with(EspyLogsLayer { prod: true }.with_filter(LevelFilter::DEBUG))
             .with(tracing_opentelemetry::layer())
             .with(
                 tracing_stackdriver::layer()
