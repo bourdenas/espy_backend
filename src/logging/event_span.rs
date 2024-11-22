@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 use valuable::Valuable;
 
-use super::FirestoreEvent;
+use super::{FirestoreEvent, ResolveEvent};
 
 #[derive(Serialize, Deserialize, Valuable, Default, Clone, Debug)]
 pub struct EventSpan {
@@ -33,13 +33,14 @@ impl EventSpan {
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
 pub enum LogEvent {
-    InvalidEvent,
-    FirestoreEvent(FirestoreEvent),
+    Invalid,
+    Firestore(FirestoreEvent),
+    Resolve(ResolveEvent),
 }
 
 impl Default for LogEvent {
     fn default() -> Self {
-        LogEvent::InvalidEvent {}
+        LogEvent::Invalid {}
     }
 }
 
@@ -58,6 +59,6 @@ impl LogEvent {
 #[macro_export]
 macro_rules! log {
     ($event:expr) => {
-        debug!(event = $event.encode());
+        ::tracing::debug!(event = $event.encode());
     };
 }

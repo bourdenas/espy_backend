@@ -1,6 +1,6 @@
 use firestore::path;
 use futures::{stream::BoxStream, StreamExt};
-use tracing::{debug, instrument};
+use tracing::instrument;
 
 use crate::{
     api::FirestoreApi,

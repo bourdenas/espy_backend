@@ -2,7 +2,6 @@ use std::fmt::Display;
 
 use firestore::{errors::FirestoreError, FirestoreResult};
 use futures::{stream::BoxStream, StreamExt};
-use tracing::debug;
 
 use crate::{
     api::FirestoreApi,

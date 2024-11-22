@@ -7,7 +7,7 @@ use crate::logging::LogEvent;
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
 pub struct FirestoreEvent {
-    op: Op,
+    event: Event,
     collection: String,
 
     #[serde(default)]
@@ -21,8 +21,8 @@ pub struct FirestoreEvent {
 
 impl FirestoreEvent {
     pub fn read(collection: String, doc: String, error: Option<String>) -> LogEvent {
-        LogEvent::FirestoreEvent(FirestoreEvent {
-            op: Op::Read(ReadStats {
+        LogEvent::Firestore(FirestoreEvent {
+            event: Event::Read(ReadStats {
                 read: 1,
                 not_found: 0,
                 criteria: vec![],
@@ -37,8 +37,8 @@ impl FirestoreEvent {
     }
 
     pub fn read_not_found(collection: String, doc: String, error: Option<String>) -> LogEvent {
-        LogEvent::FirestoreEvent(FirestoreEvent {
-            op: Op::Read(ReadStats {
+        LogEvent::Firestore(FirestoreEvent {
+            event: Event::Read(ReadStats {
                 read: 1,
                 not_found: 1,
                 criteria: vec![],
@@ -59,8 +59,8 @@ impl FirestoreEvent {
         not_found: usize,
         errors: Vec<String>,
     ) -> LogEvent {
-        LogEvent::FirestoreEvent(FirestoreEvent {
-            op: Op::Read(ReadStats {
+        LogEvent::Firestore(FirestoreEvent {
+            event: Event::Read(ReadStats {
                 read,
                 not_found,
                 criteria,
@@ -72,8 +72,8 @@ impl FirestoreEvent {
     }
 
     pub fn write(collection: String, doc: String, error: Option<String>) -> LogEvent {
-        LogEvent::FirestoreEvent(FirestoreEvent {
-            op: Op::Write,
+        LogEvent::Firestore(FirestoreEvent {
+            event: Event::Write,
             collection,
             doc: Some(doc),
             errors: match error {
@@ -84,8 +84,8 @@ impl FirestoreEvent {
     }
 
     pub fn delete(collection: String, doc: String, error: Option<String>) -> LogEvent {
-        LogEvent::FirestoreEvent(FirestoreEvent {
-            op: Op::Delete,
+        LogEvent::Firestore(FirestoreEvent {
+            event: Event::Delete,
             collection,
             doc: Some(doc),
             errors: match error {
@@ -97,7 +97,7 @@ impl FirestoreEvent {
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
-enum Op {
+enum Event {
     Read(ReadStats),
     Write,
     Delete,

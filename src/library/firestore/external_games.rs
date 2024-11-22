@@ -9,7 +9,7 @@ use crate::{
 };
 use firestore::path;
 use futures::StreamExt;
-use tracing::{debug, instrument};
+use tracing::instrument;
 
 use super::utils;
 

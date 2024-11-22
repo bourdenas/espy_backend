@@ -2,6 +2,8 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
     documents::{GameDigest, GameEntry, IgdbGame},
+    log,
+    logging::ResolveEvent,
     Status,
 };
 
@@ -18,18 +20,22 @@ impl ResolveApi {
     }
 
     pub async fn retrieve(&self, id: u64) -> Result<GameEntry, Status> {
-        let game_entry = post(&format!("{}/retrieve", &self.url), id).await?;
-        Ok(game_entry)
+        let response = post(&format!("{}/retrieve", &self.url), id).await;
+        log!(ResolveEvent::retrieve(id, &response));
+        response
     }
 
     pub async fn resolve(&self, igdb_game: IgdbGame) -> Result<GameEntry, Status> {
-        let game_entry = post(&format!("{}/resolve", &self.url), igdb_game).await?;
-        Ok(game_entry)
+        let id = igdb_game.id;
+        let response = post(&format!("{}/resolve", &self.url), igdb_game).await;
+        log!(ResolveEvent::resolve(id, &response));
+        response
     }
 
     pub async fn digest(&self, id: u64) -> Result<GameDigest, Status> {
-        let digest = post(&format!("{}/digest", &self.url), id).await?;
-        Ok(digest)
+        let response = post(&format!("{}/digest", &self.url), id).await;
+        log!(ResolveEvent::digest(id, &response));
+        response
     }
 
     pub async fn search(
@@ -37,15 +43,17 @@ impl ResolveApi {
         title: String,
         base_game_only: bool,
     ) -> Result<Vec<GameDigest>, Status> {
-        let digest = post(
+        let response = post(
             &format!("{}/search", &self.url),
             SearchRequest {
-                title,
+                title: title.clone(),
                 base_game_only,
             },
         )
-        .await?;
-        Ok(digest)
+        .await;
+
+        log!(ResolveEvent::search(title, &response));
+        response
     }
 }
 
