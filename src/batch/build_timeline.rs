@@ -50,7 +50,7 @@ async fn main() -> Result<(), Status> {
 
     match opts.prod_tracing {
         false => Tracing::setup("build-timeline")?,
-        true => Tracing::setup_prod("build-timeline")?,
+        true => Tracing::setup_prod("build-timeline", "timeline_logs")?,
     }
 
     let now = SystemTime::now()

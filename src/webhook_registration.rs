@@ -22,13 +22,9 @@ struct Opts {
 
 #[tokio::main]
 async fn main() -> Result<(), Status> {
+    Tracing::setup("espy-webhook-registration")?;
+
     let opts: Opts = Opts::parse();
-
-    match opts.prod_tracing {
-        false => Tracing::setup("espy-webhook-registration")?,
-        true => Tracing::setup_prod("espy-webhook-registration")?,
-    }
-
     let keys = util::keys::Keys::from_file(&opts.key_store).unwrap();
 
     info!("webhooks registration");
