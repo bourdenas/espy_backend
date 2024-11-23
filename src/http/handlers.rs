@@ -3,6 +3,8 @@ use crate::{
     documents::GameEntry,
     http::models,
     library::{self, LibraryManager, User},
+    log_request, log_response,
+    logging::{CompanySearchRequest, CompanySearchResponse, SearchRequest, SearchResponse},
     resolver::ResolveApi,
     util, Status,
 };
@@ -29,14 +31,15 @@ pub async fn post_search(
     search: models::Search,
     resolver: Arc<ResolveApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    let event = SearchEvent::new(search.clone());
+    log_request!(SearchRequest::new(&search));
+
     match resolver.search(search.title, search.base_game_only).await {
         Ok(candidates) => {
-            event.log(&candidates);
+            log_response!(SearchResponse::new(&candidates));
             Ok(Box::new(warp::reply::json(&candidates)))
         }
         Err(status) => {
-            event.log_error(status);
+            log_response!(SearchResponse::err(status));
             Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR))
         }
     }
@@ -47,16 +50,16 @@ pub async fn post_company_fetch(
     company_fetch: models::CompanyFetch,
     firestore: Arc<FirestoreApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    let event = CompanyFetchEvent::new(company_fetch.clone());
+    log_request!(CompanySearchRequest::new(&company_fetch));
 
     let slug = CompanyNormalizer::slug(&company_fetch.name);
     match library::firestore::companies::search(&firestore, &slug).await {
         Ok(companies) => {
-            event.log(&slug, &companies);
+            log_response!(CompanySearchResponse::new(&companies));
             Ok(Box::new(warp::reply::json(&companies)))
         }
         Err(status) => {
-            event.log_error(status);
+            log_response!(CompanySearchResponse::err(status));
             Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR))
         }
     }

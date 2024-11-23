@@ -52,9 +52,7 @@ impl ResolveEvent {
         LogEvent::Resolve(ResolveEvent::Search(SearchRequest {
             title,
             result: match response {
-                Ok(digests) => SearchResponse::Success(
-                    digests.iter().map(|digest| digest.name.clone()).collect(),
-                ),
+                Ok(digests) => SearchResponse::Success(digests.len()),
                 Err(status) => SearchResponse::Error(status.to_string()),
             },
         }))
@@ -62,7 +60,7 @@ impl ResolveEvent {
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
-pub struct Request {
+struct Request {
     id: u64,
     result: Response,
 }
@@ -74,13 +72,13 @@ enum Response {
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
-pub struct SearchRequest {
+struct SearchRequest {
     title: String,
     result: SearchResponse,
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
 enum SearchResponse {
-    Success(Vec<String>),
+    Success(usize),
     Error(String),
 }

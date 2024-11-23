@@ -5,6 +5,8 @@ use tracing::{info, Level};
 use tracing_subscriber::Layer;
 use valuable::Valuable;
 
+use super::{LogRequest, LogResponse};
+
 #[derive(Default)]
 pub struct EspyLogsLayer {
     pub prod: bool,
@@ -81,17 +83,28 @@ where
     }
 
     fn on_event(&self, event: &tracing::Event<'_>, ctx: tracing_subscriber::layer::Context<'_, S>) {
-        let collector = FieldCollector::new(event);
-        if let Some(field) = collector.fields.get("event") {
-            if let Field::Str(encoded) = field {
-                let log: LogEvent = serde_json::from_str(encoded)
-                    .expect("Failed to prase LogEvent from event field.");
-
-                if let Some(scope) = ctx.event_scope(event) {
-                    if let Some(span) = scope.into_iter().next() {
-                        let mut extensions = span.extensions_mut();
-                        if let Some(event_span) = extensions.get_mut::<EventSpan>() {
+        if let Some(scope) = ctx.event_scope(event) {
+            if let Some(span) = scope.into_iter().next() {
+                let mut extensions = span.extensions_mut();
+                if let Some(event_span) = extensions.get_mut::<EventSpan>() {
+                    let collector = FieldCollector::new(event);
+                    if let Some(field) = collector.fields.get("event") {
+                        if let Field::Str(encoded) = field {
+                            let log: LogEvent = serde_json::from_str(encoded)
+                                .expect("Failed to parse LogEvent from 'event' log field.");
                             event_span.events.push(log);
+                        }
+                    } else if let Some(field) = collector.fields.get("request") {
+                        if let Field::Str(encoded) = field {
+                            let log: LogRequest = serde_json::from_str(encoded)
+                                .expect("Failed to parse LogRequest from 'request' log field.");
+                            event_span.request = log;
+                        }
+                    } else if let Some(field) = collector.fields.get("response") {
+                        if let Field::Str(encoded) = field {
+                            let log: LogResponse = serde_json::from_str(encoded)
+                                .expect("Failed to parse LogResponse from 'response' log field.");
+                            event_span.response = log;
                         }
                     }
                 }

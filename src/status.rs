@@ -2,8 +2,9 @@ use reqwest;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::{error::Error, fmt};
+use valuable::Valuable;
 
-#[derive(Serialize, Deserialize, Default, Debug)]
+#[derive(Serialize, Deserialize, Valuable, Default, Clone, Debug)]
 pub enum Status {
     #[default]
     Ok,

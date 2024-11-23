@@ -2,109 +2,10 @@ use std::time::SystemTime;
 
 use tracing::{error, info};
 
-use crate::{
-    documents::{Company, GameDigest, GameEntry},
-    Status,
-};
+use crate::{documents::GameEntry, Status};
 
 use super::models;
 
-pub struct SearchEvent {
-    request: models::Search,
-    start: SystemTime,
-}
-
-impl SearchEvent {
-    pub fn new(request: models::Search) -> Self {
-        Self {
-            request,
-            start: SystemTime::now(),
-        }
-    }
-
-    pub fn log(self, response: &[GameDigest]) {
-        info!(
-            http_request.request_method = "POST",
-            http_request.request_url = "/search",
-            labels.log_type = QUERY_LOGS,
-            labels.handler = SEARCH_HANDLER,
-            request.title = self.request.title,
-            response.candidates = response.len(),
-            search.latency = SystemTime::now()
-                .duration_since(self.start)
-                .unwrap()
-                .as_millis(),
-            "search '{}'",
-            self.request.title
-        )
-    }
-
-    pub fn log_error(self, status: Status) {
-        error!(
-            http_request.request_method = "POST",
-            http_request.request_url = "/search",
-            labels.log_type = QUERY_LOGS,
-            labels.handler = SEARCH_HANDLER,
-            labels.status = status.to_string(),
-            request.title = self.request.title,
-            search.latency = SystemTime::now()
-                .duration_since(self.start)
-                .unwrap()
-                .as_millis(),
-            "search '{}'",
-            self.request.title
-        )
-    }
-}
-
-pub struct CompanyFetchEvent {
-    request: models::CompanyFetch,
-    start: SystemTime,
-}
-
-impl CompanyFetchEvent {
-    pub fn new(request: models::CompanyFetch) -> Self {
-        Self {
-            request,
-            start: SystemTime::now(),
-        }
-    }
-
-    pub fn log(self, slug: &str, response: &[Company]) {
-        info!(
-            http_request.request_method = "POST",
-            http_request.request_url = "/company_fetch",
-            labels.log_type = QUERY_LOGS,
-            labels.handler = COMPANY_FETCH_HANDLER,
-            request.title = self.request.name,
-            response.slug = slug,
-            response.companies = response.len(),
-            search.latency = SystemTime::now()
-                .duration_since(self.start)
-                .unwrap()
-                .as_millis(),
-            "company_fetch '{}'",
-            self.request.name
-        )
-    }
-
-    pub fn log_error(self, status: Status) {
-        error!(
-            http_request.request_method = "POST",
-            http_request.request_url = "/company_fetch",
-            labels.log_type = QUERY_LOGS,
-            labels.handler = COMPANY_FETCH_HANDLER,
-            labels.status = status.to_string(),
-            request.title = self.request.name,
-            search.latency = SystemTime::now()
-                .duration_since(self.start)
-                .unwrap()
-                .as_millis(),
-            "company_fetch '{}' failed",
-            self.request.name
-        )
-    }
-}
 pub struct ResolveEvent {
     request: models::Resolve,
     start: SystemTime,
@@ -433,8 +334,6 @@ impl SyncEvent {
 }
 
 const QUERY_LOGS: &str = "query_logs";
-const SEARCH_HANDLER: &str = "search";
-const COMPANY_FETCH_HANDLER: &str = "company_fetch";
 const RESOLVE_HANDLER: &str = "resolve";
 const UPDATE_HANDLER: &str = "update";
 const MATCH_HANDLER: &str = "match";
