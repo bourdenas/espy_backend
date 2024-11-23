@@ -8,6 +8,7 @@ use valuable::Valuable;
 #[derive(Default)]
 pub struct EspyLogsLayer {
     pub prod: bool,
+    pub log_type: &'static str,
 }
 
 impl<S> Layer<S> for EspyLogsLayer
@@ -59,7 +60,13 @@ where
                 None => {
                     if !(event_span.children.is_empty() && event_span.events.is_empty()) {
                         if self.prod {
-                            info!(entry = event_span.as_value(), "'{}' log entry", span.name());
+                            info!(
+                                labels.log_type = &self.log_type,
+                                labels.handler = span.name(),
+                                entry = event_span.as_value(),
+                                "'{}' log entry",
+                                span.name()
+                            );
                         } else {
                             info!(
                                 "'{}' log entry ==> {}",

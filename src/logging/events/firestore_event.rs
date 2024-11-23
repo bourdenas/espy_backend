@@ -107,6 +107,7 @@ enum Event {
 struct ReadStats {
     read: usize,
 
+    #[serde(default)]
     #[serde(skip_serializing_if = "is_zero")]
     not_found: usize,
 

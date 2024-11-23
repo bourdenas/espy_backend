@@ -24,7 +24,7 @@ pub async fn welcome() -> Result<impl warp::Reply, Infallible> {
     Ok("welcome")
 }
 
-#[instrument(level = "trace", skip(resolver))]
+#[instrument(name = "search", level = "info", skip(resolver))]
 pub async fn post_search(
     search: models::Search,
     resolver: Arc<ResolveApi>,
@@ -37,12 +37,12 @@ pub async fn post_search(
         }
         Err(status) => {
             event.log_error(status);
-            Ok(Box::new(StatusCode::NOT_FOUND))
+            Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR))
         }
     }
 }
 
-#[instrument(level = "trace", skip(firestore))]
+#[instrument(name = "company_fetch", level = "info", skip(firestore))]
 pub async fn post_company_fetch(
     company_fetch: models::CompanyFetch,
     firestore: Arc<FirestoreApi>,
@@ -62,7 +62,7 @@ pub async fn post_company_fetch(
     }
 }
 
-#[instrument(level = "trace", skip(firestore, resolver))]
+#[instrument(name = "resolve", level = "info", skip(firestore, resolver))]
 pub async fn post_resolve(
     resolve: models::Resolve,
     firestore: Arc<FirestoreApi>,
@@ -86,7 +86,7 @@ pub async fn post_resolve(
     }
 }
 
-#[instrument(level = "trace", skip(firestore))]
+#[instrument(name = "delete", level = "info", skip(firestore))]
 pub async fn post_delete(
     resolve: models::Resolve,
     firestore: Arc<FirestoreApi>,
@@ -97,7 +97,7 @@ pub async fn post_delete(
     }
 }
 
-#[instrument(level = "trace", skip(firestore))]
+#[instrument(name = "update", level = "info", skip(firestore))]
 pub async fn post_update(
     user_id: String,
     update: models::UpdateOp,
@@ -127,7 +127,8 @@ pub async fn post_update(
 }
 
 #[instrument(
-    level = "trace",
+    name = "match",
+    level = "info",
     skip(match_op, firestore, resolver),
     fields(
         title = %match_op.store_entry.title,
@@ -203,7 +204,7 @@ pub async fn post_match(
     }
 }
 
-#[instrument(level = "trace", skip(firestore))]
+#[instrument(name = "wishlist", level = "info", skip(firestore))]
 pub async fn post_wishlist(
     user_id: String,
     wishlist: models::WishlistOp,
@@ -243,7 +244,7 @@ pub async fn post_wishlist(
     }
 }
 
-#[instrument(level = "trace", skip(firestore))]
+#[instrument(name = "unlink", level = "info", skip(firestore))]
 pub async fn post_unlink(
     user_id: String,
     unlink: models::Unlink,
@@ -283,7 +284,7 @@ pub async fn post_unlink(
     }
 }
 
-#[instrument(level = "trace", skip(api_keys, firestore, resolver))]
+#[instrument(name = "sync", level = "info", skip(api_keys, firestore, resolver))]
 pub async fn post_sync(
     user_id: String,
     api_keys: Arc<util::keys::Keys>,
@@ -321,7 +322,7 @@ pub async fn post_sync(
     }
 }
 
-#[instrument(level = "trace")]
+#[instrument(level = "info")]
 pub async fn get_images(uri: String) -> Result<Box<dyn warp::Reply>, Infallible> {
     let resp = match reqwest::Client::new().get(&uri).send().await {
         Ok(resp) => resp,
