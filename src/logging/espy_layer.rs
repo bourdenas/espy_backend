@@ -5,7 +5,7 @@ use tracing::{info, Level};
 use tracing_subscriber::Layer;
 use valuable::Valuable;
 
-use super::{LogRequest, LogResponse};
+use super::LogHttpRequest;
 
 #[derive(Default)]
 pub struct EspyLogsLayer {
@@ -96,15 +96,9 @@ where
                         }
                     } else if let Some(field) = collector.fields.get("request") {
                         if let Field::Str(encoded) = field {
-                            let log: LogRequest = serde_json::from_str(encoded)
-                                .expect("Failed to parse LogRequest from 'request' log field.");
+                            let log: LogHttpRequest = serde_json::from_str(encoded)
+                                .expect("Failed to parse LogHttpRequest from 'request' log field.");
                             event_span.request = log;
-                        }
-                    } else if let Some(field) = collector.fields.get("response") {
-                        if let Field::Str(encoded) = field {
-                            let log: LogResponse = serde_json::from_str(encoded)
-                                .expect("Failed to parse LogResponse from 'response' log field.");
-                            event_span.response = log;
                         }
                     }
                 }

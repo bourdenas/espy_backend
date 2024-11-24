@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
 use valuable::Valuable;
 
-use super::{LogEvent, LogRequest, LogResponse};
+use super::{LogEvent, LogHttpRequest};
 
 #[derive(Serialize, Deserialize, Valuable, Default, Clone, Debug)]
 pub struct EventSpan {
@@ -12,8 +12,7 @@ pub struct EventSpan {
     #[serde(default)]
     pub latency: u64,
 
-    pub request: LogRequest,
-    pub response: LogResponse,
+    pub request: LogHttpRequest,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]

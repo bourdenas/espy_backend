@@ -3,8 +3,8 @@ use crate::{
     documents::GameEntry,
     http::models,
     library::{self, LibraryManager, User},
-    log_request, log_response,
-    logging::{CompanySearchRequest, CompanySearchResponse, SearchRequest, SearchResponse},
+    log_request,
+    logging::LogHttpRequest,
     resolver::ResolveApi,
     util, Status,
 };
@@ -31,15 +31,16 @@ pub async fn post_search(
     search: models::Search,
     resolver: Arc<ResolveApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    log_request!(SearchRequest::new(&search));
-
-    match resolver.search(search.title, search.base_game_only).await {
+    match resolver
+        .search(search.title.clone(), search.base_game_only)
+        .await
+    {
         Ok(candidates) => {
-            log_response!(SearchResponse::new(&candidates));
+            log_request!(LogHttpRequest::search(search, &candidates));
             Ok(Box::new(warp::reply::json(&candidates)))
         }
         Err(status) => {
-            log_response!(SearchResponse::err(status));
+            log_request!(LogHttpRequest::search_err(search, status));
             Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR))
         }
     }
@@ -50,16 +51,14 @@ pub async fn post_company_fetch(
     company_fetch: models::CompanyFetch,
     firestore: Arc<FirestoreApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    log_request!(CompanySearchRequest::new(&company_fetch));
-
     let slug = CompanyNormalizer::slug(&company_fetch.name);
     match library::firestore::companies::search(&firestore, &slug).await {
         Ok(companies) => {
-            log_response!(CompanySearchResponse::new(&companies));
+            log_request!(LogHttpRequest::company_search(company_fetch, &companies));
             Ok(Box::new(warp::reply::json(&companies)))
         }
         Err(status) => {
-            log_response!(CompanySearchResponse::err(status));
+            log_request!(LogHttpRequest::company_search_err(company_fetch, status));
             Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR))
         }
     }
@@ -71,19 +70,17 @@ pub async fn post_resolve(
     firestore: Arc<FirestoreApi>,
     resolver: Arc<ResolveApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let event = ResolveEvent::new(resolve.clone());
-
     match retrieve_and_store(&firestore, &resolver, resolve.game_id).await {
         Ok(game_entry) => {
-            event.log(game_entry);
+            log_request!(LogHttpRequest::resolve(resolve, game_entry));
             Ok(StatusCode::OK)
         }
         Err(Status::NotFound(msg)) => {
-            event.log_error(Status::not_found(msg));
+            log_request!(LogHttpRequest::resolve_err(resolve, Status::not_found(msg)));
             Ok(StatusCode::NOT_FOUND)
         }
         Err(status) => {
-            event.log_error(status);
+            log_request!(LogHttpRequest::resolve_err(resolve, status));
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
