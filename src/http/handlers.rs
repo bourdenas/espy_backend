@@ -103,12 +103,10 @@ pub async fn post_update(
     update: models::UpdateOp,
     firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let event = UpdateEvent::new(&update);
-
     let game_entry = match library::firestore::games::read(&firestore, update.game_id).await {
         Ok(game_entry) => game_entry,
         Err(status) => {
-            event.log_error(&user_id, status);
+            log_request!(LogHttpRequest::update(update, status));
             return Ok(StatusCode::NOT_FOUND);
         }
     };
@@ -116,11 +114,11 @@ pub async fn post_update(
     let manager = LibraryManager::new(&user_id);
     match manager.update_game(firestore, game_entry).await {
         Ok(()) => {
-            event.log(&user_id);
+            log_request!(LogHttpRequest::update(update, Status::Ok));
             Ok(StatusCode::OK)
         }
         Err(status) => {
-            event.log_error(&user_id, status);
+            log_request!(LogHttpRequest::update(update, status));
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -140,8 +138,6 @@ pub async fn post_match(
     firestore: Arc<FirestoreApi>,
     resolver: Arc<ResolveApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let event = MatchEvent::new(match_op.clone());
-
     let game_entry = match match_op.game_id {
         Some(game_id) => match library::firestore::games::read(&firestore, game_id).await {
             Ok(game_entry) => Some(game_entry),
@@ -149,19 +145,20 @@ pub async fn post_match(
                 match retrieve_and_store(&firestore, &resolver, game_id).await {
                     Ok(game_entry) => Some(game_entry),
                     Err(status) => {
-                        event.log_error(&user_id, status);
+                        log_request!(LogHttpRequest::match_game(match_op, status));
                         return Ok(StatusCode::NOT_FOUND);
                     }
                 }
             }
             Err(status) => {
-                event.log_error(&user_id, status);
+                log_request!(LogHttpRequest::match_game(match_op, status));
                 return Ok(StatusCode::NOT_FOUND);
             }
         },
         None => None,
     };
 
+    let request = match_op.clone();
     let manager = LibraryManager::new(&user_id);
     let status = match (game_entry, match_op.unmatch_entry) {
         // Match StoreEntry to GameEntry and add in Library.
@@ -190,15 +187,18 @@ pub async fn post_match(
 
     match status {
         Ok(()) => {
-            event.log(&user_id);
+            log_request!(LogHttpRequest::match_game(request, Status::Ok));
             Ok(StatusCode::OK)
         }
-        Err(Status::InvalidArgument(status)) => {
-            event.log_error(&user_id, Status::invalid_argument(status));
+        Err(Status::InvalidArgument(msg)) => {
+            log_request!(LogHttpRequest::match_game(
+                request,
+                Status::invalid_argument(msg),
+            ));
             Ok(StatusCode::BAD_REQUEST)
         }
         Err(status) => {
-            event.log_error(&user_id, status);
+            log_request!(LogHttpRequest::match_game(request, status));
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }

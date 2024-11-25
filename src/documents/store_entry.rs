@@ -1,5 +1,7 @@
-use serde::{Deserialize, Serialize};
 use std::fmt;
+
+use serde::{Deserialize, Serialize};
+use valuable::Valuable;
 
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct FailedEntries {
@@ -9,7 +11,7 @@ pub struct FailedEntries {
 /// Document type under 'users/{user_id}/unknown/{entry_id}' that represents
 /// user ownership of a title in a storefront that has not yet been matched with
 /// an IGDB entry.
-#[derive(Serialize, Deserialize, Default, Debug, Clone, Eq)]
+#[derive(Serialize, Deserialize, Valuable, Default, Debug, Clone, Eq)]
 pub struct StoreEntry {
     pub id: String,
     pub title: String,
