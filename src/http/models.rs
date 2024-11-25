@@ -67,7 +67,7 @@ pub struct WishlistOp {
     pub remove_game: Option<u64>,
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Unlink {
     pub storefront_id: String,
 }

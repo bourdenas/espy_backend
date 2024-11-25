@@ -20,6 +20,9 @@ pub enum LogHttpRequest {
     Resolve(ResolveRequest, ResolveResponse, Status),
     Update(UpdateRequest, Status),
     Match(MatchRequest, Status),
+    Wishlist(WishlistRequest, Status),
+    Unlink(UnlinkRequest, Status),
+    Sync(Status),
 }
 
 impl LogHttpRequest {
@@ -112,6 +115,19 @@ impl LogHttpRequest {
         )
     }
 
+    pub fn unlink(request: models::Unlink, status: Status) -> Self {
+        LogHttpRequest::Unlink(
+            UnlinkRequest {
+                storefront_id: request.storefront_id,
+            },
+            status,
+        )
+    }
+
+    pub fn sync(status: Status) -> Self {
+        LogHttpRequest::Sync(status)
+    }
+
     pub fn match_game(request: models::MatchOp, status: Status) -> Self {
         LogHttpRequest::Match(
             MatchRequest {
@@ -133,6 +149,24 @@ impl LogHttpRequest {
                         delete: request.delete_unmatched,
                     },
                     (None, None) => MatchOp::Invalid,
+                },
+            },
+            status,
+        )
+    }
+
+    pub fn wishlist(request: models::WishlistOp, status: Status) -> Self {
+        LogHttpRequest::Wishlist(
+            WishlistRequest {
+                op: match (request.add_game, request.remove_game) {
+                    (Some(library_entry), None) => WishlistOp::Add {
+                        game: Document {
+                            id: library_entry.id,
+                            name: library_entry.digest.name,
+                        },
+                    },
+                    (None, Some(id)) => WishlistOp::Remove { id },
+                    _ => WishlistOp::Invalid,
                 },
             },
             status,
@@ -214,6 +248,28 @@ enum MatchOp {
         from: Document,
         delete: bool,
     },
+}
+
+#[derive(Serialize, Deserialize, Valuable, Clone, Default, Debug)]
+struct WishlistRequest {
+    op: WishlistOp,
+}
+
+#[derive(Serialize, Deserialize, Valuable, Clone, Default, Debug)]
+enum WishlistOp {
+    #[default]
+    Invalid,
+    Add {
+        game: Document,
+    },
+    Remove {
+        id: u64,
+    },
+}
+
+#[derive(Serialize, Deserialize, Valuable, Clone, Default, Debug)]
+struct UnlinkRequest {
+    storefront_id: String,
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]

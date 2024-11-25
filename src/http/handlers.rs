@@ -12,8 +12,6 @@ use std::{convert::Infallible, sync::Arc};
 use tracing::{info, instrument, warn};
 use warp::http::StatusCode;
 
-use super::query_logs::*;
-
 #[instrument(level = "trace")]
 pub async fn welcome() -> Result<impl warp::Reply, Infallible> {
     info!(
@@ -210,35 +208,34 @@ pub async fn post_wishlist(
     wishlist: models::WishlistOp,
     firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let event = WishlistEvent::new(wishlist.clone());
-
+    let request = wishlist.clone();
     let manager = LibraryManager::new(&user_id);
     match (wishlist.add_game, wishlist.remove_game) {
         (Some(library_entry), _) => match manager.add_to_wishlist(firestore, library_entry).await {
             Ok(()) => {
-                event.log(&user_id);
+                log_request!(LogHttpRequest::wishlist(request, Status::Ok));
                 Ok(StatusCode::OK)
             }
             Err(status) => {
-                event.log_error(&user_id, status);
+                log_request!(LogHttpRequest::wishlist(request, status));
                 Ok(StatusCode::INTERNAL_SERVER_ERROR)
             }
         },
         (_, Some(game_id)) => match manager.remove_from_wishlist(firestore, game_id).await {
             Ok(()) => {
-                event.log(&user_id);
+                log_request!(LogHttpRequest::wishlist(request, Status::Ok));
                 Ok(StatusCode::OK)
             }
             Err(status) => {
-                event.log_error(&user_id, status);
+                log_request!(LogHttpRequest::wishlist(request, status));
                 Ok(StatusCode::INTERNAL_SERVER_ERROR)
             }
         },
         _ => {
-            event.log_error(
-                &user_id,
-                Status::invalid_argument("Missing both add_game and remove_game arguments."),
-            );
+            log_request!(LogHttpRequest::wishlist(
+                request,
+                Status::invalid_argument("Missing both add_game and remove_game arguments.")
+            ));
             Ok(StatusCode::BAD_REQUEST)
         }
     }
@@ -250,8 +247,7 @@ pub async fn post_unlink(
     unlink: models::Unlink,
     firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let event = UnlinkEvent::new(&unlink);
-
+    let request = unlink.clone();
     match User::fetch(Arc::clone(&firestore), &user_id).await {
         // Remove storefront credentials from UserData.
         Ok(mut user) => match user.remove_storefront(&unlink.storefront_id).await {
@@ -263,22 +259,22 @@ pub async fn post_unlink(
                     .await
                 {
                     Ok(()) => {
-                        event.log(&user_id);
+                        log_request!(LogHttpRequest::unlink(request, Status::Ok));
                         Ok(StatusCode::OK)
                     }
                     Err(status) => {
-                        event.log_error(&user_id, status);
+                        log_request!(LogHttpRequest::unlink(request, status));
                         Ok(StatusCode::INTERNAL_SERVER_ERROR)
                     }
                 }
             }
             Err(status) => {
-                event.log_error(&user_id, status);
+                log_request!(LogHttpRequest::unlink(request, status));
                 Ok(StatusCode::INTERNAL_SERVER_ERROR)
             }
         },
         Err(status) => {
-            event.log_error(&user_id, status);
+            log_request!(LogHttpRequest::unlink(request, status));
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -291,8 +287,6 @@ pub async fn post_sync(
     firestore: Arc<FirestoreApi>,
     resolver: Arc<ResolveApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let event = SyncEvent::new();
-
     let store_entries = match User::fetch(Arc::clone(&firestore), &user_id).await {
         Ok(mut user) => user.sync_accounts(&api_keys).await,
         Err(status) => Err(status),
@@ -301,7 +295,7 @@ pub async fn post_sync(
     let store_entries = match store_entries {
         Ok(store_entries) => store_entries,
         Err(status) => {
-            event.log_error(&user_id, status);
+            log_request!(LogHttpRequest::sync(status));
             return Ok(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
@@ -312,11 +306,11 @@ pub async fn post_sync(
         .await
     {
         Ok(()) => {
-            event.log(&user_id);
+            log_request!(LogHttpRequest::sync(Status::Ok));
             Ok(StatusCode::OK)
         }
         Err(status) => {
-            event.log_error(&user_id, status);
+            log_request!(LogHttpRequest::sync(status));
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
