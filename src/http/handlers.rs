@@ -302,7 +302,7 @@ pub async fn post_sync(
 
     let manager = LibraryManager::new(&user_id);
     match manager
-        .batch_recon_store_entries(firestore, resolver, store_entries)
+        .add_in_library(firestore, resolver, store_entries)
         .await
     {
         Ok(()) => {

@@ -25,7 +25,8 @@ impl LibraryManager {
         }
     }
 
-    pub async fn batch_recon_store_entries(
+    #[instrument(level = "info", skip(self, firestore, resolver, store_entries))]
+    pub async fn add_in_library(
         &self,
         firestore: Arc<FirestoreApi>,
         resolver: Arc<ResolveApi>,
