@@ -1,6 +1,6 @@
 use crate::{
     api::{FirestoreApi, GogScrape, MetacriticApi, SteamDataApi, SteamScrape},
-    documents::{ExternalGame, GameEntry, IgdbExternalGame, IgdbGame, Keyword},
+    documents::{ExternalGame, GameEntry, IgdbExternalGame, IgdbGame, Keyword, StoreName},
     library::firestore,
     logging::{DiffEvent, LogWebhooksRequest, RejectEvent},
     resolver::ResolveApi,
@@ -11,11 +11,7 @@ use std::{convert::Infallible, sync::Arc};
 use tracing::{instrument, trace_span, warn, Instrument};
 use warp::http::StatusCode;
 
-use super::{
-    event_logs::{ExternalGameEvent, KeywordsEvent},
-    filtering::GameFilter,
-    prefiltering::IgdbPrefilter,
-};
+use super::{filtering::GameFilter, prefiltering::IgdbPrefilter};
 
 #[instrument(
     name = "add_game",
@@ -242,33 +238,33 @@ pub async fn external_games_webhook(
     firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     let mut external_game = ExternalGame::from(external_game);
-    let event = ExternalGameEvent::new();
+    LogWebhooksRequest::external_game(&external_game);
 
-    if !external_game.is_supported_store() {
-        event.log_unsupported(external_game);
+    if matches!(external_game.store_name, StoreName::other(_)) {
         return Ok(StatusCode::OK);
     }
 
-    tokio::spawn(async move {
-        match external_game.store_name.as_str() {
-            "gog" => {
-                if let Some(url) = &external_game.store_url {
-                    match GogScrape::scrape(url).await {
-                        Ok(gog_data) => external_game.gog_data = Some(gog_data),
-                        Err(status) => warn!("GOG scraping failed: {status}"),
+    tokio::spawn(
+        async move {
+            match external_game.store_name {
+                StoreName::gog => {
+                    if let Some(url) = &external_game.store_url {
+                        match GogScrape::scrape(url).await {
+                            Ok(gog_data) => external_game.gog_data = Some(gog_data),
+                            Err(status) => warn!("GOG scraping failed: {status}"),
+                        }
                     }
                 }
+                _ => {}
             }
-            _ => {}
-        }
 
-        let result = firestore::external_games::write(&firestore, &external_game).await;
-
-        match result {
-            Ok(()) => event.log(external_game),
-            Err(status) => event.log_error(external_game, status),
+            if let Err(status) = firestore::external_games::write(&firestore, &external_game).await
+            {
+                // event.log_error(external_game, status)
+            }
         }
-    });
+        .instrument(trace_span!("spawn_external_games")),
+    );
 
     Ok(StatusCode::OK)
 }
@@ -278,12 +274,10 @@ pub async fn keywords_webhook(
     keyword: Keyword,
     firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let result = firestore::keywords::write(&firestore, &keyword).await;
-    let event = KeywordsEvent::new(keyword);
+    LogWebhooksRequest::keyword(&keyword);
 
-    match result {
-        Ok(()) => event.log(),
-        Err(status) => event.log_error(status),
+    if let Err(status) = firestore::keywords::write(&firestore, &keyword).await {
+        //   event.log_error(status)
     }
 
     Ok(StatusCode::OK)

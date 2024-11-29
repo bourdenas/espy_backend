@@ -254,15 +254,6 @@ impl IgdbExternalGame {
     pub fn is_egs(&self) -> bool {
         self.category == 26
     }
-
-    pub fn store(&self) -> &str {
-        match self.category {
-            1 => "steam",
-            5 => "gog",
-            26 => "egs",
-            _ => "unknown",
-        }
-    }
 }
 
 #[derive(Deserialize, Default, Debug, Clone)]

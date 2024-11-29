@@ -8,8 +8,8 @@ use crate::{
     api::{CompanyNormalizer, FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
     documents::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
-        GameCategory, GameDigest, GameEntry, IgdbGame, IgdbInvolvedCompany, SteamData, Website,
-        WebsiteAuthority,
+        GameCategory, GameDigest, GameEntry, IgdbGame, IgdbInvolvedCompany, SteamData, StoreName,
+        Website, WebsiteAuthority,
     },
     library, Status,
 };
@@ -52,7 +52,10 @@ pub async fn resolve_game_digest(
     };
 
     // Spawn a task to retrieve steam data.
-    let steam_handle = match external_games.iter().find(|e| e.is_steam()) {
+    let steam_handle = match external_games
+        .iter()
+        .find(|e| matches!(e.store_name, StoreName::steam))
+    {
         Some(steam_external) => {
             let steam_appid = steam_external.store_id.clone();
             Some(tokio::spawn(
@@ -192,7 +195,10 @@ pub async fn resolve_game_digest(
         }
     }
 
-    if let Some(gog_external) = external_games.into_iter().find(|e| e.is_gog()) {
+    if let Some(gog_external) = external_games
+        .into_iter()
+        .find(|e| matches!(e.store_name, StoreName::gog))
+    {
         if let Some(gog_data) = gog_external.gog_data {
             game_entry.add_gog_data(gog_data);
         }
