@@ -13,7 +13,7 @@ pub struct EventSpan {
     #[serde(default)]
     pub latency: u64,
 
-    pub request: LogHttpRequest,
+    pub request: LogRequest,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -33,8 +33,11 @@ impl EventSpan {
     }
 }
 
-#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
+#[derive(Serialize, Deserialize, Valuable, Default, Clone, Debug)]
 pub enum LogRequest {
+    #[default]
+    None,
+
     Http(LogHttpRequest),
     Webhooks(LogWebhooksRequest),
 }

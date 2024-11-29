@@ -3,7 +3,6 @@ use crate::{
     documents::GameEntry,
     http::models,
     library::{self, LibraryManager, User},
-    log_request,
     logging::LogHttpRequest,
     resolver::ResolveApi,
     util, Status,
@@ -34,11 +33,11 @@ pub async fn post_search(
         .await
     {
         Ok(candidates) => {
-            log_request!(LogHttpRequest::search(search, &candidates));
+            LogHttpRequest::search(search, &candidates);
             Ok(Box::new(warp::reply::json(&candidates)))
         }
         Err(status) => {
-            log_request!(LogHttpRequest::search_err(search, status));
+            LogHttpRequest::search_err(search, status);
             Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR))
         }
     }
@@ -52,11 +51,11 @@ pub async fn post_company_fetch(
     let slug = CompanyNormalizer::slug(&company_fetch.name);
     match library::firestore::companies::search(&firestore, &slug).await {
         Ok(companies) => {
-            log_request!(LogHttpRequest::company_search(company_fetch, &companies));
+            LogHttpRequest::company_search(company_fetch, &companies);
             Ok(Box::new(warp::reply::json(&companies)))
         }
         Err(status) => {
-            log_request!(LogHttpRequest::company_search_err(company_fetch, status));
+            LogHttpRequest::company_search_err(company_fetch, status);
             Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR))
         }
     }
@@ -70,15 +69,15 @@ pub async fn post_resolve(
 ) -> Result<impl warp::Reply, Infallible> {
     match retrieve_and_store(&firestore, &resolver, resolve.game_id).await {
         Ok(game_entry) => {
-            log_request!(LogHttpRequest::resolve(resolve, game_entry));
+            LogHttpRequest::resolve(resolve, game_entry);
             Ok(StatusCode::OK)
         }
         Err(Status::NotFound(msg)) => {
-            log_request!(LogHttpRequest::resolve_err(resolve, Status::not_found(msg)));
+            LogHttpRequest::resolve_err(resolve, Status::not_found(msg));
             Ok(StatusCode::NOT_FOUND)
         }
         Err(status) => {
-            log_request!(LogHttpRequest::resolve_err(resolve, status));
+            LogHttpRequest::resolve_err(resolve, status);
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -104,7 +103,7 @@ pub async fn post_update(
     let game_entry = match library::firestore::games::read(&firestore, update.game_id).await {
         Ok(game_entry) => game_entry,
         Err(status) => {
-            log_request!(LogHttpRequest::update(update, status));
+            LogHttpRequest::update(update, status);
             return Ok(StatusCode::NOT_FOUND);
         }
     };
@@ -112,11 +111,11 @@ pub async fn post_update(
     let manager = LibraryManager::new(&user_id);
     match manager.update_game(firestore, game_entry).await {
         Ok(()) => {
-            log_request!(LogHttpRequest::update(update, Status::Ok));
+            LogHttpRequest::update(update, Status::Ok);
             Ok(StatusCode::OK)
         }
         Err(status) => {
-            log_request!(LogHttpRequest::update(update, status));
+            LogHttpRequest::update(update, status);
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -143,13 +142,13 @@ pub async fn post_match(
                 match retrieve_and_store(&firestore, &resolver, game_id).await {
                     Ok(game_entry) => Some(game_entry),
                     Err(status) => {
-                        log_request!(LogHttpRequest::match_game(match_op, status));
+                        LogHttpRequest::match_game(match_op, status);
                         return Ok(StatusCode::NOT_FOUND);
                     }
                 }
             }
             Err(status) => {
-                log_request!(LogHttpRequest::match_game(match_op, status));
+                LogHttpRequest::match_game(match_op, status);
                 return Ok(StatusCode::NOT_FOUND);
             }
         },
@@ -185,18 +184,15 @@ pub async fn post_match(
 
     match status {
         Ok(()) => {
-            log_request!(LogHttpRequest::match_game(request, Status::Ok));
+            LogHttpRequest::match_game(request, Status::Ok);
             Ok(StatusCode::OK)
         }
         Err(Status::InvalidArgument(msg)) => {
-            log_request!(LogHttpRequest::match_game(
-                request,
-                Status::invalid_argument(msg),
-            ));
+            LogHttpRequest::match_game(request, Status::invalid_argument(msg));
             Ok(StatusCode::BAD_REQUEST)
         }
         Err(status) => {
-            log_request!(LogHttpRequest::match_game(request, status));
+            LogHttpRequest::match_game(request, status);
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -213,29 +209,29 @@ pub async fn post_wishlist(
     match (wishlist.add_game, wishlist.remove_game) {
         (Some(library_entry), _) => match manager.add_to_wishlist(firestore, library_entry).await {
             Ok(()) => {
-                log_request!(LogHttpRequest::wishlist(request, Status::Ok));
+                LogHttpRequest::wishlist(request, Status::Ok);
                 Ok(StatusCode::OK)
             }
             Err(status) => {
-                log_request!(LogHttpRequest::wishlist(request, status));
+                LogHttpRequest::wishlist(request, status);
                 Ok(StatusCode::INTERNAL_SERVER_ERROR)
             }
         },
         (_, Some(game_id)) => match manager.remove_from_wishlist(firestore, game_id).await {
             Ok(()) => {
-                log_request!(LogHttpRequest::wishlist(request, Status::Ok));
+                LogHttpRequest::wishlist(request, Status::Ok);
                 Ok(StatusCode::OK)
             }
             Err(status) => {
-                log_request!(LogHttpRequest::wishlist(request, status));
+                LogHttpRequest::wishlist(request, status);
                 Ok(StatusCode::INTERNAL_SERVER_ERROR)
             }
         },
         _ => {
-            log_request!(LogHttpRequest::wishlist(
+            LogHttpRequest::wishlist(
                 request,
-                Status::invalid_argument("Missing both add_game and remove_game arguments.")
-            ));
+                Status::invalid_argument("Missing both add_game and remove_game arguments."),
+            );
             Ok(StatusCode::BAD_REQUEST)
         }
     }
@@ -259,22 +255,22 @@ pub async fn post_unlink(
                     .await
                 {
                     Ok(()) => {
-                        log_request!(LogHttpRequest::unlink(request, Status::Ok));
+                        LogHttpRequest::unlink(request, Status::Ok);
                         Ok(StatusCode::OK)
                     }
                     Err(status) => {
-                        log_request!(LogHttpRequest::unlink(request, status));
+                        LogHttpRequest::unlink(request, status);
                         Ok(StatusCode::INTERNAL_SERVER_ERROR)
                     }
                 }
             }
             Err(status) => {
-                log_request!(LogHttpRequest::unlink(request, status));
+                LogHttpRequest::unlink(request, status);
                 Ok(StatusCode::INTERNAL_SERVER_ERROR)
             }
         },
         Err(status) => {
-            log_request!(LogHttpRequest::unlink(request, status));
+            LogHttpRequest::unlink(request, status);
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -295,7 +291,7 @@ pub async fn post_sync(
     let store_entries = match store_entries {
         Ok(store_entries) => store_entries,
         Err(status) => {
-            log_request!(LogHttpRequest::sync(status));
+            LogHttpRequest::sync(status);
             return Ok(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
@@ -306,11 +302,11 @@ pub async fn post_sync(
         .await
     {
         Ok(()) => {
-            log_request!(LogHttpRequest::sync(Status::Ok));
+            LogHttpRequest::sync(Status::Ok);
             Ok(StatusCode::OK)
         }
         Err(status) => {
-            log_request!(LogHttpRequest::sync(status));
+            LogHttpRequest::sync(status);
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }

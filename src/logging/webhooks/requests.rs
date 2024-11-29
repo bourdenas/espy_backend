@@ -6,11 +6,8 @@ use valuable::Valuable;
 
 use crate::{documents::IgdbGame, logging::LogRequest};
 
-#[derive(Serialize, Deserialize, Valuable, Clone, Default, Debug)]
+#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
 pub enum LogWebhooksRequest {
-    #[default]
-    None,
-
     AddGame(Game),
     UpdateGame(Game),
     // ExternalGame(IgdbExternalGame, Status),
