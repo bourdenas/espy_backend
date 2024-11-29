@@ -158,7 +158,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .iter()
             {
                 println!(
-                    "#{i} deleting {}({}) -- {}",
+                    "#{i} deleting {}({}) -- {:?}",
                     game.name,
                     game.id,
                     filter.explain(&game)
@@ -185,30 +185,32 @@ fn is_below_fold(game: &GameEntry, filter: &GameFilter) -> bool {
         || (game.release_year() >= 2000
             && game.scores.espy_score.is_none()
             && game.scores.popularity.unwrap_or_default() < 1000
-            && !filter.is_notable(&game))
+            && filter.is_notable(&game).is_none())
 }
 
 fn is_parent_below_fold(game: &GameDigest, filter: &GameFilter) -> bool {
     game.release_year() >= 2000
         && game.scores.espy_score.is_none()
         && game.scores.popularity.unwrap_or_default() < 1000
-        && !filter.is_notable(&GameEntry {
-            developers: game
-                .developers
-                .iter()
-                .map(|c| CompanyDigest {
-                    name: c.clone(),
-                    ..Default::default()
-                })
-                .collect(),
-            publishers: game
-                .publishers
-                .iter()
-                .map(|c| CompanyDigest {
-                    name: c.clone(),
-                    ..Default::default()
-                })
-                .collect(),
-            ..Default::default()
-        })
+        && !filter
+            .is_notable(&GameEntry {
+                developers: game
+                    .developers
+                    .iter()
+                    .map(|c| CompanyDigest {
+                        name: c.clone(),
+                        ..Default::default()
+                    })
+                    .collect(),
+                publishers: game
+                    .publishers
+                    .iter()
+                    .map(|c| CompanyDigest {
+                        name: c.clone(),
+                        ..Default::default()
+                    })
+                    .collect(),
+                ..Default::default()
+            })
+            .is_none()
 }
