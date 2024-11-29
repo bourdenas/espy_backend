@@ -1,9 +1,10 @@
 use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 use valuable::Valuable;
 
-use super::{LogEvent, LogHttpRequest};
+use super::{LogEvent, LogHttpRequest, LogWebhooksRequest};
 
 #[derive(Serialize, Deserialize, Valuable, Default, Clone, Debug)]
 pub struct EventSpan {
@@ -28,6 +29,24 @@ impl EventSpan {
         EventSpan {
             name,
             ..Default::default()
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
+pub enum LogRequest {
+    Http(LogHttpRequest),
+    Webhooks(LogWebhooksRequest),
+}
+
+impl LogRequest {
+    pub fn encode(&self) -> String {
+        match serde_json::to_string(self) {
+            Ok(json) => json,
+            Err(e) => {
+                warn!("{}", e);
+                String::default()
+            }
         }
     }
 }

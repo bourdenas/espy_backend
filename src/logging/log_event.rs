@@ -4,13 +4,15 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 use valuable::Valuable;
 
-use super::{FirestoreEvent, ResolveEvent};
+use super::{DiffEvent, FirestoreEvent, RejectEvent, ResolveEvent};
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
 pub enum LogEvent {
     Invalid,
     Firestore(FirestoreEvent),
     Resolve(ResolveEvent),
+    Filter(RejectEvent),
+    Diff(DiffEvent),
 }
 
 impl Default for LogEvent {
