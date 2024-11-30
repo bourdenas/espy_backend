@@ -19,7 +19,7 @@ enum SteamApi {
     GetOwnedGames { steam_id: String, game_count: usize },
     GetAppDetails { appid: String, name: String },
     GetAppScore { appid: String },
-    ScrapeAppPage,
+    ScrapeAppPage { url: String },
 }
 
 impl SteamEvent {
@@ -47,9 +47,9 @@ impl SteamEvent {
         }));
     }
 
-    pub fn scrape_app_page(errors: Vec<String>) {
+    pub fn scrape_app_page(url: String, errors: Vec<String>) {
         log_event!(LogEvent::Steam(SteamEvent {
-            api: SteamApi::ScrapeAppPage,
+            api: SteamApi::ScrapeAppPage { url },
             errors,
         }));
     }
