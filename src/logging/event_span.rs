@@ -59,6 +59,13 @@ impl LogRequest {
 }
 
 #[macro_export]
+macro_rules! log_request {
+    ($request:expr) => {
+        ::tracing::debug!(request = $request.encode())
+    };
+}
+
+#[macro_export]
 macro_rules! log_error {
     ($status:expr) => {
         ::tracing::error!(error = $status.to_string())
