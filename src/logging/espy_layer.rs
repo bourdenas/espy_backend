@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, time::SystemTime};
 
 use crate::logging::{EventSpan, LogEvent};
-use tracing::{info, Level};
+use tracing::{error, info, Level};
 use tracing_subscriber::Layer;
 use valuable::Valuable;
 
@@ -62,19 +62,37 @@ where
                 None => {
                     if !(event_span.children.is_empty() && event_span.events.is_empty()) {
                         if self.prod {
-                            info!(
-                                labels.log_type = &self.log_type,
-                                labels.handler = span.name(),
-                                entry = event_span.as_value(),
-                                "'{}' log entry",
-                                span.name()
-                            );
+                            if event_span.errors.is_empty() {
+                                info!(
+                                    labels.log_type = &self.log_type,
+                                    labels.handler = span.name(),
+                                    entry = event_span.as_value(),
+                                    "'{}' log entry",
+                                    span.name()
+                                );
+                            } else {
+                                error!(
+                                    labels.log_type = &self.log_type,
+                                    labels.handler = span.name(),
+                                    entry = event_span.as_value(),
+                                    "'{}' log entry",
+                                    span.name()
+                                );
+                            };
                         } else {
-                            info!(
-                                "'{}' log entry ==> {}",
-                                span.name(),
-                                serde_json::to_string_pretty(&event_span).unwrap(),
-                            )
+                            if event_span.errors.is_empty() {
+                                info!(
+                                    "'{}' log entry => {}",
+                                    span.name(),
+                                    serde_json::to_string_pretty(&event_span).unwrap(),
+                                )
+                            } else {
+                                error!(
+                                    "'{}' log entry => {}",
+                                    span.name(),
+                                    serde_json::to_string_pretty(&event_span).unwrap(),
+                                )
+                            }
                         }
                     }
                 }
@@ -99,6 +117,10 @@ where
                             let log: LogRequest = serde_json::from_str(encoded)
                                 .expect("Failed to parse LogRequest from 'request' log field.");
                             event_span.request = log;
+                        }
+                    } else if let Some(field) = collector.fields.get("error") {
+                        if let Field::Str(error) = field {
+                            event_span.errors.push(error.clone());
                         }
                     }
                 }

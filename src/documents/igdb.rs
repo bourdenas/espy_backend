@@ -154,7 +154,7 @@ impl IgdbGame {
         })
     }
 
-    pub fn is_main_category(&self) -> bool {
+    pub fn is_watched_category(&self) -> bool {
         let game_category = GameCategory::from(self.category);
         matches!(
             game_category,

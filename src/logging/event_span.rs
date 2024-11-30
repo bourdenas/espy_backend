@@ -21,6 +21,10 @@ pub struct EventSpan {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub errors: Vec<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<EventSpan>,
 }
 
@@ -52,4 +56,11 @@ impl LogRequest {
             }
         }
     }
+}
+
+#[macro_export]
+macro_rules! log_error {
+    ($status:expr) => {
+        ::tracing::error!(error = $status.to_string())
+    };
 }

@@ -36,6 +36,6 @@ impl LogEvent {
 #[macro_export]
 macro_rules! log {
     ($event:expr) => {
-        ::tracing::debug!(event = $event.encode());
+        ::tracing::debug!(event = $event.encode())
     };
 }
