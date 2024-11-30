@@ -13,24 +13,50 @@ use crate::{
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
 pub enum LogHttpRequest {
-    Search(SearchRequest, SearchResponse, Status),
-    CompanySearch(CompanySearchRequest, CompanySearchResponse, Status),
-    Resolve(ResolveRequest, ResolveResponse, Status),
-    Update(UpdateRequest, Status),
-    Match(MatchRequest, Status),
-    Wishlist(WishlistRequest, Status),
-    Unlink(UnlinkRequest, Status),
-    Sync(Status),
+    Search {
+        request: SearchRequest,
+        response: SearchResponse,
+        status: Status,
+    },
+    CompanySearch {
+        request: CompanySearchRequest,
+        response: CompanySearchResponse,
+        status: Status,
+    },
+    Resolve {
+        request: ResolveRequest,
+        response: ResolveResponse,
+        status: Status,
+    },
+    Update {
+        request: UpdateRequest,
+        status: Status,
+    },
+    Match {
+        request: MatchRequest,
+        status: Status,
+    },
+    Wishlist {
+        request: WishlistRequest,
+        status: Status,
+    },
+    Unlink {
+        request: UnlinkRequest,
+        status: Status,
+    },
+    Sync {
+        status: Status,
+    },
 }
 
 impl LogHttpRequest {
     pub fn search(request: models::Search, digests: &[GameDigest]) {
-        log_request!(LogRequest::Http(LogHttpRequest::Search(
-            SearchRequest {
+        log_request!(LogRequest::Http(LogHttpRequest::Search {
+            request: SearchRequest {
                 title: request.title,
                 base_game_only: request.base_game_only,
             },
-            SearchResponse {
+            response: SearchResponse {
                 games: digests
                     .iter()
                     .map(|digest| Document {
@@ -39,26 +65,26 @@ impl LogHttpRequest {
                     })
                     .collect(),
             },
-            Status::Ok,
-        )))
+            status: Status::Ok,
+        }))
     }
     pub fn search_err(request: models::Search, status: Status) {
-        log_request!(LogRequest::Http(LogHttpRequest::Search(
-            SearchRequest {
+        log_request!(LogRequest::Http(LogHttpRequest::Search {
+            request: SearchRequest {
                 title: request.title,
                 base_game_only: request.base_game_only,
             },
-            SearchResponse::default(),
+            response: SearchResponse::default(),
             status,
-        )))
+        }))
     }
 
     pub fn company_search(request: models::CompanyFetch, companies: &[Company]) {
-        log_request!(LogRequest::Http(LogHttpRequest::CompanySearch(
-            CompanySearchRequest {
+        log_request!(LogRequest::Http(LogHttpRequest::CompanySearch {
+            request: CompanySearchRequest {
                 name: request.name.clone(),
             },
-            CompanySearchResponse {
+            response: CompanySearchResponse {
                 companies: companies
                     .iter()
                     .map(|company| Document {
@@ -67,68 +93,68 @@ impl LogHttpRequest {
                     })
                     .collect(),
             },
-            Status::Ok,
-        )))
+            status: Status::Ok,
+        }))
     }
 
     pub fn company_search_err(request: models::CompanyFetch, status: Status) {
-        log_request!(LogRequest::Http(LogHttpRequest::CompanySearch(
-            CompanySearchRequest { name: request.name },
-            CompanySearchResponse::default(),
+        log_request!(LogRequest::Http(LogHttpRequest::CompanySearch {
+            request: CompanySearchRequest { name: request.name },
+            response: CompanySearchResponse::default(),
             status,
-        )))
+        }))
     }
 
     pub fn resolve(request: models::Resolve, game_entry: GameEntry) {
-        log_request!(LogRequest::Http(LogHttpRequest::Resolve(
-            ResolveRequest {
+        log_request!(LogRequest::Http(LogHttpRequest::Resolve {
+            request: ResolveRequest {
                 id: request.game_id,
             },
-            ResolveResponse {
+            response: ResolveResponse {
                 game: Some(Document {
                     id: game_entry.id,
                     name: game_entry.name,
                 }),
             },
-            Status::Ok,
-        )))
+            status: Status::Ok,
+        }))
     }
 
     pub fn resolve_err(request: models::Resolve, status: Status) {
-        log_request!(LogRequest::Http(LogHttpRequest::Resolve(
-            ResolveRequest {
+        log_request!(LogRequest::Http(LogHttpRequest::Resolve {
+            request: ResolveRequest {
                 id: request.game_id,
             },
-            ResolveResponse::default(),
+            response: ResolveResponse::default(),
             status,
-        )))
+        }))
     }
 
     pub fn update(request: models::UpdateOp, status: Status) {
-        log_request!(LogRequest::Http(LogHttpRequest::Update(
-            UpdateRequest {
+        log_request!(LogRequest::Http(LogHttpRequest::Update {
+            request: UpdateRequest {
                 id: request.game_id,
             },
             status,
-        )))
+        }))
     }
 
     pub fn unlink(request: models::Unlink, status: Status) {
-        log_request!(LogRequest::Http(LogHttpRequest::Unlink(
-            UnlinkRequest {
+        log_request!(LogRequest::Http(LogHttpRequest::Unlink {
+            request: UnlinkRequest {
                 storefront_id: request.storefront_id,
             },
             status,
-        )))
+        }))
     }
 
     pub fn sync(status: Status) {
-        log_request!(LogRequest::Http(LogHttpRequest::Sync(status)))
+        log_request!(LogRequest::Http(LogHttpRequest::Sync { status }))
     }
 
     pub fn match_game(request: models::MatchOp, status: Status) {
-        log_request!(LogRequest::Http(LogHttpRequest::Match(
-            MatchRequest {
+        log_request!(LogRequest::Http(LogHttpRequest::Match {
+            request: MatchRequest {
                 store_entry: request.store_entry,
                 op: match (request.game_id, request.unmatch_entry) {
                     (Some(id), None) => MatchOp::Match { to: id },
@@ -150,12 +176,12 @@ impl LogHttpRequest {
                 },
             },
             status,
-        )))
+        }))
     }
 
     pub fn wishlist(request: models::WishlistOp, status: Status) {
-        log_request!(LogRequest::Http(LogHttpRequest::Wishlist(
-            WishlistRequest {
+        log_request!(LogRequest::Http(LogHttpRequest::Wishlist {
+            request: WishlistRequest {
                 op: match (request.add_game, request.remove_game) {
                     (Some(library_entry), None) => WishlistOp::Add {
                         game: Document {
@@ -168,7 +194,7 @@ impl LogHttpRequest {
                 },
             },
             status,
-        )))
+        }))
     }
 }
 
