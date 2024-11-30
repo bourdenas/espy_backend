@@ -57,13 +57,13 @@ impl LogWebhooksRequest {
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
-struct Document {
+pub struct Document {
     id: u64,
     name: String,
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
-struct ExternalGameLog {
+pub struct ExternalGameLog {
     id: u64,
     name: String,
     store: String,

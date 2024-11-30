@@ -199,43 +199,43 @@ impl LogHttpRequest {
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Default, Debug)]
-struct SearchRequest {
+pub struct SearchRequest {
     title: String,
     base_game_only: bool,
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Default, Debug)]
-struct SearchResponse {
+pub struct SearchResponse {
     games: Vec<Document>,
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Default, Debug)]
-struct CompanySearchRequest {
+pub struct CompanySearchRequest {
     name: String,
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Default, Debug)]
-struct CompanySearchResponse {
+pub struct CompanySearchResponse {
     companies: Vec<Document>,
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Default, Debug)]
-struct ResolveRequest {
+pub struct ResolveRequest {
     id: u64,
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Default, Debug)]
-struct ResolveResponse {
+pub struct ResolveResponse {
     game: Option<Document>,
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Default, Debug)]
-struct UpdateRequest {
+pub struct UpdateRequest {
     id: u64,
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Default, Debug)]
-struct MatchRequest {
+pub struct MatchRequest {
     store_entry: StoreEntry,
     op: MatchOp,
 }
@@ -258,7 +258,7 @@ enum MatchOp {
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Default, Debug)]
-struct WishlistRequest {
+pub struct WishlistRequest {
     op: WishlistOp,
 }
 
@@ -275,7 +275,7 @@ enum WishlistOp {
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Default, Debug)]
-struct UnlinkRequest {
+pub struct UnlinkRequest {
     storefront_id: String,
 }
 

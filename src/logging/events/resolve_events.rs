@@ -61,7 +61,7 @@ impl ResolveEvent {
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
-struct Request {
+pub struct Request {
     id: u64,
     result: Response,
 }
@@ -73,7 +73,7 @@ enum Response {
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
-struct SearchRequest {
+pub struct SearchRequest {
     title: String,
     result: SearchResponse,
 }

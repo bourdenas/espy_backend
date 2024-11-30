@@ -1,3 +1,3 @@
 mod requests;
 
-pub use requests::*;
+pub use requests::LogWebhooksRequest;

@@ -6,4 +6,4 @@ mod resolve_events;
 pub use diff_event::*;
 pub use firestore_event::*;
 pub use reject_event::*;
-pub use resolve_events::*;
+pub use resolve_events::ResolveEvent;
