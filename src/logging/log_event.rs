@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 use valuable::Valuable;
 
-use super::{DiffEvent, FirestoreEvent, RejectEvent, ResolveEvent};
+use super::{DiffEvent, FirestoreEvent, RejectEvent, ResolveEvent, SteamEvent};
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
 pub enum LogEvent {
@@ -13,6 +13,7 @@ pub enum LogEvent {
     Resolve(ResolveEvent),
     Filter(RejectEvent),
     Diff(DiffEvent),
+    Steam(SteamEvent),
 }
 
 impl Default for LogEvent {

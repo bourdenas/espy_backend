@@ -1,12 +1,13 @@
 use crate::{
     documents::{SteamData, SteamScore, StoreEntry},
+    logging::SteamEvent,
     traits::Storefront,
     Status,
 };
 use async_trait::async_trait;
 use reqwest::{header, ClientBuilder};
 use std::collections::HashMap;
-use tracing::{info, instrument};
+use tracing::instrument;
 
 pub struct SteamApi {
     steam_key: String,
@@ -21,7 +22,7 @@ impl SteamApi {
         }
     }
 
-    #[instrument(level = "trace")]
+    #[instrument(name = "steam::get_app_details", level = "info")]
     pub async fn get_app_details(steam_appid: &str) -> Result<SteamData, Status> {
         let uri =
             format!("https://store.steampowered.com/api/appdetails?appids={steam_appid}&l=english");
@@ -43,19 +44,22 @@ impl SteamApi {
         let (_, resp) = serde_json::from_str::<HashMap<String, SteamAppDetailsResponse>>(&text)
             .map_err(|e| {
                 let msg = format!(
-                    "({steam_appid}) Parse error: {}\n Steam response: {}",
+                    "Steam /appdetails?appids={steam_appid} parse error: {} in response: {}",
                     e, &text
                 );
-                Status::internal(msg)
+                let status = Status::request_error(&msg);
+                SteamEvent::get_app_details(steam_appid.to_owned(), String::default(), vec![msg]);
+                status
             })?
             .into_iter()
             .next()
             .unwrap();
 
+        SteamEvent::get_app_details(steam_appid.to_owned(), resp.data.name.clone(), vec![]);
         Ok(resp.data)
     }
 
-    #[instrument(level = "trace")]
+    #[instrument(name = "steam::get_app_score", level = "info")]
     pub async fn get_app_score(steam_appid: &str) -> Result<SteamScore, Status> {
         let uri = format!("https://store.steampowered.com/appreviews/{steam_appid}?json=1");
 
@@ -75,12 +79,15 @@ impl SteamApi {
         let text = resp.text().await?;
         let resp = serde_json::from_str::<SteamAppReviewsResponse>(&text).map_err(|e| {
             let msg = format!(
-                "({steam_appid}) Parse error: {}\n Steam response: {}",
+                "Steam /appreviews/{steam_appid} parse error: {} in response: {}",
                 e, &text
             );
-            Status::internal(msg)
+            let status = Status::request_error(&msg);
+            SteamEvent::get_app_score(steam_appid.to_owned(), vec![msg]);
+            status
         })?;
 
+        SteamEvent::get_app_score(steam_appid.to_owned(), vec![]);
         Ok(SteamScore {
             review_score: ((resp.query_summary.total_positive as f64
                 / resp.query_summary.total_reviews as f64)
@@ -98,28 +105,35 @@ impl Storefront for SteamApi {
         String::from("steam")
     }
 
+    #[instrument(name = "steam::get_owned_games", level = "info", skip(self))]
     async fn get_owned_games(&self) -> Result<Vec<StoreEntry>, Status> {
         let uri = format!(
             "{STEAM_HOST}{STEAM_GETOWNEDGAMES_SERVICE}?key={}&steamid={}&include_appinfo=true&format=json",
             self.steam_key, self.steam_user_id
         );
 
-        let resp = reqwest::get(&uri).await?.json::<SteamResponse>().await?;
-        info! {
-            "steam games: {}", resp.response.game_count
+        let resp = reqwest::get(&uri).await?.json::<SteamResponse>().await;
+        match resp {
+            Ok(resp) => {
+                SteamEvent::get_owned_games(&self.steam_user_id, resp.response.game_count, vec![]);
+                Ok(resp
+                    .response
+                    .games
+                    .into_iter()
+                    .map(|entry| StoreEntry {
+                        id: entry.appid.to_string(),
+                        title: entry.name,
+                        storefront_name: SteamApi::id(),
+                        image: entry.img_logo_url,
+                        ..Default::default()
+                    })
+                    .collect())
+            }
+            Err(e) => {
+                SteamEvent::get_owned_games(&self.steam_user_id, 0, vec![e.to_string()]);
+                Err(Status::from(e))
+            }
         }
-
-        Ok(resp
-            .response
-            .games
-            .into_iter()
-            .map(|entry| StoreEntry {
-                id: format!("{}", entry.appid),
-                title: entry.name,
-                storefront_name: SteamApi::id(),
-                ..Default::default()
-            })
-            .collect())
     }
 }
 
@@ -132,7 +146,7 @@ struct SteamResponse {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct GetOwnedGamesResponse {
-    game_count: i32,
+    game_count: usize,
     games: Vec<GameEntry>,
 }
 
@@ -142,6 +156,7 @@ struct GameEntry {
     name: String,
     playtime_forever: i32,
     img_icon_url: String,
+    img_logo_url: String,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug)]

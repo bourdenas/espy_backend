@@ -1,6 +1,4 @@
-use crate::{
-    documents::SteamData, logging::SteamFetchCounter, util::rate_limiter::RateLimiter, Status,
-};
+use crate::{documents::SteamData, util::rate_limiter::RateLimiter, Status};
 use std::time::Duration;
 use tracing::instrument;
 
@@ -19,29 +17,16 @@ impl SteamDataApi {
 
     #[instrument(level = "trace", skip(self))]
     pub async fn retrieve_steam_data(&self, steam_appid: &str) -> Result<SteamData, Status> {
-        let counter = SteamFetchCounter::new();
-
         self.qps.wait();
         let score = match SteamApi::get_app_score(steam_appid).await {
             Ok(result) => Some(result),
-            Err(status) => {
-                counter.log_error(steam_appid, "fetch_score_fail", &status);
-                None
-            }
-        };
-        self.qps.wait();
-        let steam_data = match SteamApi::get_app_details(steam_appid).await {
-            Ok(mut steam_data) => {
-                steam_data.score = score;
-                steam_data
-            }
-            Err(status) => {
-                counter.log_error(steam_appid, "fetch_fail", &status);
-                return Err(status);
-            }
+            Err(_) => None,
         };
 
-        counter.log(&steam_data.name);
+        self.qps.wait();
+        let mut steam_data = SteamApi::get_app_details(steam_appid).await?;
+        steam_data.score = score;
+
         Ok(steam_data)
     }
 }

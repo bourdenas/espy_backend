@@ -12,6 +12,7 @@ pub enum Status {
     Internal(String),
     InvalidArgument(String),
     NotFound(String),
+    RequestError(String),
 }
 
 impl Status {
@@ -30,6 +31,10 @@ impl Status {
     pub fn not_found(msg: impl Into<String>) -> Self {
         Status::NotFound(msg.into())
     }
+
+    pub fn request_error(msg: impl Into<String>) -> Self {
+        Status::RequestError(msg.into())
+    }
 }
 
 impl From<std::io::Error> for Status {
@@ -46,7 +51,7 @@ impl From<serde_json::Error> for Status {
 
 impl From<reqwest::Error> for Status {
     fn from(err: reqwest::Error) -> Self {
-        Self::new("reqwest error", err)
+        Self::request_error(err.to_string())
     }
 }
 
@@ -78,6 +83,7 @@ impl fmt::Display for Status {
             Status::Internal(msg) => write!(f, "Interal error: {msg}"),
             Status::InvalidArgument(msg) => write!(f, "Invalid argument error: {msg}"),
             Status::NotFound(msg) => write!(f, "Not found error: {msg}"),
+            Status::RequestError(msg) => write!(f, "Request error: {msg}"),
         }
     }
 }
