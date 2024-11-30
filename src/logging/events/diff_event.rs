@@ -1,10 +1,9 @@
 use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
-use tracing::debug;
 use valuable::Valuable;
 
-use crate::{documents::IgdbGameDiff, logging::LogEvent};
+use crate::{documents::IgdbGameDiff, log_event, logging::LogEvent};
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
 pub struct DiffEvent {
@@ -14,12 +13,9 @@ pub struct DiffEvent {
 
 impl DiffEvent {
     pub fn diff(diff: &IgdbGameDiff) {
-        debug!(
-            event = LogEvent::Diff(DiffEvent {
-                diff: diff.to_string(),
-                needs_resolve: diff.needs_resolve()
-            })
-            .encode()
-        );
+        log_event!(LogEvent::Diff(DiffEvent {
+            diff: diff.to_string(),
+            needs_resolve: diff.needs_resolve()
+        }));
     }
 }

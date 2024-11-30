@@ -5,7 +5,6 @@ use tracing::instrument;
 use crate::{
     api::FirestoreApi,
     documents::Company,
-    log,
     logging::{Criterion, FirestoreEvent},
     Status,
 };
@@ -66,23 +65,23 @@ pub async fn search(firestore: &FirestoreApi, slug: &str) -> Result<Vec<Company>
                 }
             }
 
-            log!(FirestoreEvent::search(
+            FirestoreEvent::search(
                 format!("/{COMPANIES}"),
                 vec![Criterion::new("slug".to_owned(), slug.to_string())],
                 companies.len(),
                 errors.len(),
                 errors,
-            ));
+            );
             Ok(companies)
         }
         Err(e) => {
-            log!(FirestoreEvent::search(
+            FirestoreEvent::search(
                 format!("/{COMPANIES}"),
                 vec![Criterion::new("slug".to_owned(), slug.to_string())],
                 0,
                 1,
                 vec![e.to_string()],
-            ));
+            );
             Err(utils::make_status(e, COMPANIES, format!("slug = {slug}")))
         }
     }

@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use crate::{
     api::FirestoreApi,
     documents::{ExternalGame, StoreEntry},
-    log,
     logging::{Criterion, FirestoreEvent},
     Status,
 };
@@ -75,23 +74,11 @@ pub async fn batch_read(
                 }
             }
 
-            log!(FirestoreEvent::search(
-                collection,
-                criteria,
-                matches.len(),
-                not_found.len(),
-                errors,
-            ));
+            FirestoreEvent::search(collection, criteria, matches.len(), not_found.len(), errors);
             Ok(ExternalGameResult { matches, not_found })
         }
         Err(e) => {
-            log!(FirestoreEvent::search(
-                collection,
-                criteria.clone(),
-                0,
-                1,
-                vec![e.to_string()],
-            ));
+            FirestoreEvent::search(collection, criteria.clone(), 0, 1, vec![e.to_string()]);
             Err(utils::make_status(
                 e,
                 EXTERNAL_GAMES,
@@ -164,13 +151,13 @@ pub async fn get_steam_id(
                 }
             }
 
-            log!(FirestoreEvent::search(
+            FirestoreEvent::search(
                 collection,
                 criteria,
                 external_games.len(),
                 errors.len(),
                 errors,
-            ));
+            );
 
             Ok(match external_games.is_empty() {
                 false => Some(external_games[0].store_id.clone()),
@@ -178,13 +165,7 @@ pub async fn get_steam_id(
             })
         }
         Err(e) => {
-            log!(FirestoreEvent::search(
-                collection,
-                criteria.clone(),
-                0,
-                1,
-                vec![e.to_string()],
-            ));
+            FirestoreEvent::search(collection, criteria.clone(), 0, 1, vec![e.to_string()]);
             Err(utils::make_status(
                 e,
                 EXTERNAL_GAMES,
@@ -221,23 +202,17 @@ pub async fn get_external_games(
                 }
             }
 
-            log!(FirestoreEvent::search(
+            FirestoreEvent::search(
                 collection,
                 criteria,
                 external_games.len(),
                 errors.len(),
                 errors,
-            ));
+            );
             Ok(external_games)
         }
         Err(e) => {
-            log!(FirestoreEvent::search(
-                collection,
-                criteria.clone(),
-                0,
-                1,
-                vec![e.to_string()],
-            ));
+            FirestoreEvent::search(collection, criteria.clone(), 0, 1, vec![e.to_string()]);
             Err(utils::make_status(
                 e,
                 EXTERNAL_GAMES,

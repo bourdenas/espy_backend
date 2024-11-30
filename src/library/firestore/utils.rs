@@ -5,7 +5,6 @@ use futures::{stream::BoxStream, StreamExt};
 
 use crate::{
     api::FirestoreApi,
-    log,
     logging::{Criterion, FirestoreEvent},
     Status,
 };
@@ -28,23 +27,19 @@ pub async fn read<Document: serde::de::DeserializeOwned + Send>(
     match doc {
         Ok(doc) => match doc {
             Some(doc) => {
-                log!(FirestoreEvent::read(collection, doc_id, None));
+                FirestoreEvent::read(collection, doc_id, None);
                 Ok(doc)
             }
             None => {
                 let status = Status::not_found(format!(
                     "Firestore '{collection}/{doc_id}' document was not found"
                 ));
-                log!(FirestoreEvent::read_not_found(collection, doc_id, None));
+                FirestoreEvent::read_not_found(collection, doc_id, None);
                 Err(status)
             }
         },
         Err(e) => {
-            log!(FirestoreEvent::read(
-                collection.clone(),
-                doc_id.to_owned(),
-                Some(e.to_string()),
-            ));
+            FirestoreEvent::read(collection.clone(), doc_id.to_owned(), Some(e.to_string()));
             Err(make_status(e, &collection, doc_id))
         }
     }
@@ -74,24 +69,16 @@ pub async fn auth_read<Document: serde::de::DeserializeOwned + Default + Send>(
     match doc {
         Ok(doc) => match doc {
             Some(doc) => {
-                log!(FirestoreEvent::read(collection.to_owned(), doc_id, None));
+                FirestoreEvent::read(collection.to_owned(), doc_id, None);
                 Ok(doc)
             }
             None => {
-                log!(FirestoreEvent::read_not_found(
-                    collection.to_owned(),
-                    doc_id,
-                    None,
-                ));
+                FirestoreEvent::read_not_found(collection.to_owned(), doc_id, None);
                 Ok(Document::default())
             }
         },
         Err(e) => {
-            log!(FirestoreEvent::read(
-                collection.to_owned(),
-                doc_id.clone(),
-                Some(e.to_string()),
-            ));
+            FirestoreEvent::read(collection.to_owned(), doc_id.clone(), Some(e.to_string()));
             Err(make_status(e, &collection, doc_id))
         }
     }
@@ -125,16 +112,16 @@ pub async fn batch_read<Document: serde::de::DeserializeOwned + Send>(
         }
     }
 
-    log!(FirestoreEvent::search(
+    FirestoreEvent::search(
         format!("/{collection}"),
         vec![Criterion::new(
             "by_id".to_owned(),
-            doc_ids.len().to_string()
+            doc_ids.len().to_string(),
         )],
         documents.len(),
         not_found.len() + errors.len(),
         errors,
-    ));
+    );
 
     Ok(BatchReadResult {
         documents,
@@ -161,15 +148,11 @@ pub async fn write<Document: serde::Serialize + serde::de::DeserializeOwned + Se
     let collection = format!("/{collection}");
     match result {
         Ok(()) => {
-            log!(FirestoreEvent::write(collection, doc_id, None,));
+            FirestoreEvent::write(collection, doc_id, None);
             Ok(())
         }
         Err(e) => {
-            log!(FirestoreEvent::write(
-                collection.clone(),
-                doc_id.clone(),
-                Some(e.to_string()),
-            ));
+            FirestoreEvent::write(collection.clone(), doc_id.clone(), Some(e.to_string()));
             Err(make_status(e, &collection, doc_id))
         }
     }
@@ -198,15 +181,11 @@ pub async fn auth_write<Document: serde::Serialize + serde::de::DeserializeOwned
     let collection = format!("/{USERS}/{user_id}/{collection}");
     match result {
         Ok(()) => {
-            log!(FirestoreEvent::write(collection, doc_id, None,));
+            FirestoreEvent::write(collection, doc_id, None);
             Ok(())
         }
         Err(e) => {
-            log!(FirestoreEvent::write(
-                collection.clone(),
-                doc_id.clone(),
-                Some(e.to_string()),
-            ));
+            FirestoreEvent::write(collection.clone(), doc_id.clone(), Some(e.to_string()));
             Err(make_status(e, &collection, doc_id))
         }
     }
@@ -229,15 +208,11 @@ pub async fn delete(
     let collection = format!("/{collection}");
     match result {
         Ok(()) => {
-            log!(FirestoreEvent::delete(collection, doc_id, None));
+            FirestoreEvent::delete(collection, doc_id, None);
             Ok(())
         }
         Err(e) => {
-            log!(FirestoreEvent::delete(
-                collection.clone(),
-                doc_id.clone(),
-                Some(e.to_string()),
-            ));
+            FirestoreEvent::delete(collection.clone(), doc_id.clone(), Some(e.to_string()));
             Err(make_status(e, &collection, doc_id))
         }
     }

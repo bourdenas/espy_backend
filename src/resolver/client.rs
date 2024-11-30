@@ -2,7 +2,6 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
     documents::{GameDigest, GameEntry, IgdbGame},
-    log,
     logging::ResolveEvent,
     Status,
 };
@@ -21,20 +20,20 @@ impl ResolveApi {
 
     pub async fn retrieve(&self, id: u64) -> Result<GameEntry, Status> {
         let response = post(&format!("{}/retrieve", &self.url), id).await;
-        log!(ResolveEvent::retrieve(id, &response));
+        ResolveEvent::retrieve(id, &response);
         response
     }
 
     pub async fn resolve(&self, igdb_game: IgdbGame) -> Result<GameEntry, Status> {
         let id = igdb_game.id;
         let response = post(&format!("{}/resolve", &self.url), igdb_game).await;
-        log!(ResolveEvent::resolve(id, &response));
+        ResolveEvent::resolve(id, &response);
         response
     }
 
     pub async fn digest(&self, id: u64) -> Result<GameDigest, Status> {
         let response = post(&format!("{}/digest", &self.url), id).await;
-        log!(ResolveEvent::digest(id, &response));
+        ResolveEvent::digest(id, &response);
         response
     }
 
@@ -52,7 +51,7 @@ impl ResolveApi {
         )
         .await;
 
-        log!(ResolveEvent::search(title, &response));
+        ResolveEvent::search(title, &response);
         response
     }
 }

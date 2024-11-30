@@ -5,6 +5,7 @@ use valuable::Valuable;
 
 use crate::{
     documents::{GameDigest, GameEntry},
+    log_event,
     logging::LogEvent,
     Status,
 };
@@ -18,44 +19,44 @@ pub enum ResolveEvent {
 }
 
 impl ResolveEvent {
-    pub fn retrieve(id: u64, response: &Result<GameEntry, Status>) -> LogEvent {
-        LogEvent::Resolve(ResolveEvent::Retrieve(Request {
+    pub fn retrieve(id: u64, response: &Result<GameEntry, Status>) {
+        log_event!(LogEvent::Resolve(ResolveEvent::Retrieve(Request {
             id,
             result: match response {
                 Ok(game_entry) => Response::Success(game_entry.name.clone()),
                 Err(status) => Response::Error(status.to_string()),
             },
-        }))
+        })))
     }
 
-    pub fn resolve(id: u64, response: &Result<GameEntry, Status>) -> LogEvent {
-        LogEvent::Resolve(ResolveEvent::Resolve(Request {
+    pub fn resolve(id: u64, response: &Result<GameEntry, Status>) {
+        log_event!(LogEvent::Resolve(ResolveEvent::Resolve(Request {
             id,
             result: match response {
                 Ok(game_entry) => Response::Success(game_entry.name.clone()),
                 Err(status) => Response::Error(status.to_string()),
             },
-        }))
+        })))
     }
 
-    pub fn digest(id: u64, response: &Result<GameDigest, Status>) -> LogEvent {
-        LogEvent::Resolve(ResolveEvent::Digest(Request {
+    pub fn digest(id: u64, response: &Result<GameDigest, Status>) {
+        log_event!(LogEvent::Resolve(ResolveEvent::Digest(Request {
             id,
             result: match response {
                 Ok(digest) => Response::Success(digest.name.clone()),
                 Err(status) => Response::Error(status.to_string()),
             },
-        }))
+        })))
     }
 
-    pub fn search(title: String, response: &Result<Vec<GameDigest>, Status>) -> LogEvent {
-        LogEvent::Resolve(ResolveEvent::Search(SearchRequest {
+    pub fn search(title: String, response: &Result<Vec<GameDigest>, Status>) {
+        log_event!(LogEvent::Resolve(ResolveEvent::Search(SearchRequest {
             title,
             result: match response {
                 Ok(digests) => SearchResponse::Success(digests.len()),
                 Err(status) => SearchResponse::Error(status.to_string()),
             },
-        }))
+        })))
     }
 }
 
