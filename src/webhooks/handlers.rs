@@ -9,7 +9,7 @@ use crate::{
 };
 use chrono::Utc;
 use std::{convert::Infallible, sync::Arc};
-use tracing::{instrument, trace_span, warn, Instrument};
+use tracing::{instrument, trace_span, Instrument};
 use warp::http::StatusCode;
 
 use super::{filtering::GameFilter, prefiltering::IgdbPrefilter};
@@ -168,7 +168,7 @@ async fn update_steam_data(
                 ))
             }),
             Err(status) => {
-                warn!("{status}");
+                log_error!(status);
                 None
             }
         };
@@ -199,22 +199,23 @@ async fn update_steam_data(
         match handle.await {
             Ok(result) => match result {
                 Ok(steam_data) => game_entry.add_steam_data(steam_data),
-                Err(status) => warn!("{status}"),
+                Err(status) => log_error!(status),
             },
-            Err(status) => warn!("{status}"),
+            Err(status) => log_error!(status),
         }
     }
 
     if let Some(handle) = steam_tags_handle {
         match handle.await {
-            Ok(result) => {
-                if let Some(steam_scrape_data) = result {
+            Ok(result) => match result {
+                Ok(steam_scrape_data) => {
                     if let Some(steam_data) = &mut game_entry.steam_data {
                         steam_data.user_tags = steam_scrape_data.user_tags;
                     }
                 }
-            }
-            Err(status) => warn!("{status}"),
+                Err(status) => log_error!(status),
+            },
+            Err(status) => log_error!(status),
         }
     }
 
@@ -226,7 +227,7 @@ async fn update_steam_data(
                     .add_metacritic(metacritic, game_entry.release_date);
             }
         }
-        Err(status) => warn!("{status}"),
+        Err(status) => log_error!(status),
     }
 
     firestore::games::write(&firestore, game_entry).await
@@ -251,7 +252,7 @@ pub async fn external_games_webhook(
                     if let Some(url) = &external_game.store_url {
                         match GogScrape::scrape(url).await {
                             Ok(gog_data) => external_game.gog_data = Some(gog_data),
-                            Err(status) => warn!("GOG scraping failed: {status}"),
+                            Err(status) => log_error!(status),
                         }
                     }
                 }

@@ -2,7 +2,7 @@ use reqwest::{header, ClientBuilder};
 use soup::prelude::*;
 use tracing::instrument;
 
-use crate::logging::SteamEvent;
+use crate::{logging::SteamEvent, Status};
 
 #[derive(Default, Clone, Debug)]
 pub struct SteamScrapeData {
@@ -13,7 +13,7 @@ pub struct SteamScrape {}
 
 impl SteamScrape {
     #[instrument(name = "steam::scrape_app_page", level = "info")]
-    pub async fn scrape(url: &str) -> Option<SteamScrapeData> {
+    pub async fn scrape(url: &str) -> Result<SteamScrapeData, Status> {
         let mut request_headers = header::HeaderMap::new();
         request_headers.insert(
             header::COOKIE,
@@ -30,28 +30,28 @@ impl SteamScrape {
             Ok(resp) => resp,
             Err(e) => {
                 SteamEvent::scrape_app_page(url.to_owned(), vec![e.to_string()]);
-                return None;
+                return Err(Status::from(e));
             }
         };
         let text = match resp.text().await {
             Ok(text) => text,
             Err(e) => {
                 SteamEvent::scrape_app_page(url.to_owned(), vec![e.to_string()]);
-                return None;
+                return Err(Status::from(e));
             }
         };
         let soup = Soup::new(&text);
 
-        match soup.class(GLANCE_TAGS).find() {
-            Some(tags) => Some(SteamScrapeData {
-                user_tags: tags
-                    .tag("a")
-                    .find_all()
-                    .map(|tag| tag.text().trim().to_owned())
-                    .collect(),
-            }),
-            None => None,
-        }
+        let user_tags = match soup.class(GLANCE_TAGS).find() {
+            Some(tags) => tags
+                .tag("a")
+                .find_all()
+                .map(|tag| tag.text().trim().to_owned())
+                .collect(),
+            None => vec![],
+        };
+
+        Ok(SteamScrapeData { user_tags })
     }
 }
 

@@ -387,13 +387,14 @@ pub async fn resolve_game_info(
 
     if let Some(handle) = steam_handle {
         match handle.await {
-            Ok(result) => {
-                if let Some(steam_scrape_data) = result {
+            Ok(result) => match result {
+                Ok(steam_scrape_data) => {
                     if let Some(steam_data) = &mut game_entry.steam_data {
                         steam_data.user_tags = steam_scrape_data.user_tags;
                     }
                 }
-            }
+                Err(status) => warn!("{status}"),
+            },
             Err(status) => warn!("{status}"),
         }
     }
