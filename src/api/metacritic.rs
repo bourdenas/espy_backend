@@ -1,5 +1,7 @@
 use soup::prelude::*;
-use tracing::warn;
+use tracing::instrument;
+
+use crate::{logging::MetacriticEvent, Status};
 
 #[derive(Default, Clone, Debug)]
 pub struct MetacriticData {
@@ -10,25 +12,27 @@ pub struct MetacriticData {
 pub struct MetacriticApi {}
 
 impl MetacriticApi {
-    pub async fn get_score(slug: &str) -> Option<MetacriticData> {
-        let uri = format!("https://www.metacritic.com/game/{slug}/");
+    #[instrument(name = "metacritic::scrape_game_page", level = "info")]
+    pub async fn get_score(slug: &str) -> Result<Option<MetacriticData>, Status> {
+        let url = format!("https://www.metacritic.com/game/{slug}/");
 
-        let resp = match reqwest::get(&uri).await {
-            Ok(resp) => resp,
-            Err(status) => {
-                warn!("Failed metacritic request for {slug}: {status}");
-                return None;
-            }
+        let text = match reqwest::get(&url).await {
+            Ok(resp) => match resp.text().await {
+                Ok(text) => Ok(text),
+                Err(e) => Err(e),
+            },
+            Err(e) => Err(e),
         };
-        let text = match resp.text().await {
+
+        let text = match text {
             Ok(text) => text,
-            Err(status) => {
-                warn!("Failed parsing metacritic response for {slug}: {status}");
-                return None;
+            Err(e) => {
+                MetacriticEvent::scrape_game_page(slug.to_owned(), vec![e.to_string()]);
+                return Err(Status::from(e));
             }
         };
-        let soup = Soup::new(&text);
 
+        let soup = Soup::new(&text);
         for tile in soup.class(PLATFORM_TILE).find_all() {
             match tile.tag("title").find() {
                 Some(title) => {
@@ -56,13 +60,13 @@ impl MetacriticApi {
             };
 
             if let Some(score) = score {
-                return Some(MetacriticData {
+                return Ok(Some(MetacriticData {
                     score,
                     review_count: review_count.unwrap_or_default(),
-                });
+                }));
             }
         }
-        None
+        Ok(None)
     }
 
     pub fn guess_id(igdb_url: &str) -> &str {

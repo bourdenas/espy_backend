@@ -162,13 +162,16 @@ pub async fn resolve_game_digest(
     }
 
     match metacritic_handle.await {
-        Ok(response) => {
-            if let Some(metacritic) = response {
-                game_entry
-                    .scores
-                    .add_metacritic(metacritic, game_entry.release_date);
+        Ok(result) => match result {
+            Ok(response) => {
+                if let Some(metacritic) = response {
+                    game_entry
+                        .scores
+                        .add_metacritic(metacritic, game_entry.release_date);
+                }
             }
-        }
+            Err(status) => warn!("{status}"),
+        },
         Err(status) => warn!("{status}"),
     }
 

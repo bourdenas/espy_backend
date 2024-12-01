@@ -26,22 +26,23 @@ impl SteamScrape {
             .build()
             .unwrap();
 
-        let resp = match client.get(url).send().await {
-            Ok(resp) => resp,
-            Err(e) => {
-                SteamEvent::scrape_app_page(url.to_owned(), vec![e.to_string()]);
-                return Err(Status::from(e));
-            }
+        let text = match client.get(url).send().await {
+            Ok(resp) => match resp.text().await {
+                Ok(text) => Ok(text),
+                Err(e) => Err(e),
+            },
+            Err(e) => Err(e),
         };
-        let text = match resp.text().await {
+
+        let text = match text {
             Ok(text) => text,
             Err(e) => {
                 SteamEvent::scrape_app_page(url.to_owned(), vec![e.to_string()]);
                 return Err(Status::from(e));
             }
         };
-        let soup = Soup::new(&text);
 
+        let soup = Soup::new(&text);
         let user_tags = match soup.class(GLANCE_TAGS).find() {
             Some(tags) => tags
                 .tag("a")
