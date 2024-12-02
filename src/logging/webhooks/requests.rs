@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 use serde::{Deserialize, Serialize};
 use valuable::Valuable;
@@ -67,4 +67,25 @@ pub struct ExternalGameLog {
     id: u64,
     name: String,
     store: String,
+}
+
+impl Display for LogWebhooksRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LogWebhooksRequest::AddGame(game) => {
+                write!(f, "add_game '{}' ({})", game.name, game.id)
+            }
+            LogWebhooksRequest::UpdateGame(game) => {
+                write!(f, "update_game '{}' ({})", game.name, game.id)
+            }
+            LogWebhooksRequest::ExternalGame(external_game) => {
+                write!(
+                    f,
+                    "external_game from {} '{}' ({})",
+                    external_game.store, external_game.name, external_game.id
+                )
+            }
+            LogWebhooksRequest::Keyword(kw) => write!(f, "keyword '{}' ({})", kw.name, kw.id),
+        }
+    }
 }

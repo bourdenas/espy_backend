@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 use serde::{Deserialize, Serialize};
 use tracing::warn;
@@ -54,6 +54,16 @@ impl LogRequest {
                 warn!("{}", e);
                 String::default()
             }
+        }
+    }
+}
+
+impl Display for LogRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LogRequest::Http(request) => write!(f, "{request}"),
+            LogRequest::Webhooks(request) => write!(f, "{request}"),
+            LogRequest::None => write!(f, "None"),
         }
     }
 }

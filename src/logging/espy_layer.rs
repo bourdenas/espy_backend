@@ -67,16 +67,16 @@ where
                                     labels.log_type = &self.log_type,
                                     labels.handler = span.name(),
                                     entry = event_span.as_value(),
-                                    "'{}' log entry",
-                                    span.name()
+                                    "{}",
+                                    event_span.request
                                 );
                             } else {
                                 error!(
                                     labels.log_type = &self.log_type,
                                     labels.handler = span.name(),
                                     entry = event_span.as_value(),
-                                    "'{}' log entry",
-                                    span.name()
+                                    "{}",
+                                    event_span.request
                                 );
                             };
                         } else {
@@ -102,6 +102,7 @@ where
 
     fn on_event(&self, event: &tracing::Event<'_>, ctx: tracing_subscriber::layer::Context<'_, S>) {
         if let Some(scope) = ctx.event_scope(event) {
+            // TODO: iterate to the next INFO level span.
             if let Some(span) = scope.into_iter().next() {
                 let mut extensions = span.extensions_mut();
                 if let Some(event_span) = extensions.get_mut::<EventSpan>() {
