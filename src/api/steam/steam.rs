@@ -7,7 +7,6 @@ use crate::{
 use async_trait::async_trait;
 use reqwest::{header, ClientBuilder};
 use std::collections::HashMap;
-use tracing::instrument;
 
 pub struct SteamApi {
     steam_key: String,
@@ -22,7 +21,6 @@ impl SteamApi {
         }
     }
 
-    #[instrument(name = "steam::get_app_details", level = "info")]
     pub async fn get_app_details(steam_appid: &str) -> Result<SteamData, Status> {
         let uri =
             format!("https://store.steampowered.com/api/appdetails?appids={steam_appid}&l=english");
@@ -59,7 +57,6 @@ impl SteamApi {
         Ok(resp.data)
     }
 
-    #[instrument(name = "steam::get_app_score", level = "info")]
     pub async fn get_app_score(steam_appid: &str) -> Result<SteamScore, Status> {
         let uri = format!("https://store.steampowered.com/appreviews/{steam_appid}?json=1");
 
@@ -105,7 +102,6 @@ impl Storefront for SteamApi {
         String::from("steam")
     }
 
-    #[instrument(name = "steam::get_owned_games", level = "info", skip(self))]
     async fn get_owned_games(&self) -> Result<Vec<StoreEntry>, Status> {
         let uri = format!(
             "{STEAM_HOST}{STEAM_GETOWNEDGAMES_SERVICE}?key={}&steamid={}&include_appinfo=true&format=json",

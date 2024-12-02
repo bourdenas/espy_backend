@@ -1,5 +1,4 @@
 use soup::prelude::*;
-use tracing::instrument;
 
 use crate::{logging::MetacriticEvent, Status};
 
@@ -12,7 +11,6 @@ pub struct MetacriticData {
 pub struct MetacriticApi {}
 
 impl MetacriticApi {
-    #[instrument(name = "metacritic::scrape_game_page", level = "info")]
     pub async fn get_score(slug: &str) -> Result<Option<MetacriticData>, Status> {
         let url = format!("https://www.metacritic.com/game/{slug}/");
 

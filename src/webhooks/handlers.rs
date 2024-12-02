@@ -9,7 +9,7 @@ use crate::{
 };
 use chrono::Utc;
 use std::{convert::Infallible, sync::Arc};
-use tracing::{instrument, trace_span, Instrument};
+use tracing::{info_span, instrument, Instrument};
 use warp::http::StatusCode;
 
 use super::{filtering::GameFilter, prefiltering::IgdbPrefilter};
@@ -39,7 +39,7 @@ pub async fn add_game_webhook(
                 log_error!(status);
             }
         }
-        .instrument(trace_span!("spawn_add_game")),
+        .instrument(info_span!("spawn_add_game")),
     );
 
     Ok(StatusCode::OK)
@@ -90,7 +90,7 @@ pub async fn update_game_webhook(
                 log_error!(status);
             }
         }
-        .instrument(trace_span!("spawn_update_game")),
+        .instrument(info_span!("spawn_update_game")),
     );
 
     Ok(StatusCode::OK)
@@ -164,7 +164,7 @@ async fn update_steam_data(
                         let steam = SteamDataApi::new();
                         steam.retrieve_steam_data(&steam_appid).await
                     }
-                    .instrument(trace_span!("spawn_steam_request")),
+                    .instrument(info_span!("spawn_steam_request")),
                 ))
             }),
             Err(status) => {
@@ -182,7 +182,7 @@ async fn update_steam_data(
             );
             Some(tokio::spawn(
                 async move { SteamScrape::scrape(&website).await }
-                    .instrument(trace_span!("spawn_steam_scrape")),
+                    .instrument(info_span!("spawn_steam_scrape")),
             ))
         }
         None => None,
@@ -192,7 +192,7 @@ async fn update_steam_data(
     let slug = MetacriticApi::guess_id(&game_entry.igdb_game.url).to_owned();
     let metacritic_handle = tokio::spawn(
         async move { MetacriticApi::get_score(&slug).await }
-            .instrument(trace_span!("spawn_metacritic_scrape")),
+            .instrument(info_span!("spawn_metacritic_scrape")),
     );
 
     if let Some(handle) = steam_handle {
@@ -267,7 +267,7 @@ pub async fn external_games_webhook(
                 log_error!(status);
             }
         }
-        .instrument(trace_span!("spawn_external_games")),
+        .instrument(info_span!("spawn_external_games")),
     );
 
     Ok(StatusCode::OK)

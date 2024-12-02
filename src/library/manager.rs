@@ -9,7 +9,7 @@ use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
-use tracing::{error, instrument, trace_span, Instrument};
+use tracing::{error, info_span, instrument, Instrument};
 
 use super::firestore::{self, external_games, games};
 
@@ -63,7 +63,7 @@ impl LibraryManager {
                 async move {
                     igdb_resolve(firestore, resolver, user_id, not_found_games).await;
                 }
-                .instrument(trace_span!("spawn_igdb_resolve")),
+                .instrument(info_span!("spawn_igdb_resolve")),
             );
         }
 
@@ -93,7 +93,7 @@ impl LibraryManager {
                 async move {
                     search_candidates(firestore, resolver, user_id, missing).await;
                 }
-                .instrument(trace_span!("spawn_search_candidates")),
+                .instrument(info_span!("spawn_search_candidates")),
             );
         }
 
