@@ -120,7 +120,7 @@ impl Storefront for SteamApi {
                         id: entry.appid.to_string(),
                         title: entry.name,
                         storefront_name: SteamApi::id(),
-                        image: entry.img_logo_url,
+                        image: entry.img_icon_url,
                         ..Default::default()
                     })
                     .collect())
@@ -152,7 +152,6 @@ struct GameEntry {
     name: String,
     playtime_forever: i32,
     img_icon_url: String,
-    img_logo_url: String,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug)]
