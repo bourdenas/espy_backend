@@ -11,75 +11,67 @@ use crate::{
 };
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
-pub enum ResolveEvent {
-    Retrieve(Request),
-    Resolve(Request),
-    Digest(Request),
-    Search(SearchRequest),
+pub struct ResolveEvent {
+    method: String,
+    request: Request,
+    response: Response,
 }
 
 impl ResolveEvent {
     pub fn retrieve(id: u64, response: &Result<GameEntry, Status>) {
-        log_event!(LogEvent::Resolve(ResolveEvent::Retrieve(Request {
-            id,
-            result: match response {
+        log_event!(LogEvent::Resolve(ResolveEvent {
+            method: "retrieve".to_owned(),
+            request: Request::Id(id),
+            response: match response {
                 Ok(game_entry) => Response::Success(game_entry.name.clone()),
                 Err(status) => Response::Error(status.to_string()),
             },
-        })))
+        }))
     }
 
     pub fn resolve(id: u64, response: &Result<GameEntry, Status>) {
-        log_event!(LogEvent::Resolve(ResolveEvent::Resolve(Request {
-            id,
-            result: match response {
+        log_event!(LogEvent::Resolve(ResolveEvent {
+            method: "resolve".to_owned(),
+            request: Request::Id(id),
+            response: match response {
                 Ok(game_entry) => Response::Success(game_entry.name.clone()),
                 Err(status) => Response::Error(status.to_string()),
             },
-        })))
+        }))
     }
 
     pub fn digest(id: u64, response: &Result<GameDigest, Status>) {
-        log_event!(LogEvent::Resolve(ResolveEvent::Digest(Request {
-            id,
-            result: match response {
+        log_event!(LogEvent::Resolve(ResolveEvent {
+            method: "digest".to_owned(),
+            request: Request::Id(id),
+            response: match response {
                 Ok(digest) => Response::Success(digest.name.clone()),
                 Err(status) => Response::Error(status.to_string()),
             },
-        })))
+        }))
     }
 
     pub fn search(title: String, response: &Result<Vec<GameDigest>, Status>) {
-        log_event!(LogEvent::Resolve(ResolveEvent::Search(SearchRequest {
-            title,
-            result: match response {
-                Ok(digests) => SearchResponse::Success(digests.len()),
-                Err(status) => SearchResponse::Error(status.to_string()),
+        log_event!(LogEvent::Resolve(ResolveEvent {
+            method: "search".to_owned(),
+            request: Request::Title(title),
+            response: match response {
+                Ok(digests) => Response::Search(digests.len()),
+                Err(status) => Response::Error(status.to_string()),
             },
-        })))
+        }))
     }
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
-pub struct Request {
-    id: u64,
-    result: Response,
+enum Request {
+    Id(u64),
+    Title(String),
 }
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
 enum Response {
     Success(String),
-    Error(String),
-}
-
-#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
-pub struct SearchRequest {
-    title: String,
-    result: SearchResponse,
-}
-
-#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
-enum SearchResponse {
-    Success(usize),
+    Search(usize),
     Error(String),
 }

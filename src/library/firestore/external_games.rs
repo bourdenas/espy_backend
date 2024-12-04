@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     api::FirestoreApi,
     documents::{ExternalGame, StoreEntry},
-    logging::{Criterion, FirestoreEvent},
+    logging::FirestoreEvent,
     Status,
 };
 use firestore::path;
@@ -51,11 +51,6 @@ pub async fn batch_read(
         .batch_with_errors(store_entries.keys())
         .await;
 
-    let collection = format!("/{EXTERNAL_GAMES}");
-    let criteria = vec![Criterion::new(
-        "by_id".to_owned(),
-        store_entries.len().to_string(),
-    )];
     match result {
         Ok(mut stream) => {
             let mut matches = vec![];
@@ -74,15 +69,15 @@ pub async fn batch_read(
                 }
             }
 
-            FirestoreEvent::search(collection, criteria, matches.len(), not_found.len(), errors);
+            FirestoreEvent::search(matches.len(), not_found.len(), errors);
             Ok(ExternalGameResult { matches, not_found })
         }
         Err(e) => {
-            FirestoreEvent::search(collection, criteria.clone(), 0, 1, vec![e.to_string()]);
+            FirestoreEvent::search(0, 1, vec![e.to_string()]);
             Err(utils::make_status(
                 e,
                 EXTERNAL_GAMES,
-                format!("{:?}", criteria),
+                format!("by_id #{}", store_entries.len()),
             ))
         }
     }
@@ -135,11 +130,6 @@ pub async fn get_steam_id(
         .stream_query_with_errors()
         .await;
 
-    let collection = format!("/{EXTERNAL_GAMES}");
-    let criteria = vec![
-        Criterion::new("igdb_id".to_owned(), igdb_id.to_string()),
-        Criterion::new("store_name".to_owned(), "steam".to_owned()),
-    ];
     match result {
         Ok(mut stream) => {
             let mut external_games: Vec<ExternalGame> = vec![];
@@ -151,13 +141,7 @@ pub async fn get_steam_id(
                 }
             }
 
-            FirestoreEvent::search(
-                collection,
-                criteria,
-                external_games.len(),
-                errors.len(),
-                errors,
-            );
+            FirestoreEvent::search(external_games.len(), errors.len(), errors);
 
             Ok(match external_games.is_empty() {
                 false => Some(external_games[0].store_id.clone()),
@@ -165,11 +149,11 @@ pub async fn get_steam_id(
             })
         }
         Err(e) => {
-            FirestoreEvent::search(collection, criteria.clone(), 0, 1, vec![e.to_string()]);
+            FirestoreEvent::search(0, 1, vec![e.to_string()]);
             Err(utils::make_status(
                 e,
                 EXTERNAL_GAMES,
-                format!("{:?}", criteria),
+                format!("igdb_id={} && store_name=steam", igdb_id),
             ))
         }
     }
@@ -189,8 +173,6 @@ pub async fn get_external_games(
         .stream_query_with_errors()
         .await;
 
-    let collection = format!("/{EXTERNAL_GAMES}");
-    let criteria = vec![Criterion::new("igdb_id".to_owned(), igdb_id.to_string())];
     match result {
         Ok(mut stream) => {
             let mut external_games: Vec<ExternalGame> = vec![];
@@ -202,21 +184,15 @@ pub async fn get_external_games(
                 }
             }
 
-            FirestoreEvent::search(
-                collection,
-                criteria,
-                external_games.len(),
-                errors.len(),
-                errors,
-            );
+            FirestoreEvent::search(external_games.len(), errors.len(), errors);
             Ok(external_games)
         }
         Err(e) => {
-            FirestoreEvent::search(collection, criteria.clone(), 0, 1, vec![e.to_string()]);
+            FirestoreEvent::search(0, 1, vec![e.to_string()]);
             Err(utils::make_status(
                 e,
                 EXTERNAL_GAMES,
-                format!("{:?}", criteria),
+                format!("igdb_id={}", igdb_id),
             ))
         }
     }

@@ -10,12 +10,12 @@ pub struct MetacriticEvent {
     url: String,
 
     #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    errors: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
 }
 
 impl MetacriticEvent {
-    pub fn scrape_game_page(url: String, errors: Vec<String>) {
-        log_event!(LogEvent::Metacritic(MetacriticEvent { url, errors }));
+    pub fn scrape_game_page(url: String, error: Option<String>) {
+        log_event!(LogEvent::Metacritic(MetacriticEvent { url, error }));
     }
 }

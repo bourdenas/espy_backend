@@ -1,4 +1,5 @@
 use soup::prelude::*;
+use tracing::instrument;
 
 use crate::{logging::MetacriticEvent, Status};
 
@@ -11,6 +12,7 @@ pub struct MetacriticData {
 pub struct MetacriticApi {}
 
 impl MetacriticApi {
+    #[instrument(name = "metacritic::scrape_game_page", level = "info")]
     pub async fn get_score(slug: &str) -> Result<Option<MetacriticData>, Status> {
         let url = format!("https://www.metacritic.com/game/{slug}/");
 
@@ -25,10 +27,11 @@ impl MetacriticApi {
         let text = match text {
             Ok(text) => text,
             Err(e) => {
-                MetacriticEvent::scrape_game_page(slug.to_owned(), vec![e.to_string()]);
+                MetacriticEvent::scrape_game_page(slug.to_owned(), Some(e.to_string()));
                 return Err(Status::from(e));
             }
         };
+        MetacriticEvent::scrape_game_page(slug.to_owned(), None);
 
         let soup = Soup::new(&text);
         for tile in soup.class(PLATFORM_TILE).find_all() {

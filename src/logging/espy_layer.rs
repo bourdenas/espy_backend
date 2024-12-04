@@ -53,46 +53,44 @@ where
             };
 
             match span.scope().nth(1) {
-                Some(parent) => {
-                    let mut extensions = parent.extensions_mut();
-                    if let Some(parent_event_span) = extensions.get_mut::<EventSpan>() {
-                        parent_event_span.children.push(event_span);
-                    }
+                Some(_parent) => {
+                    // let mut extensions = parent.extensions_mut();
+                    // if let Some(parent_event_span) = extensions.get_mut::<EventSpan>() {
+                    //     parent_event_span.children.push(event_span);
+                    // }
                 }
                 None => {
-                    if !(event_span.children.is_empty() && event_span.events.is_empty()) {
-                        if self.prod {
-                            if event_span.errors.is_empty() {
-                                info!(
-                                    labels.log_type = &self.log_type,
-                                    labels.handler = span.name(),
-                                    entry = event_span.as_value(),
-                                    "{}",
-                                    event_span.request
-                                );
-                            } else {
-                                error!(
-                                    labels.log_type = &self.log_type,
-                                    labels.handler = span.name(),
-                                    entry = event_span.as_value(),
-                                    "{}",
-                                    event_span.request
-                                );
-                            };
+                    if self.prod {
+                        if event_span.errors.is_empty() {
+                            info!(
+                                labels.log_type = &self.log_type,
+                                labels.handler = span.name(),
+                                entry = event_span.as_value(),
+                                "{}",
+                                event_span.request
+                            );
                         } else {
-                            if event_span.errors.is_empty() {
-                                info!(
-                                    "'{}' log entry => {}",
-                                    span.name(),
-                                    serde_json::to_string_pretty(&event_span).unwrap(),
-                                )
-                            } else {
-                                error!(
-                                    "'{}' log entry => {}",
-                                    span.name(),
-                                    serde_json::to_string_pretty(&event_span).unwrap(),
-                                )
-                            }
+                            error!(
+                                labels.log_type = &self.log_type,
+                                labels.handler = span.name(),
+                                entry = event_span.as_value(),
+                                "{}",
+                                event_span.request
+                            );
+                        };
+                    } else {
+                        if event_span.errors.is_empty() {
+                            info!(
+                                "'{}' log entry => {}",
+                                span.name(),
+                                serde_json::to_string_pretty(&event_span).unwrap(),
+                            )
+                        } else {
+                            error!(
+                                "'{}' log entry => {}",
+                                span.name(),
+                                serde_json::to_string_pretty(&event_span).unwrap(),
+                            )
                         }
                     }
                 }
@@ -102,22 +100,21 @@ where
 
     fn on_event(&self, event: &tracing::Event<'_>, ctx: tracing_subscriber::layer::Context<'_, S>) {
         if let Some(scope) = ctx.event_scope(event) {
-            // TODO: iterate to the next INFO level span.
-            if let Some(span) = scope.into_iter().next() {
+            if let Some(span) = scope.from_root().next() {
                 let mut extensions = span.extensions_mut();
                 if let Some(event_span) = extensions.get_mut::<EventSpan>() {
                     let collector = FieldCollector::new(event);
                     if let Some(field) = collector.fields.get("event") {
                         if let Field::Str(encoded) = field {
-                            let log: LogEvent = serde_json::from_str(encoded)
+                            let event: LogEvent = serde_json::from_str(encoded)
                                 .expect("Failed to parse LogEvent from 'event' log field.");
-                            event_span.events.push(log);
+                            event_span.events.add(event);
                         }
                     } else if let Some(field) = collector.fields.get("request") {
                         if let Field::Str(encoded) = field {
-                            let log: LogRequest = serde_json::from_str(encoded)
+                            let request: LogRequest = serde_json::from_str(encoded)
                                 .expect("Failed to parse LogRequest from 'request' log field.");
-                            event_span.request = log;
+                            event_span.request = request;
                         }
                     } else if let Some(field) = collector.fields.get("error") {
                         if let Field::Str(error) = field {

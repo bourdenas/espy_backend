@@ -41,7 +41,7 @@ impl IgdbPrefilter {
     }
 }
 
-#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum PrefilterRejectionReason {
     NotPcGame(Vec<GamePlatform>),
     NotMainCategory(GameCategory),

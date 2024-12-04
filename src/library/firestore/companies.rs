@@ -2,12 +2,7 @@ use firestore::path;
 use futures::{stream::BoxStream, StreamExt};
 use tracing::instrument;
 
-use crate::{
-    api::FirestoreApi,
-    documents::Company,
-    logging::{Criterion, FirestoreEvent},
-    Status,
-};
+use crate::{api::FirestoreApi, documents::Company, logging::FirestoreEvent, Status};
 
 use super::{utils, BatchReadResult};
 
@@ -65,23 +60,11 @@ pub async fn search(firestore: &FirestoreApi, slug: &str) -> Result<Vec<Company>
                 }
             }
 
-            FirestoreEvent::search(
-                format!("/{COMPANIES}"),
-                vec![Criterion::new("slug".to_owned(), slug.to_string())],
-                companies.len(),
-                errors.len(),
-                errors,
-            );
+            FirestoreEvent::search(companies.len(), errors.len(), errors);
             Ok(companies)
         }
         Err(e) => {
-            FirestoreEvent::search(
-                format!("/{COMPANIES}"),
-                vec![Criterion::new("slug".to_owned(), slug.to_string())],
-                0,
-                1,
-                vec![e.to_string()],
-            );
+            FirestoreEvent::search(0, 1, vec![e.to_string()]);
             Err(utils::make_status(e, COMPANIES, format!("slug = {slug}")))
         }
     }

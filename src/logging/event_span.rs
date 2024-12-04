@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 use valuable::Valuable;
 
-use super::{LogEvent, LogHttpRequest, LogWebhooksRequest};
+use super::{LogHttpRequest, LogWebhooksRequest, SpanEvents};
 
 #[derive(Serialize, Deserialize, Valuable, Default, Clone, Debug)]
 pub struct EventSpan {
@@ -15,17 +15,11 @@ pub struct EventSpan {
 
     pub request: LogRequest,
 
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub events: Vec<LogEvent>,
+    pub events: SpanEvents,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub children: Vec<EventSpan>,
 }
 
 impl EventSpan {

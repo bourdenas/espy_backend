@@ -6,7 +6,7 @@ mod resolve_events;
 mod steam_events;
 
 pub use diff_event::DiffEvent;
-pub use firestore_event::{Criterion, FirestoreEvent};
+pub use firestore_event::FirestoreEvent;
 pub use metacritic_events::MetacriticEvent;
 pub use reject_event::RejectEvent;
 pub use resolve_events::ResolveEvent;

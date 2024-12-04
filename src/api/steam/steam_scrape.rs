@@ -1,5 +1,6 @@
 use reqwest::{header, ClientBuilder};
 use soup::prelude::*;
+use tracing::instrument;
 
 use crate::{logging::SteamEvent, Status};
 
@@ -11,6 +12,7 @@ pub struct SteamScrapeData {
 pub struct SteamScrape {}
 
 impl SteamScrape {
+    #[instrument(name = "steam::scrape_app_page", level = "info")]
     pub async fn scrape(url: &str) -> Result<SteamScrapeData, Status> {
         let mut request_headers = header::HeaderMap::new();
         request_headers.insert(
@@ -35,10 +37,11 @@ impl SteamScrape {
         let text = match text {
             Ok(text) => text,
             Err(e) => {
-                SteamEvent::scrape_app_page(url.to_owned(), vec![e.to_string()]);
+                SteamEvent::scrape_app_page(url.to_owned(), Some(e.to_string()));
                 return Err(Status::from(e));
             }
         };
+        SteamEvent::scrape_app_page(url.to_owned(), None);
 
         let soup = Soup::new(&text);
         let user_tags = match soup.class(GLANCE_TAGS).find() {

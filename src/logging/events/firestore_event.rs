@@ -5,14 +5,12 @@ use valuable::Valuable;
 
 use crate::{log_event, logging::LogEvent};
 
-#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
+#[derive(Serialize, Deserialize, Valuable, Clone, Default, Debug)]
 pub struct FirestoreEvent {
-    event: Event,
-    collection: String,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    doc: Option<String>,
+    reads: usize,
+    not_found: usize,
+    writes: usize,
+    deletes: usize,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -20,114 +18,60 @@ pub struct FirestoreEvent {
 }
 
 impl FirestoreEvent {
-    pub fn read(collection: String, doc: String, error: Option<String>) {
+    pub fn read(error: Option<String>) {
         log_event!(LogEvent::Firestore(FirestoreEvent {
-            event: Event::Read(ReadStats {
-                read: 1,
-                not_found: 0,
-                criteria: vec![],
-            }),
-            collection,
-            doc: Some(doc),
+            reads: 1,
             errors: match error {
                 Some(error) => vec![error],
                 None => vec![],
             },
+            ..Default::default()
         }))
     }
 
-    pub fn read_not_found(collection: String, doc: String, error: Option<String>) {
+    pub fn read_not_found() {
         log_event!(LogEvent::Firestore(FirestoreEvent {
-            event: Event::Read(ReadStats {
-                read: 1,
-                not_found: 1,
-                criteria: vec![],
-            }),
-            collection,
-            doc: Some(doc),
-            errors: match error {
-                Some(error) => vec![error],
-                None => vec![],
-            },
+            not_found: 1,
+            ..Default::default()
         }))
     }
 
-    pub fn search(
-        collection: String,
-        criteria: Vec<Criterion>,
-        read: usize,
-        not_found: usize,
-        errors: Vec<String>,
-    ) {
+    pub fn search(reads: usize, not_found: usize, errors: Vec<String>) {
         log_event!(LogEvent::Firestore(FirestoreEvent {
-            event: Event::Read(ReadStats {
-                read,
-                not_found,
-                criteria,
-            }),
-            collection,
-            doc: None,
+            reads,
+            not_found,
             errors,
+            ..Default::default()
         }))
     }
 
-    pub fn write(collection: String, doc: String, error: Option<String>) {
+    pub fn write(error: Option<String>) {
         log_event!(LogEvent::Firestore(FirestoreEvent {
-            event: Event::Write,
-            collection,
-            doc: Some(doc),
+            writes: 1,
             errors: match error {
                 Some(error) => vec![error],
                 None => vec![],
             },
+            ..Default::default()
         }))
     }
 
-    pub fn delete(collection: String, doc: String, error: Option<String>) {
+    pub fn delete(error: Option<String>) {
         log_event!(LogEvent::Firestore(FirestoreEvent {
-            event: Event::Delete,
-            collection,
-            doc: Some(doc),
+            deletes: 1,
             errors: match error {
                 Some(error) => vec![error],
                 None => vec![],
             },
+            ..Default::default()
         }))
     }
-}
 
-#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
-enum Event {
-    Read(ReadStats),
-    Write,
-    Delete,
-}
-
-#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
-struct ReadStats {
-    read: usize,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "is_zero")]
-    not_found: usize,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    criteria: Vec<Criterion>,
-}
-
-#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
-pub struct Criterion {
-    field: String,
-    value: String,
-}
-
-impl Criterion {
-    pub fn new(field: String, value: String) -> Self {
-        Criterion { field, value }
+    pub fn merge(&mut self, mut other: FirestoreEvent) {
+        self.reads += other.reads;
+        self.not_found += other.not_found;
+        self.writes += other.writes;
+        self.deletes += other.deletes;
+        self.errors.append(&mut other.errors);
     }
-}
-
-fn is_zero(num: &usize) -> bool {
-    *num == 0
 }

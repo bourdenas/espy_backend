@@ -2,7 +2,6 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 use tracing::warn;
-use valuable::Valuable;
 
 use crate::{
     documents::{GameCategory, GameEntry, GameStatus, Notable, WebsiteAuthority},
@@ -14,38 +13,38 @@ pub struct GameFilter {
     collections: HashSet<String>,
 }
 
-#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RejectionReason {
-    reason: Reason,
+    pub reason: Reason,
 
-    category: GameCategory,
-    status: GameStatus,
+    pub category: GameCategory,
+    pub status: GameStatus,
 
-    popularity: u64,
-    hype: u64,
-    year: i32,
+    pub popularity: u64,
+    pub hype: u64,
+    pub year: i32,
 }
 
-#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum Reason {
     NoScoreLowPopularity,
     FutureReleaseNoHype,
     Unknown,
 }
 
-#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RejectionException {
-    exception: Exception,
+    pub exception: Exception,
 
-    category: GameCategory,
-    status: GameStatus,
+    pub category: GameCategory,
+    pub status: GameStatus,
 
-    popularity: u64,
-    hype: u64,
-    year: i32,
+    pub popularity: u64,
+    pub hype: u64,
+    pub year: i32,
 }
 
-#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum Exception {
     Expansion,
     Remaster,
@@ -53,7 +52,7 @@ pub enum Exception {
     GogClassic,
 }
 
-#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum NotableFor {
     Developer(String),
     Collection(String),
