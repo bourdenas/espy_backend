@@ -96,7 +96,6 @@ pub async fn post_delete(
 
 #[instrument(name = "update", level = "info", skip(firestore))]
 pub async fn post_update(
-    user_id: String,
     update: models::UpdateOp,
     firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
@@ -108,7 +107,7 @@ pub async fn post_update(
         }
     };
 
-    let manager = LibraryManager::new(&user_id);
+    let manager = LibraryManager::new(&update.user_id);
     match manager.update_game(firestore, game_entry).await {
         Ok(()) => {
             LogHttpRequest::update(update, Status::Ok);
@@ -130,7 +129,6 @@ pub async fn post_update(
     )
 )]
 pub async fn post_match(
-    user_id: String,
     match_op: models::MatchOp,
     firestore: Arc<FirestoreApi>,
     resolver: Arc<ResolveApi>,
@@ -156,7 +154,7 @@ pub async fn post_match(
     };
 
     let request = match_op.clone();
-    let manager = LibraryManager::new(&user_id);
+    let manager = LibraryManager::new(&match_op.user_id);
     let status = match (game_entry, match_op.unmatch_entry) {
         // Match StoreEntry to GameEntry and add in Library.
         (Some(game_entry), None) => {
@@ -200,12 +198,11 @@ pub async fn post_match(
 
 #[instrument(name = "wishlist", level = "info", skip(firestore))]
 pub async fn post_wishlist(
-    user_id: String,
     wishlist: models::WishlistOp,
     firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     let request = wishlist.clone();
-    let manager = LibraryManager::new(&user_id);
+    let manager = LibraryManager::new(&wishlist.user_id);
     match (wishlist.add_game, wishlist.remove_game) {
         (Some(library_entry), _) => match manager.add_to_wishlist(firestore, library_entry).await {
             Ok(()) => {
@@ -239,17 +236,16 @@ pub async fn post_wishlist(
 
 #[instrument(name = "unlink", level = "info", skip(firestore))]
 pub async fn post_unlink(
-    user_id: String,
     unlink: models::Unlink,
     firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     let request = unlink.clone();
-    match User::fetch(Arc::clone(&firestore), &user_id).await {
+    match User::fetch(Arc::clone(&firestore), &unlink.user_id).await {
         // Remove storefront credentials from UserData.
         Ok(mut user) => match user.remove_storefront(&unlink.storefront_id).await {
             Ok(()) => {
                 // Remove storefront library entries.
-                let manager = LibraryManager::new(&user_id);
+                let manager = LibraryManager::new(&unlink.user_id);
                 match manager
                     .remove_storefront(firestore, &unlink.storefront_id)
                     .await
@@ -278,12 +274,12 @@ pub async fn post_unlink(
 
 #[instrument(name = "sync", level = "info", skip(api_keys, firestore, resolver))]
 pub async fn post_sync(
-    user_id: String,
+    sync: models::Sync,
     api_keys: Arc<util::keys::Keys>,
     firestore: Arc<FirestoreApi>,
     resolver: Arc<ResolveApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let store_entries = match User::fetch(Arc::clone(&firestore), &user_id).await {
+    let store_entries = match User::fetch(Arc::clone(&firestore), &sync.user_id).await {
         Ok(mut user) => user.sync_accounts(&api_keys).await,
         Err(status) => Err(status),
     };
@@ -296,7 +292,7 @@ pub async fn post_sync(
         }
     };
 
-    let manager = LibraryManager::new(&user_id);
+    let manager = LibraryManager::new(&sync.user_id);
     match manager
         .add_in_library(firestore, resolver, store_entries)
         .await
