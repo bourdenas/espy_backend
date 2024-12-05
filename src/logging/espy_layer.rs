@@ -54,10 +54,14 @@ where
 
             match span.scope().nth(1) {
                 Some(_parent) => {
-                    // let mut extensions = parent.extensions_mut();
-                    // if let Some(parent_event_span) = extensions.get_mut::<EventSpan>() {
-                    //     parent_event_span.children.push(event_span);
-                    // }
+                    if let Some(root) = span.scope().from_root().next() {
+                        let mut extensions = root.extensions_mut();
+                        if let Some(root_event_span) = extensions.get_mut::<EventSpan>() {
+                            root_event_span
+                                .latencies
+                                .insert(event_span.name.to_owned(), event_span.latency);
+                        }
+                    }
                 }
                 None => {
                     if self.prod {
