@@ -54,18 +54,18 @@ impl Display for LogHttpRequest {
         match self {
             LogHttpRequest::Search {
                 request,
-                response,
-                status,
+                response: _,
+                status: _,
             } => write!(f, "search '{}'", request.title),
             LogHttpRequest::CompanySearch {
                 request,
-                response,
-                status,
+                response: _,
+                status: _,
             } => write!(f, "company search '{}'", request.name),
             LogHttpRequest::Resolve {
                 request,
                 response,
-                status,
+                status: _,
             } => write!(
                 f,
                 "resolve {} -> {}",
@@ -75,17 +75,19 @@ impl Display for LogHttpRequest {
                     None => "None",
                 }
             ),
-            LogHttpRequest::Update { request, status } => write!(f, "update id={}", request.id),
-            LogHttpRequest::Match { request, status } => write!(
+            LogHttpRequest::Update { request, status: _ } => write!(f, "update id={}", request.id),
+            LogHttpRequest::Match { request, status: _ } => write!(
                 f,
                 "match '{}' from {}",
                 request.store_entry.title, request.store_entry.storefront_name
             ),
-            LogHttpRequest::Wishlist { request, status } => write!(f, "wishlist {:?}", request.op),
-            LogHttpRequest::Unlink { request, status } => {
+            LogHttpRequest::Wishlist { request, status: _ } => {
+                write!(f, "wishlist {:?}", request.op)
+            }
+            LogHttpRequest::Unlink { request, status: _ } => {
                 write!(f, "unlink {}", request.storefront_id)
             }
-            LogHttpRequest::Sync { status } => write!(f, "sync account"),
+            LogHttpRequest::Sync { status: _ } => write!(f, "sync account"),
         }
     }
 }

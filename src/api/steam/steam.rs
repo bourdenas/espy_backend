@@ -115,7 +115,7 @@ impl Storefront for SteamApi {
         let resp = reqwest::get(&uri).await?.json::<SteamResponse>().await;
         match resp {
             Ok(resp) => {
-                SteamEvent::get_owned_games(&self.steam_user_id, None);
+                SteamEvent::get_owned_games(&self.steam_user_id, resp.response.game_count, None);
                 Ok(resp
                     .response
                     .games
@@ -130,7 +130,7 @@ impl Storefront for SteamApi {
                     .collect())
             }
             Err(e) => {
-                SteamEvent::get_owned_games(&self.steam_user_id, Some(e.to_string()));
+                SteamEvent::get_owned_games(&self.steam_user_id, 0, Some(e.to_string()));
                 Err(Status::from(e))
             }
         }

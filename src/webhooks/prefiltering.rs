@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use tracing::warn;
-use valuable::Valuable;
 
 use crate::documents::{GameCategory, GamePlatform, IgdbGame};
 

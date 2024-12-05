@@ -6,7 +6,7 @@ use valuable::Valuable;
 
 use super::{DiffEvent, FirestoreEvent, MetacriticEvent, RejectEvent, ResolveEvent, SteamEvent};
 
-#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
+#[derive(Serialize, Deserialize, Valuable, Debug)]
 pub enum LogEvent {
     Firestore(FirestoreEvent),
     Reject(RejectEvent),
@@ -35,7 +35,7 @@ macro_rules! log_event {
     };
 }
 
-#[derive(Serialize, Deserialize, Valuable, Default, Clone, Debug)]
+#[derive(Serialize, Deserialize, Valuable, Default, Debug)]
 pub struct SpanEvents {
     firestore: Option<FirestoreEvent>,
     reject: Option<RejectEvent>,
@@ -55,7 +55,23 @@ impl SpanEvents {
             LogEvent::Reject(reject_event) => self.reject = Some(reject_event),
             LogEvent::Diff(diff_event) => self.diff = Some(diff_event),
             LogEvent::Resolve(resolve_event) => self.resolver = Some(resolve_event),
-            LogEvent::Steam(steam_event) => self.steam = Some(steam_event),
+            LogEvent::Steam(steam_event) => match &mut self.steam {
+                Some(steam) => {
+                    if let Some(event) = steam_event.get_owned_games {
+                        steam.get_owned_games = Some(event);
+                    }
+                    if let Some(event) = steam_event.get_app_details {
+                        steam.get_app_details = Some(event);
+                    }
+                    if let Some(event) = steam_event.get_app_score {
+                        steam.get_app_score = Some(event);
+                    }
+                    if let Some(event) = steam_event.scrape_app_page {
+                        steam.scrape_app_page = Some(event);
+                    }
+                }
+                None => self.steam = Some(steam_event),
+            },
             LogEvent::Metacritic(metacritic_event) => self.metacritic = Some(metacritic_event),
         }
     }

@@ -5,65 +5,69 @@ use valuable::Valuable;
 
 use crate::{log_event, logging::LogEvent};
 
-#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
+#[derive(Serialize, Deserialize, Valuable, Default, Debug)]
 pub struct SteamEvent {
-    method: String,
+    pub get_owned_games: Option<GetOwnedGames>,
+    pub get_app_details: Option<GetAppDetails>,
+    pub get_app_score: Option<GetAppScore>,
+    pub scrape_app_page: Option<ScrapeAppPage>,
+}
 
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    id: Option<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    url: Option<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
+#[derive(Serialize, Deserialize, Valuable, Default, Debug)]
+pub struct GetOwnedGames {
+    steam_id: String,
+    game_count: usize,
     error: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
-enum SteamApi {
-    GetOwnedGames { steam_id: String, game_count: usize },
-    GetAppDetails { appid: String, name: String },
-    GetAppScore { appid: String },
-    ScrapeAppPage { url: String },
+#[derive(Serialize, Deserialize, Valuable, Default, Debug)]
+pub struct GetAppDetails {
+    appid: String,
+    error: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Valuable, Default, Debug)]
+pub struct GetAppScore {
+    appid: String,
+    error: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Valuable, Default, Debug)]
+pub struct ScrapeAppPage {
+    url: String,
+    error: Option<String>,
 }
 
 impl SteamEvent {
-    pub fn get_owned_games(steam_id: &str, error: Option<String>) {
+    pub fn get_owned_games(steam_id: &str, game_count: usize, error: Option<String>) {
         log_event!(LogEvent::Steam(SteamEvent {
-            method: "get_owned_games".to_owned(),
-            id: Some(steam_id.to_owned()),
-            url: None,
-            error,
+            get_owned_games: Some(GetOwnedGames {
+                steam_id: steam_id.to_owned(),
+                game_count,
+                error,
+            }),
+            ..Default::default()
         }));
     }
 
     pub fn get_app_details(appid: String, error: Option<String>) {
         log_event!(LogEvent::Steam(SteamEvent {
-            method: "get_app_details".to_owned(),
-            id: Some(appid.to_owned()),
-            url: None,
-            error,
+            get_app_details: Some(GetAppDetails { appid, error }),
+            ..Default::default()
         }));
     }
 
     pub fn get_app_score(appid: String, error: Option<String>) {
         log_event!(LogEvent::Steam(SteamEvent {
-            method: "get_app_score".to_owned(),
-            id: Some(appid.to_owned()),
-            url: None,
-            error,
+            get_app_score: Some(GetAppScore { appid, error }),
+            ..Default::default()
         }));
     }
 
     pub fn scrape_app_page(url: String, error: Option<String>) {
         log_event!(LogEvent::Steam(SteamEvent {
-            method: "scrape_app_page".to_owned(),
-            id: None,
-            url: Some(url),
-            error,
+            scrape_app_page: Some(ScrapeAppPage { url, error }),
+            ..Default::default()
         }));
     }
 }
