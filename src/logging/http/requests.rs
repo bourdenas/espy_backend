@@ -49,49 +49,6 @@ pub enum LogHttpRequest {
     },
 }
 
-impl Display for LogHttpRequest {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LogHttpRequest::Search {
-                request,
-                response: _,
-                status: _,
-            } => write!(f, "search '{}'", request.title),
-            LogHttpRequest::CompanySearch {
-                request,
-                response: _,
-                status: _,
-            } => write!(f, "company search '{}'", request.name),
-            LogHttpRequest::Resolve {
-                request,
-                response,
-                status: _,
-            } => write!(
-                f,
-                "resolve {} -> {}",
-                request.id,
-                match &response.game {
-                    Some(game) => &game.name,
-                    None => "None",
-                }
-            ),
-            LogHttpRequest::Update { request, status: _ } => write!(f, "update id={}", request.id),
-            LogHttpRequest::Match { request, status: _ } => write!(
-                f,
-                "match '{}' from {}",
-                request.store_entry.title, request.store_entry.storefront_name
-            ),
-            LogHttpRequest::Wishlist { request, status: _ } => {
-                write!(f, "wishlist {:?}", request.op)
-            }
-            LogHttpRequest::Unlink { request, status: _ } => {
-                write!(f, "unlink {}", request.storefront_id)
-            }
-            LogHttpRequest::Sync { status: _ } => write!(f, "sync account"),
-        }
-    }
-}
-
 impl LogHttpRequest {
     pub fn search(request: models::Search, digests: &[GameDigest]) {
         log_request!(LogRequest::Http(LogHttpRequest::Search {
@@ -238,6 +195,49 @@ impl LogHttpRequest {
             },
             status,
         }))
+    }
+}
+
+impl Display for LogHttpRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LogHttpRequest::Search {
+                request,
+                response: _,
+                status: _,
+            } => write!(f, "search '{}'", request.title),
+            LogHttpRequest::CompanySearch {
+                request,
+                response: _,
+                status: _,
+            } => write!(f, "company search '{}'", request.name),
+            LogHttpRequest::Resolve {
+                request,
+                response,
+                status: _,
+            } => write!(
+                f,
+                "resolve {} -> {}",
+                request.id,
+                match &response.game {
+                    Some(game) => &game.name,
+                    None => "None",
+                }
+            ),
+            LogHttpRequest::Update { request, status: _ } => write!(f, "update id={}", request.id),
+            LogHttpRequest::Match { request, status: _ } => write!(
+                f,
+                "match '{}' from {}",
+                request.store_entry.title, request.store_entry.storefront_name
+            ),
+            LogHttpRequest::Wishlist { request, status: _ } => {
+                write!(f, "wishlist {:?}", request.op)
+            }
+            LogHttpRequest::Unlink { request, status: _ } => {
+                write!(f, "unlink {}", request.storefront_id)
+            }
+            LogHttpRequest::Sync { status: _ } => write!(f, "sync account"),
+        }
     }
 }
 

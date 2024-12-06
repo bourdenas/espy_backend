@@ -22,14 +22,7 @@ use super::{endpoints, request::post, IgdbConnection, IgdbLookup};
 /// Returns a GameEntry from IGDB that can build the GameDigest doc.
 ///
 /// Updates Firestore structures with fresh game digest data.
-#[instrument(
-    level = "trace",
-    skip(connection, firestore, igdb_game)
-    fields(
-        game_id = %igdb_game.id,
-        game_name = %igdb_game.name,
-    )
-)]
+#[instrument(level = "info", skip(connection, firestore, igdb_game))]
 pub async fn resolve_game_digest(
     connection: &IgdbConnection,
     firestore: &FirestoreApi,
@@ -262,14 +255,7 @@ fn adjust_companies(
 
 /// Returns a fully resolved GameEntry from IGDB that goes beyond the GameDigest doc.
 #[async_recursion]
-#[instrument(
-    level = "trace",
-    skip(connection, firestore, game_entry),
-    fields(
-        game_id = %game_entry.id,
-        game_name = %game_entry.name,
-    )
-)]
+#[instrument(level = "info", skip(connection, firestore, game_entry))]
 pub async fn resolve_game_info(
     connection: &IgdbConnection,
     firestore: &FirestoreApi,
@@ -406,7 +392,7 @@ pub async fn resolve_game_info(
 }
 
 /// Returns IgdbGames included in the bundle of `bundle_id`.
-#[instrument(level = "trace", skip(connection))]
+#[instrument(level = "info", skip(connection))]
 async fn get_bundle_games_ids(
     connection: &IgdbConnection,
     bundle_id: u64,
@@ -698,7 +684,7 @@ async fn get_release_timestamp(
 }
 
 /// Make sure that any companies involved in the game are updated to include it.
-#[instrument(level = "trace", skip(firestore, game_entry))]
+#[instrument(level = "info", skip(firestore, game_entry))]
 async fn update_companies(firestore: &FirestoreApi, game_entry: &GameEntry) {
     if !game_entry.category.is_main_category() {
         return;
@@ -761,7 +747,7 @@ async fn update_companies(firestore: &FirestoreApi, game_entry: &GameEntry) {
 }
 
 /// Update collections / franchises in the game with a fresh digest.
-#[instrument(level = "trace", skip(firestore, game_entry))]
+#[instrument(level = "info", skip(firestore, game_entry))]
 async fn update_collections(firestore: &FirestoreApi, game_entry: &GameEntry) {
     for (collections, collection_type) in [
         (&game_entry.collections, CollectionType::Collection),

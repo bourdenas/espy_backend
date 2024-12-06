@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 use valuable::Valuable;
 
-use super::{LogHttpRequest, LogWebhooksRequest, SpanEvents};
+use super::{LogHttpRequest, LogResolverRequest, LogWebhooksRequest, SpanEvents};
 
 #[derive(Serialize, Deserialize, Valuable, Default, Debug)]
 pub struct EventSpan {
@@ -40,6 +40,7 @@ pub enum LogRequest {
 
     Http(LogHttpRequest),
     Webhooks(LogWebhooksRequest),
+    Resolver(LogResolverRequest),
 }
 
 impl LogRequest {
@@ -59,6 +60,7 @@ impl Display for LogRequest {
         match self {
             LogRequest::Http(request) => write!(f, "{request}"),
             LogRequest::Webhooks(request) => write!(f, "{request}"),
+            LogRequest::Resolver(request) => write!(f, "{request}"),
             LogRequest::None => write!(f, "None"),
         }
     }

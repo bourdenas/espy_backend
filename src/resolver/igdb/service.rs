@@ -28,14 +28,7 @@ impl IgdbApi {
     }
 
     /// Returns a GameDigest for an IgdbGame.
-    #[instrument(
-        level = "trace",
-        skip(self, firestore, igdb_game),
-        fields(
-            game_id = %igdb_game.id,
-            title = %igdb_game.name
-        )
-    )]
+    #[instrument(level = "trace", skip(self, firestore, igdb_game))]
     pub async fn resolve_digest(
         &self,
         firestore: &FirestoreApi,
@@ -46,14 +39,7 @@ impl IgdbApi {
         ))
     }
 
-    #[instrument(
-        level = "trace",
-        skip(self, firestore, igdb_game),
-        fields(
-            game_id = %igdb_game.id,
-            title = %igdb_game.name
-        )
-    )]
+    #[instrument(level = "trace", skip(self, firestore, igdb_game))]
     pub async fn resolve(
         &self,
         firestore: Arc<FirestoreApi>,
