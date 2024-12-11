@@ -46,7 +46,6 @@ impl RejectEvent {
             reason: Some(match reason {
                 PrefilterRejectionReason::NotPcGame(_) => "prefilter.platform".to_owned(),
                 PrefilterRejectionReason::NotMainCategory(_) => "prefilter.category".to_owned(),
-                PrefilterRejectionReason::NoUserMetrics => "prefilter.metrics".to_owned(),
                 PrefilterRejectionReason::Unknown => "prefilter.unknown".to_owned(),
             }),
             category: match reason {

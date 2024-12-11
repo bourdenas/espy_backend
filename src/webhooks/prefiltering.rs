@@ -7,11 +7,7 @@ pub struct IgdbPrefilter;
 
 impl IgdbPrefilter {
     pub fn filter(igdb_game: &IgdbGame) -> bool {
-        igdb_game.is_pc_game()
-            && igdb_game.is_watched_category()
-            && (igdb_game.follows.unwrap_or_default() > 0
-                || igdb_game.hypes.unwrap_or_default() > 0
-                || igdb_game.aggregated_rating.unwrap_or_default() > 0.0)
+        igdb_game.is_pc_game() && igdb_game.is_watched_category()
     }
 
     pub fn explain(igdb_game: &IgdbGame) -> PrefilterRejectionReason {
@@ -25,11 +21,6 @@ impl IgdbPrefilter {
             )
         } else if !igdb_game.is_watched_category() {
             PrefilterRejectionReason::NotMainCategory(GameCategory::from(igdb_game.category))
-        } else if igdb_game.follows.unwrap_or_default() == 0
-            && igdb_game.hypes.unwrap_or_default() == 0
-            && igdb_game.aggregated_rating.is_none()
-        {
-            PrefilterRejectionReason::NoUserMetrics
         } else {
             warn!(
                 "Prefilter failed to provide rejection explanation for '{}' ({}).",
@@ -44,7 +35,6 @@ impl IgdbPrefilter {
 pub enum PrefilterRejectionReason {
     NotPcGame(Vec<GamePlatform>),
     NotMainCategory(GameCategory),
-    NoUserMetrics,
     Unknown,
 }
 
