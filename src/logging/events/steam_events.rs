@@ -10,6 +10,7 @@ pub struct SteamEvent {
     pub get_owned_games: Option<GetOwnedGames>,
     pub get_app_details: Option<GetAppDetails>,
     pub get_app_score: Option<GetAppScore>,
+    pub get_app_news: Option<GetAppNews>,
     pub scrape_app_page: Option<ScrapeAppPage>,
 }
 
@@ -28,6 +29,12 @@ pub struct GetAppDetails {
 
 #[derive(Serialize, Deserialize, Valuable, Default, Debug)]
 pub struct GetAppScore {
+    appid: String,
+    error: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Valuable, Default, Debug)]
+pub struct GetAppNews {
     appid: String,
     error: Option<String>,
 }
@@ -60,6 +67,13 @@ impl SteamEvent {
     pub fn get_app_score(appid: String, error: Option<String>) {
         log_event!(LogEvent::Steam(SteamEvent {
             get_app_score: Some(GetAppScore { appid, error }),
+            ..Default::default()
+        }));
+    }
+
+    pub fn get_app_news(appid: String, error: Option<String>) {
+        log_event!(LogEvent::Steam(SteamEvent {
+            get_app_news: Some(GetAppNews { appid, error }),
             ..Default::default()
         }));
     }

@@ -97,6 +97,41 @@ impl SteamApi {
             review_score_desc: resp.query_summary.review_score_desc,
         })
     }
+
+    #[instrument(name = "steam::get_app_news", level = "info")]
+    pub async fn get_app_news(steam_appid: &str) -> Result<Vec<NewsItem>, Status> {
+        let uri = format!("{STEAM_HOST}{STEAM_GETNEWSFORAPP_SERVICE}?appid={steam_appid}&count=50&maxlength=600&format=json");
+
+        let mut request_headers = header::HeaderMap::new();
+        request_headers.insert(
+            header::COOKIE,
+            header::HeaderValue::from_static("birthtime=0; path=/; max-age=315360000"),
+        );
+
+        let client = ClientBuilder::new()
+            .default_headers(request_headers)
+            .cookie_store(true)
+            .build()
+            .unwrap();
+
+        let resp = client.get(&uri).send().await?;
+        let text = resp.text().await?;
+        let resp = serde_json::from_str::<SteamAppNewsResponse>(&text).map_err(|e| {
+            let msg = format!(
+                "Steam /GetNewsForApp/{steam_appid} parse error: {} in response: {}",
+                e, &text
+            );
+            let status = Status::request_error(&msg);
+            SteamEvent::get_app_news(steam_appid.to_owned(), Some(msg));
+            status
+        })?;
+
+        let mut newsitems = resp.appnews.newsitems;
+        newsitems.retain(|item| item.feedname == STEAM_UPDATE_FEEDNAME);
+
+        SteamEvent::get_app_news(steam_appid.to_owned(), None);
+        Ok(newsitems)
+    }
 }
 
 #[async_trait]
@@ -188,5 +223,36 @@ struct SteamAppReviewsQuerySummary {
     total_reviews: u64,
 }
 
+#[derive(Serialize, Deserialize, Default, Debug)]
+struct SteamAppNewsResponse {
+    appnews: SteamAppNews,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug)]
+struct SteamAppNews {
+    appid: u64,
+    count: usize,
+
+    #[serde(default)]
+    newsitems: Vec<NewsItem>,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug)]
+pub struct NewsItem {
+    gid: u64,
+    title: String,
+    url: String,
+    contents: String,
+    date: u64,
+    feedname: String,
+    tags: Vec<String>,
+
+    #[serde(default)]
+    newsitems: Vec<NewsItem>,
+}
+
 const STEAM_HOST: &str = "http://api.steampowered.com";
 const STEAM_GETOWNEDGAMES_SERVICE: &str = "/IPlayerService/GetOwnedGames/v0001/";
+const STEAM_GETNEWSFORAPP_SERVICE: &str = "/ISteamNews/GetNewsForApp/v0002/";
+
+const STEAM_UPDATE_FEEDNAME: &str = "steam_community_announcements";
