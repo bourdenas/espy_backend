@@ -1,6 +1,8 @@
 use reqwest::{header, ClientBuilder};
 use soup::prelude::*;
-use tracing::warn;
+use tracing::instrument;
+
+use crate::{logging::SteamEvent, Status};
 
 #[derive(Default, Clone, Debug)]
 pub struct SteamScrapeData {
@@ -10,7 +12,8 @@ pub struct SteamScrapeData {
 pub struct SteamScrape {}
 
 impl SteamScrape {
-    pub async fn scrape(url: &str) -> Option<SteamScrapeData> {
+    #[instrument(name = "steam::scrape_app_page", level = "info")]
+    pub async fn scrape(url: &str) -> Result<SteamScrapeData, Status> {
         let mut request_headers = header::HeaderMap::new();
         request_headers.insert(
             header::COOKIE,
@@ -23,32 +26,34 @@ impl SteamScrape {
             .build()
             .unwrap();
 
-        let resp = match client.get(url).send().await {
-            Ok(resp) => resp,
-            Err(status) => {
-                warn!("Failed steam scrape request for {url}: {status}");
-                return None;
-            }
+        let text = match client.get(url).send().await {
+            Ok(resp) => match resp.text().await {
+                Ok(text) => Ok(text),
+                Err(e) => Err(e),
+            },
+            Err(e) => Err(e),
         };
-        let text = match resp.text().await {
-            Ok(text) => text,
-            Err(status) => {
-                warn!("Failed to parse steam scrape response for {url}: {status}");
-                return None;
-            }
-        };
-        let soup = Soup::new(&text);
 
-        match soup.class(GLANCE_TAGS).find() {
-            Some(tags) => Some(SteamScrapeData {
-                user_tags: tags
-                    .tag("a")
-                    .find_all()
-                    .map(|tag| tag.text().trim().to_owned())
-                    .collect(),
-            }),
-            None => None,
-        }
+        let text = match text {
+            Ok(text) => text,
+            Err(e) => {
+                SteamEvent::scrape_app_page(url.to_owned(), Some(e.to_string()));
+                return Err(Status::from(e));
+            }
+        };
+        SteamEvent::scrape_app_page(url.to_owned(), None);
+
+        let soup = Soup::new(&text);
+        let user_tags = match soup.class(GLANCE_TAGS).find() {
+            Some(tags) => tags
+                .tag("a")
+                .find_all()
+                .map(|tag| tag.text().trim().to_owned())
+                .collect(),
+            None => vec![],
+        };
+
+        Ok(SteamScrapeData { user_tags })
     }
 }
 

@@ -9,7 +9,7 @@ use super::utils;
 
 #[instrument(name = "library::read", level = "trace", skip(firestore, user_id))]
 pub async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<Library, Status> {
-    utils::users_read(firestore, user_id, GAMES, LIBRARY_DOC).await
+    utils::auth_read(firestore, user_id, GAMES, LIBRARY_DOC.to_owned()).await
 }
 
 #[instrument(
@@ -25,20 +25,7 @@ pub async fn write(
     library
         .entries
         .sort_by(|l, r| r.digest.release_date.cmp(&l.digest.release_date));
-
-    let parent_path = firestore.db().parent_path(utils::USERS, user_id)?;
-
-    firestore
-        .db()
-        .fluent()
-        .update()
-        .in_col(GAMES)
-        .document_id(LIBRARY_DOC)
-        .parent(&parent_path)
-        .object(&library)
-        .execute::<()>()
-        .await?;
-    Ok(())
+    utils::auth_write(firestore, user_id, GAMES, LIBRARY_DOC.to_owned(), &library).await
 }
 
 const GAMES: &str = "games";

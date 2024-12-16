@@ -114,11 +114,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
-#[instrument(
-    level = "info",
-    skip(resolver, firestore),
-    fields(event_span = "resolve_event")
-)]
+#[instrument(level = "info", skip(resolver, firestore))]
 async fn refresh_game(
     id: u64,
     resolver: &ResolveApi,

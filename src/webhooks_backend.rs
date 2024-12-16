@@ -33,7 +33,7 @@ async fn main() -> Result<(), Status> {
 
     match opts.prod_tracing {
         false => Tracing::setup("espy-webhook-handlers")?,
-        true => Tracing::setup_prod("espy-webhook-handlers")?,
+        true => Tracing::setup_prod("espy-webhook-handlers", "webhook_logs")?,
     }
 
     // Let ENV VAR override flag.

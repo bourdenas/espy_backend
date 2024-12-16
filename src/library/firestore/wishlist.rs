@@ -7,6 +7,27 @@ use tracing::instrument;
 
 use super::utils;
 
+#[instrument(name = "wishlist::read", level = "trace", skip(firestore, user_id))]
+async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<Library, Status> {
+    utils::auth_read(firestore, user_id, GAMES, WISHLIST_DOC.to_owned()).await
+}
+
+#[instrument(
+    name = "wishlist::write",
+    level = "trace",
+    skip(firestore, user_id, library)
+)]
+async fn write(
+    firestore: &FirestoreApi,
+    user_id: &str,
+    mut library: Library,
+) -> Result<(), Status> {
+    library
+        .entries
+        .sort_by(|l, r| r.digest.release_date.cmp(&l.digest.release_date));
+    utils::auth_write(firestore, user_id, GAMES, WISHLIST_DOC.to_owned(), &library).await
+}
+
 #[instrument(
     name = "wishlist::add_entry",
     level = "trace",
@@ -101,40 +122,6 @@ fn remove(game_id: u64, wishlist: &mut Library) -> bool {
     let original_len = wishlist.entries.len();
     wishlist.entries.retain(|e| e.id != game_id);
     wishlist.entries.len() != original_len
-}
-
-#[instrument(name = "wishlist::read", level = "trace", skip(firestore, user_id))]
-async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<Library, Status> {
-    utils::users_read(firestore, user_id, GAMES, WISHLIST_DOC).await
-}
-
-#[instrument(
-    name = "wishlist::write",
-    level = "trace",
-    skip(firestore, user_id, library)
-)]
-async fn write(
-    firestore: &FirestoreApi,
-    user_id: &str,
-    mut library: Library,
-) -> Result<(), Status> {
-    library
-        .entries
-        .sort_by(|l, r| r.digest.release_date.cmp(&l.digest.release_date));
-
-    let parent_path = firestore.db().parent_path(utils::USERS, user_id)?;
-
-    firestore
-        .db()
-        .fluent()
-        .update()
-        .in_col(GAMES)
-        .document_id(WISHLIST_DOC)
-        .parent(&parent_path)
-        .object(&library)
-        .execute::<()>()
-        .await?;
-    Ok(())
 }
 
 const GAMES: &str = "games";

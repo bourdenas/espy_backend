@@ -3,14 +3,13 @@ use crate::{
     documents::GameEntry,
     http::models,
     library::{self, LibraryManager, User},
+    logging::LogHttpRequest,
     resolver::ResolveApi,
     util, Status,
 };
 use std::{convert::Infallible, sync::Arc};
 use tracing::{info, instrument, warn};
 use warp::http::StatusCode;
-
-use super::query_logs::*;
 
 #[instrument(level = "trace")]
 pub async fn welcome() -> Result<impl warp::Reply, Infallible> {
@@ -24,69 +23,67 @@ pub async fn welcome() -> Result<impl warp::Reply, Infallible> {
     Ok("welcome")
 }
 
-#[instrument(level = "trace", skip(resolver))]
+#[instrument(name = "search", level = "info", skip(resolver))]
 pub async fn post_search(
     search: models::Search,
     resolver: Arc<ResolveApi>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    let event = SearchEvent::new(search.clone());
-    match resolver.search(search.title, search.base_game_only).await {
+    match resolver
+        .search(search.title.clone(), search.base_game_only)
+        .await
+    {
         Ok(candidates) => {
-            event.log(&candidates);
+            LogHttpRequest::search(search, &candidates);
             Ok(Box::new(warp::reply::json(&candidates)))
         }
         Err(status) => {
-            event.log_error(status);
-            Ok(Box::new(StatusCode::NOT_FOUND))
-        }
-    }
-}
-
-#[instrument(level = "trace", skip(firestore))]
-pub async fn post_company_fetch(
-    company_fetch: models::CompanyFetch,
-    firestore: Arc<FirestoreApi>,
-) -> Result<Box<dyn warp::Reply>, Infallible> {
-    let event = CompanyFetchEvent::new(company_fetch.clone());
-
-    let slug = CompanyNormalizer::slug(&company_fetch.name);
-    match library::firestore::companies::fetch(&firestore, &slug).await {
-        Ok(companies) => {
-            event.log(&slug, &companies);
-            Ok(Box::new(warp::reply::json(&companies)))
-        }
-        Err(status) => {
-            event.log_error(status);
+            LogHttpRequest::search_err(search, status);
             Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR))
         }
     }
 }
 
-#[instrument(level = "trace", skip(firestore, resolver))]
+#[instrument(name = "company_fetch", level = "info", skip(firestore))]
+pub async fn post_company_fetch(
+    company_fetch: models::CompanyFetch,
+    firestore: Arc<FirestoreApi>,
+) -> Result<Box<dyn warp::Reply>, Infallible> {
+    let slug = CompanyNormalizer::slug(&company_fetch.name);
+    match library::firestore::companies::search(&firestore, &slug).await {
+        Ok(companies) => {
+            LogHttpRequest::company_search(company_fetch, &companies);
+            Ok(Box::new(warp::reply::json(&companies)))
+        }
+        Err(status) => {
+            LogHttpRequest::company_search_err(company_fetch, status);
+            Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR))
+        }
+    }
+}
+
+#[instrument(name = "resolve", level = "info", skip(firestore, resolver))]
 pub async fn post_resolve(
     resolve: models::Resolve,
     firestore: Arc<FirestoreApi>,
     resolver: Arc<ResolveApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let event = ResolveEvent::new(resolve.clone());
-
     match retrieve_and_store(&firestore, &resolver, resolve.game_id).await {
         Ok(game_entry) => {
-            event.log(game_entry);
+            LogHttpRequest::resolve(resolve, game_entry);
             Ok(StatusCode::OK)
         }
         Err(Status::NotFound(msg)) => {
-            event.log_error(Status::not_found(msg));
+            LogHttpRequest::resolve_err(resolve, Status::not_found(msg));
             Ok(StatusCode::NOT_FOUND)
         }
         Err(status) => {
-            event.log_error(status);
+            LogHttpRequest::resolve_err(resolve, status);
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
 
-#[instrument(level = "trace", skip(firestore))]
+#[instrument(name = "delete", level = "info", skip(firestore))]
 pub async fn post_delete(
     resolve: models::Resolve,
     firestore: Arc<FirestoreApi>,
@@ -97,50 +94,45 @@ pub async fn post_delete(
     }
 }
 
-#[instrument(level = "trace", skip(firestore))]
+#[instrument(name = "update", level = "info", skip(firestore))]
 pub async fn post_update(
-    user_id: String,
     update: models::UpdateOp,
     firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let event = UpdateEvent::new(&update);
-
     let game_entry = match library::firestore::games::read(&firestore, update.game_id).await {
         Ok(game_entry) => game_entry,
         Err(status) => {
-            event.log_error(&user_id, status);
+            LogHttpRequest::update(update, status);
             return Ok(StatusCode::NOT_FOUND);
         }
     };
 
-    let manager = LibraryManager::new(&user_id);
+    let manager = LibraryManager::new(&update.user_id);
     match manager.update_game(firestore, game_entry).await {
         Ok(()) => {
-            event.log(&user_id);
+            LogHttpRequest::update(update, Status::Ok);
             Ok(StatusCode::OK)
         }
         Err(status) => {
-            event.log_error(&user_id, status);
+            LogHttpRequest::update(update, status);
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
 
 #[instrument(
-    level = "trace",
+    name = "match",
+    level = "info",
     skip(match_op, firestore, resolver),
     fields(
         title = %match_op.store_entry.title,
     )
 )]
 pub async fn post_match(
-    user_id: String,
     match_op: models::MatchOp,
     firestore: Arc<FirestoreApi>,
     resolver: Arc<ResolveApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let event = MatchEvent::new(match_op.clone());
-
     let game_entry = match match_op.game_id {
         Some(game_id) => match library::firestore::games::read(&firestore, game_id).await {
             Ok(game_entry) => Some(game_entry),
@@ -148,20 +140,21 @@ pub async fn post_match(
                 match retrieve_and_store(&firestore, &resolver, game_id).await {
                     Ok(game_entry) => Some(game_entry),
                     Err(status) => {
-                        event.log_error(&user_id, status);
+                        LogHttpRequest::match_game(match_op, status);
                         return Ok(StatusCode::NOT_FOUND);
                     }
                 }
             }
             Err(status) => {
-                event.log_error(&user_id, status);
+                LogHttpRequest::match_game(match_op, status);
                 return Ok(StatusCode::NOT_FOUND);
             }
         },
         None => None,
     };
 
-    let manager = LibraryManager::new(&user_id);
+    let request = match_op.clone();
+    let manager = LibraryManager::new(&match_op.user_id);
     let status = match (game_entry, match_op.unmatch_entry) {
         // Match StoreEntry to GameEntry and add in Library.
         (Some(game_entry), None) => {
@@ -189,53 +182,51 @@ pub async fn post_match(
 
     match status {
         Ok(()) => {
-            event.log(&user_id);
+            LogHttpRequest::match_game(request, Status::Ok);
             Ok(StatusCode::OK)
         }
-        Err(Status::InvalidArgument(status)) => {
-            event.log_error(&user_id, Status::invalid_argument(status));
+        Err(Status::InvalidArgument(msg)) => {
+            LogHttpRequest::match_game(request, Status::invalid_argument(msg));
             Ok(StatusCode::BAD_REQUEST)
         }
         Err(status) => {
-            event.log_error(&user_id, status);
+            LogHttpRequest::match_game(request, status);
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
 
-#[instrument(level = "trace", skip(firestore))]
+#[instrument(name = "wishlist", level = "info", skip(firestore))]
 pub async fn post_wishlist(
-    user_id: String,
     wishlist: models::WishlistOp,
     firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let event = WishlistEvent::new(wishlist.clone());
-
-    let manager = LibraryManager::new(&user_id);
+    let request = wishlist.clone();
+    let manager = LibraryManager::new(&wishlist.user_id);
     match (wishlist.add_game, wishlist.remove_game) {
         (Some(library_entry), _) => match manager.add_to_wishlist(firestore, library_entry).await {
             Ok(()) => {
-                event.log(&user_id);
+                LogHttpRequest::wishlist(request, Status::Ok);
                 Ok(StatusCode::OK)
             }
             Err(status) => {
-                event.log_error(&user_id, status);
+                LogHttpRequest::wishlist(request, status);
                 Ok(StatusCode::INTERNAL_SERVER_ERROR)
             }
         },
         (_, Some(game_id)) => match manager.remove_from_wishlist(firestore, game_id).await {
             Ok(()) => {
-                event.log(&user_id);
+                LogHttpRequest::wishlist(request, Status::Ok);
                 Ok(StatusCode::OK)
             }
             Err(status) => {
-                event.log_error(&user_id, status);
+                LogHttpRequest::wishlist(request, status);
                 Ok(StatusCode::INTERNAL_SERVER_ERROR)
             }
         },
         _ => {
-            event.log_error(
-                &user_id,
+            LogHttpRequest::wishlist(
+                request,
                 Status::invalid_argument("Missing both add_game and remove_game arguments."),
             );
             Ok(StatusCode::BAD_REQUEST)
@@ -243,56 +234,52 @@ pub async fn post_wishlist(
     }
 }
 
-#[instrument(level = "trace", skip(firestore))]
+#[instrument(name = "unlink", level = "info", skip(firestore))]
 pub async fn post_unlink(
-    user_id: String,
     unlink: models::Unlink,
     firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let event = UnlinkEvent::new(&unlink);
-
-    match User::fetch(Arc::clone(&firestore), &user_id).await {
+    let request = unlink.clone();
+    match User::fetch(Arc::clone(&firestore), &unlink.user_id).await {
         // Remove storefront credentials from UserData.
         Ok(mut user) => match user.remove_storefront(&unlink.storefront_id).await {
             Ok(()) => {
                 // Remove storefront library entries.
-                let manager = LibraryManager::new(&user_id);
+                let manager = LibraryManager::new(&unlink.user_id);
                 match manager
                     .remove_storefront(firestore, &unlink.storefront_id)
                     .await
                 {
                     Ok(()) => {
-                        event.log(&user_id);
+                        LogHttpRequest::unlink(request, Status::Ok);
                         Ok(StatusCode::OK)
                     }
                     Err(status) => {
-                        event.log_error(&user_id, status);
+                        LogHttpRequest::unlink(request, status);
                         Ok(StatusCode::INTERNAL_SERVER_ERROR)
                     }
                 }
             }
             Err(status) => {
-                event.log_error(&user_id, status);
+                LogHttpRequest::unlink(request, status);
                 Ok(StatusCode::INTERNAL_SERVER_ERROR)
             }
         },
         Err(status) => {
-            event.log_error(&user_id, status);
+            LogHttpRequest::unlink(request, status);
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
 
-#[instrument(level = "trace", skip(api_keys, firestore, resolver))]
+#[instrument(name = "sync", level = "info", skip(api_keys, firestore, resolver))]
 pub async fn post_sync(
-    user_id: String,
+    sync: models::Sync,
     api_keys: Arc<util::keys::Keys>,
     firestore: Arc<FirestoreApi>,
     resolver: Arc<ResolveApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let event = SyncEvent::new();
-
-    let store_entries = match User::fetch(Arc::clone(&firestore), &user_id).await {
+    let store_entries = match User::fetch(Arc::clone(&firestore), &sync.user_id).await {
         Ok(mut user) => user.sync_accounts(&api_keys).await,
         Err(status) => Err(status),
     };
@@ -300,28 +287,28 @@ pub async fn post_sync(
     let store_entries = match store_entries {
         Ok(store_entries) => store_entries,
         Err(status) => {
-            event.log_error(&user_id, status);
+            LogHttpRequest::sync(status);
             return Ok(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
 
-    let manager = LibraryManager::new(&user_id);
+    let manager = LibraryManager::new(&sync.user_id);
     match manager
-        .batch_recon_store_entries(firestore, resolver, store_entries)
+        .add_in_library(firestore, resolver, store_entries)
         .await
     {
         Ok(()) => {
-            event.log(&user_id);
+            LogHttpRequest::sync(Status::Ok);
             Ok(StatusCode::OK)
         }
         Err(status) => {
-            event.log_error(&user_id, status);
+            LogHttpRequest::sync(status);
             Ok(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
 
-#[instrument(level = "trace")]
+#[instrument(level = "info")]
 pub async fn get_images(uri: String) -> Result<Box<dyn warp::Reply>, Infallible> {
     let resp = match reqwest::Client::new().get(&uri).send().await {
         Ok(resp) => resp,

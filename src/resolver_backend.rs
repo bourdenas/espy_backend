@@ -28,7 +28,7 @@ async fn main() -> Result<(), Status> {
 
     match opts.prod_tracing {
         false => Tracing::setup("espy-resolver_backend")?,
-        true => Tracing::setup_prod("espy-resolver_backend")?,
+        true => Tracing::setup_prod("espy-resolver_backend", "resolver_logs")?,
     }
 
     // Let ENV VAR override flag.

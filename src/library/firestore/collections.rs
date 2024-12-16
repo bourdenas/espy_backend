@@ -28,34 +28,20 @@ pub async fn batch_read(
     name = "collections::write",
     level = "trace",
     skip(firestore, collection)
-    fields(
-        collection = %collection.slug,
-    )
 )]
 pub async fn write(firestore: &FirestoreApi, collection: &Collection) -> Result<(), Status> {
-    firestore
-        .db()
-        .fluent()
-        .update()
-        .in_col(COLLECTIONS)
-        .document_id(collection.id.to_string())
-        .object(collection)
-        .execute::<()>()
-        .await?;
-    Ok(())
+    utils::write(
+        firestore,
+        COLLECTIONS,
+        collection.id.to_string(),
+        collection,
+    )
+    .await
 }
 
 #[instrument(name = "collections::delete", level = "trace", skip(firestore))]
 pub async fn delete(firestore: &FirestoreApi, doc_id: u64) -> Result<(), Status> {
-    firestore
-        .db()
-        .fluent()
-        .delete()
-        .from(COLLECTIONS)
-        .document_id(doc_id.to_string())
-        .execute()
-        .await?;
-    Ok(())
+    utils::delete(firestore, COLLECTIONS, doc_id.to_string()).await
 }
 
 const COLLECTIONS: &str = "collections";

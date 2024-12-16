@@ -8,8 +8,8 @@ use crate::{
     api::{CompanyNormalizer, FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
     documents::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
-        GameCategory, GameDigest, GameEntry, IgdbGame, IgdbInvolvedCompany, SteamData, Website,
-        WebsiteAuthority,
+        GameCategory, GameDigest, GameEntry, IgdbGame, IgdbInvolvedCompany, SteamData, StoreName,
+        Website, WebsiteAuthority,
     },
     library, Status,
 };
@@ -22,14 +22,7 @@ use super::{endpoints, request::post, IgdbConnection, IgdbLookup};
 /// Returns a GameEntry from IGDB that can build the GameDigest doc.
 ///
 /// Updates Firestore structures with fresh game digest data.
-#[instrument(
-    level = "trace",
-    skip(connection, firestore, igdb_game)
-    fields(
-        game_id = %igdb_game.id,
-        game_name = %igdb_game.name,
-    )
-)]
+#[instrument(level = "info", skip(connection, firestore, igdb_game))]
 pub async fn resolve_game_digest(
     connection: &IgdbConnection,
     firestore: &FirestoreApi,
@@ -52,7 +45,10 @@ pub async fn resolve_game_digest(
     };
 
     // Spawn a task to retrieve steam data.
-    let steam_handle = match external_games.iter().find(|e| e.is_steam()) {
+    let steam_handle = match external_games
+        .iter()
+        .find(|e| matches!(e.store_name, StoreName::steam))
+    {
         Some(steam_external) => {
             let steam_appid = steam_external.store_id.clone();
             Some(tokio::spawn(
@@ -159,13 +155,16 @@ pub async fn resolve_game_digest(
     }
 
     match metacritic_handle.await {
-        Ok(response) => {
-            if let Some(metacritic) = response {
-                game_entry
-                    .scores
-                    .add_metacritic(metacritic, game_entry.release_date);
+        Ok(result) => match result {
+            Ok(response) => {
+                if let Some(metacritic) = response {
+                    game_entry
+                        .scores
+                        .add_metacritic(metacritic, game_entry.release_date);
+                }
             }
-        }
+            Err(status) => warn!("{status}"),
+        },
         Err(status) => warn!("{status}"),
     }
 
@@ -192,7 +191,10 @@ pub async fn resolve_game_digest(
         }
     }
 
-    if let Some(gog_external) = external_games.into_iter().find(|e| e.is_gog()) {
+    if let Some(gog_external) = external_games
+        .into_iter()
+        .find(|e| matches!(e.store_name, StoreName::gog))
+    {
         if let Some(gog_data) = gog_external.gog_data {
             game_entry.add_gog_data(gog_data);
         }
@@ -253,14 +255,7 @@ fn adjust_companies(
 
 /// Returns a fully resolved GameEntry from IGDB that goes beyond the GameDigest doc.
 #[async_recursion]
-#[instrument(
-    level = "trace",
-    skip(connection, firestore, game_entry),
-    fields(
-        game_id = %game_entry.id,
-        game_name = %game_entry.name,
-    )
-)]
+#[instrument(level = "info", skip(connection, firestore, game_entry))]
 pub async fn resolve_game_info(
     connection: &IgdbConnection,
     firestore: &FirestoreApi,
@@ -381,13 +376,14 @@ pub async fn resolve_game_info(
 
     if let Some(handle) = steam_handle {
         match handle.await {
-            Ok(result) => {
-                if let Some(steam_scrape_data) = result {
+            Ok(result) => match result {
+                Ok(steam_scrape_data) => {
                     if let Some(steam_data) = &mut game_entry.steam_data {
                         steam_data.user_tags = steam_scrape_data.user_tags;
                     }
                 }
-            }
+                Err(status) => warn!("{status}"),
+            },
             Err(status) => warn!("{status}"),
         }
     }
@@ -396,7 +392,7 @@ pub async fn resolve_game_info(
 }
 
 /// Returns IgdbGames included in the bundle of `bundle_id`.
-#[instrument(level = "trace", skip(connection))]
+#[instrument(level = "info", skip(connection))]
 async fn get_bundle_games_ids(
     connection: &IgdbConnection,
     bundle_id: u64,
@@ -688,7 +684,7 @@ async fn get_release_timestamp(
 }
 
 /// Make sure that any companies involved in the game are updated to include it.
-#[instrument(level = "trace", skip(firestore, game_entry))]
+#[instrument(level = "info", skip(firestore, game_entry))]
 async fn update_companies(firestore: &FirestoreApi, game_entry: &GameEntry) {
     if !game_entry.category.is_main_category() {
         return;
@@ -751,7 +747,7 @@ async fn update_companies(firestore: &FirestoreApi, game_entry: &GameEntry) {
 }
 
 /// Update collections / franchises in the game with a fresh digest.
-#[instrument(level = "trace", skip(firestore, game_entry))]
+#[instrument(level = "info", skip(firestore, game_entry))]
 async fn update_collections(firestore: &FirestoreApi, game_entry: &GameEntry) {
     for (collections, collection_type) in [
         (&game_entry.collections, CollectionType::Collection),

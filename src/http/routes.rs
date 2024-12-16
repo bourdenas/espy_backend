@@ -83,12 +83,12 @@ fn post_delete(
         .and_then(handlers::post_delete)
 }
 
-/// POST /library/{user_id}/match
+/// POST /library/match
 fn post_match(
     firestore: Arc<FirestoreApi>,
     resolver: Arc<ResolveApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-    warp::path!("library" / String / "match")
+    warp::path!("library" / "match")
         .and(warp::post())
         .and(json_body::<models::MatchOp>())
         .and(with_firestore(firestore))
@@ -100,7 +100,7 @@ fn post_match(
 fn post_update(
     firestore: Arc<FirestoreApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-    warp::path!("library" / String / "update")
+    warp::path!("library" / "update")
         .and(warp::post())
         .and(json_body::<models::UpdateOp>())
         .and(with_firestore(firestore))
@@ -111,7 +111,7 @@ fn post_update(
 fn post_wishlist(
     firestore: Arc<FirestoreApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-    warp::path!("library" / String / "wishlist")
+    warp::path!("library" / "wishlist")
         .and(warp::post())
         .and(json_body::<models::WishlistOp>())
         .and(with_firestore(firestore))
@@ -122,7 +122,7 @@ fn post_wishlist(
 fn post_unlink(
     firestore: Arc<FirestoreApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-    warp::path!("library" / String / "unlink")
+    warp::path!("library" / "unlink")
         .and(warp::post())
         .and(json_body::<models::Unlink>())
         .and(with_firestore(firestore))
@@ -135,8 +135,9 @@ fn post_sync(
     firestore: Arc<FirestoreApi>,
     resolver: Arc<ResolveApi>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-    warp::path!("library" / String / "sync")
+    warp::path!("library" / "sync")
         .and(warp::post())
+        .and(json_body::<models::Sync>())
         .and(with_keys(keys))
         .and(with_firestore(firestore))
         .and(with_resolver(resolver))

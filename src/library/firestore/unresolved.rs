@@ -7,6 +7,31 @@ use tracing::instrument;
 
 use super::utils;
 
+#[instrument(name = "unresolved::read", level = "trace", skip(firestore, user_id))]
+pub async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<UnresolvedEntries, Status> {
+    utils::auth_read(firestore, user_id, GAMES, UNRESOLVED_DOC.to_owned()).await
+}
+
+#[instrument(
+    name = "unresolved::write",
+    level = "trace",
+    skip(firestore, user_id, unresolved)
+)]
+pub async fn write(
+    firestore: &FirestoreApi,
+    user_id: &str,
+    unresolved: &UnresolvedEntries,
+) -> Result<(), Status> {
+    utils::auth_write(
+        firestore,
+        user_id,
+        GAMES,
+        UNRESOLVED_DOC.to_owned(),
+        unresolved,
+    )
+    .await
+}
+
 #[instrument(
     name = "unresolved::add_unresolved",
     level = "trace",
@@ -99,36 +124,6 @@ fn remove_storefront_entries(storefront_name: &str, unresolved: &mut UnresolvedE
     unresolved
         .unknown
         .retain(|store_entry| store_entry.storefront_name != storefront_name);
-}
-
-#[instrument(name = "unresolved::read", level = "trace", skip(firestore, user_id))]
-pub async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<UnresolvedEntries, Status> {
-    utils::users_read(firestore, user_id, GAMES, UNRESOLVED_DOC).await
-}
-
-#[instrument(
-    name = "unresolved::write",
-    level = "trace",
-    skip(firestore, user_id, unresolved)
-)]
-pub async fn write(
-    firestore: &FirestoreApi,
-    user_id: &str,
-    unresolved: &UnresolvedEntries,
-) -> Result<(), Status> {
-    let parent_path = firestore.db().parent_path(utils::USERS, user_id)?;
-
-    firestore
-        .db()
-        .fluent()
-        .update()
-        .in_col(GAMES)
-        .document_id(UNRESOLVED_DOC)
-        .parent(&parent_path)
-        .object(unresolved)
-        .execute::<()>()
-        .await?;
-    Ok(())
 }
 
 const GAMES: &str = "games";

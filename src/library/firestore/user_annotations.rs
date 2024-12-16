@@ -9,7 +9,7 @@ use super::utils;
     skip(firestore, user_id)
 )]
 pub async fn read(firestore: &FirestoreApi, user_id: &str) -> Result<UserAnnotations, Status> {
-    utils::users_read(firestore, user_id, USER_DATA, TAGS_DOC).await
+    utils::auth_read(firestore, user_id, USER_DATA, TAGS_DOC.to_owned()).await
 }
 
 #[instrument(
@@ -22,19 +22,14 @@ async fn write(
     user_id: &str,
     user_annotations: &UserAnnotations,
 ) -> Result<(), Status> {
-    let parent_path = firestore.db().parent_path(utils::USERS, user_id)?;
-
-    firestore
-        .db()
-        .fluent()
-        .update()
-        .in_col(USER_DATA)
-        .document_id(TAGS_DOC)
-        .parent(&parent_path)
-        .object(user_annotations)
-        .execute::<()>()
-        .await?;
-    Ok(())
+    utils::auth_write(
+        firestore,
+        user_id,
+        USER_DATA,
+        TAGS_DOC.to_owned(),
+        user_annotations,
+    )
+    .await
 }
 
 const USER_DATA: &str = "user_data";

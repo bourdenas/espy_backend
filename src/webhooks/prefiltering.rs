@@ -1,28 +1,26 @@
+use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-use crate::documents::IgdbGame;
+use crate::documents::{GameCategory, GamePlatform, IgdbGame};
 
 pub struct IgdbPrefilter;
 
 impl IgdbPrefilter {
     pub fn filter(igdb_game: &IgdbGame) -> bool {
-        igdb_game.is_pc_game()
-            && igdb_game.is_main_category()
-            && (igdb_game.follows.unwrap_or_default() > 0
-                || igdb_game.hypes.unwrap_or_default() > 0
-                || igdb_game.aggregated_rating.unwrap_or_default() > 0.0)
+        igdb_game.is_pc_game() && igdb_game.is_watched_category()
     }
 
     pub fn explain(igdb_game: &IgdbGame) -> PrefilterRejectionReason {
         if !igdb_game.is_pc_game() {
-            PrefilterRejectionReason::NotPcGame
-        } else if !igdb_game.is_main_category() {
-            PrefilterRejectionReason::NotMainCategory
-        } else if igdb_game.follows.unwrap_or_default() == 0
-            && igdb_game.hypes.unwrap_or_default() == 0
-            && igdb_game.aggregated_rating.is_none()
-        {
-            PrefilterRejectionReason::NoUserMetrics
+            PrefilterRejectionReason::NotPcGame(
+                igdb_game
+                    .platforms
+                    .iter()
+                    .map(|id| GamePlatform::from(*id))
+                    .collect(),
+            )
+        } else if !igdb_game.is_watched_category() {
+            PrefilterRejectionReason::NotMainCategory(GameCategory::from(igdb_game.category))
         } else {
             warn!(
                 "Prefilter failed to provide rejection explanation for '{}' ({}).",
@@ -33,11 +31,10 @@ impl IgdbPrefilter {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum PrefilterRejectionReason {
-    NotPcGame,
-    NotMainCategory,
-    NoUserMetrics,
+    NotPcGame(Vec<GamePlatform>),
+    NotMainCategory(GameCategory),
     Unknown,
 }
 

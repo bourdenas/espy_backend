@@ -33,6 +33,8 @@ pub struct Resolve {
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct MatchOp {
+    pub user_id: String,
+
     /// The storefront entry that is {un}matched.
     pub store_entry: documents::StoreEntry,
 
@@ -55,11 +57,14 @@ pub struct MatchOp {
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct UpdateOp {
+    pub user_id: String,
     pub game_id: u64,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct WishlistOp {
+    pub user_id: String,
+
     #[serde(default)]
     pub add_game: Option<documents::LibraryEntry>,
 
@@ -67,7 +72,14 @@ pub struct WishlistOp {
     pub remove_game: Option<u64>,
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Unlink {
+    pub user_id: String,
+
     pub storefront_id: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Sync {
+    pub user_id: String,
 }

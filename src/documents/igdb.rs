@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::documents::GameCategory;
 
+use super::GamePlatform;
+
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct IgdbGame {
     pub id: u64,
@@ -44,15 +46,6 @@ pub struct IgdbGame {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aggregated_rating: Option<f64>,
-
-    // Average rating based on both IGDB user and external critic scores.
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_rating: Option<f64>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_rating_count: Option<f64>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -149,10 +142,19 @@ pub struct IgdbGame {
 
 impl IgdbGame {
     pub fn is_pc_game(&self) -> bool {
-        self.platforms.contains(&6) || self.platforms.contains(&13)
+        self.platforms.iter().any(|id| {
+            matches!(
+                GamePlatform::from(*id),
+                GamePlatform::PC
+                    | GamePlatform::DOS
+                    | GamePlatform::C64
+                    | GamePlatform::Amiga
+                    | GamePlatform::AtariST
+            )
+        })
     }
 
-    pub fn is_main_category(&self) -> bool {
+    pub fn is_watched_category(&self) -> bool {
         let game_category = GameCategory::from(self.category);
         matches!(
             game_category,
@@ -184,11 +186,6 @@ impl IgdbGame {
 
             first_release_date: self.first_release_date != other.first_release_date,
             release_dates: vec_diff(&self.release_dates, &other.release_dates),
-
-            aggregated_rating: self.aggregated_rating != other.aggregated_rating,
-            total_rating: self.total_rating != other.total_rating,
-
-            follows: self.follows != other.follows,
             hypes: self.hypes != other.hypes,
 
             genres: vec_diff(&self.genres, &other.genres),
@@ -256,15 +253,6 @@ impl IgdbExternalGame {
 
     pub fn is_egs(&self) -> bool {
         self.category == 26
-    }
-
-    pub fn store(&self) -> &str {
-        match self.category {
-            1 => "steam",
-            5 => "gog",
-            26 => "egs",
-            _ => "unknown",
-        }
     }
 }
 
@@ -403,14 +391,6 @@ pub struct IgdbGameDiff {
     pub first_release_date: bool,
     #[serde(default, skip_serializing_if = "is_default")]
     pub release_dates: bool,
-
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub aggregated_rating: bool,
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub total_rating: bool,
-
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub follows: bool,
     #[serde(default, skip_serializing_if = "is_default")]
     pub hypes: bool,
 
@@ -487,8 +467,6 @@ impl IgdbGameDiff {
             || self.storyline
             || self.first_release_date
             || self.release_dates
-            || self.aggregated_rating
-            || self.follows
             || self.hypes
             || self.genres
             || self.keywords

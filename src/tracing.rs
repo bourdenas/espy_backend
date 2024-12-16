@@ -1,19 +1,27 @@
-use crate::Status;
-use tracing::Level;
+use crate::{logging::EspyLogsLayer, Status};
+use tracing::{level_filters::LevelFilter, Level};
 use tracing_stackdriver::CloudTraceConfiguration;
 use tracing_subscriber::{
-    fmt::writer::MakeWriterExt, layer::SubscriberExt, util::SubscriberInitExt,
+    fmt::writer::MakeWriterExt, layer::SubscriberExt, util::SubscriberInitExt, Layer,
 };
 
 pub struct Tracing;
 
 impl Tracing {
-    pub fn setup(_name: &str) -> Result<(), Status> {
+    pub fn setup(name: &'static str) -> Result<(), Status> {
         match tracing_subscriber::registry()
+            // .with(tracing_opentelemetry::layer().with_tracer(jaeger_tracer))
+            .with(
+                EspyLogsLayer {
+                    prod: false,
+                    log_type: name,
+                }
+                .with_filter(LevelFilter::DEBUG),
+            )
             .with(
                 // Log also to stdout.
                 tracing_subscriber::fmt::Layer::new()
-                    .with_writer(std::io::stdout.with_max_level(Level::WARN)),
+                    .with_writer(std::io::stdout.with_max_level(Level::INFO)),
             )
             .try_init()
         {
@@ -25,14 +33,22 @@ impl Tracing {
         }
     }
 
-    pub fn setup_prod(project_id: &str) -> Result<(), Status> {
+    pub fn setup_prod(project_id: &str, log_type: &'static str) -> Result<(), Status> {
         match tracing_subscriber::registry()
+            .with(
+                EspyLogsLayer {
+                    prod: true,
+                    log_type,
+                }
+                .with_filter(LevelFilter::DEBUG),
+            )
             .with(tracing_opentelemetry::layer())
             .with(
                 tracing_stackdriver::layer()
                     .with_cloud_trace(CloudTraceConfiguration {
                         project_id: project_id.to_owned(),
                     })
+                    // .with_writer(std::io::stdout.with_filter()),
                     .with_writer(std::io::stdout.with_max_level(Level::INFO)),
             )
             .try_init()

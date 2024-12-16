@@ -30,7 +30,7 @@ async fn main() -> Result<(), Status> {
 
     match opts.prod_tracing {
         false => Tracing::setup("espy-httpserver")?,
-        true => Tracing::setup_prod("espy-library")?,
+        true => Tracing::setup_prod("espy-library", "query_logs")?,
     }
 
     let keys = util::keys::Keys::from_file(&opts.key_store).unwrap();

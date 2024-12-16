@@ -19,7 +19,7 @@ impl<'a> IgdbLookup<'a> {
         IgdbLookup { connection }
     }
 
-    #[instrument(level = "trace", skip(self))]
+    #[instrument(level = "info", skip(self))]
     pub async fn get_cover(&self, id: u64) -> Result<Option<Image>, Status> {
         let result: Vec<Image> = post(
             self.connection,
@@ -31,7 +31,7 @@ impl<'a> IgdbLookup<'a> {
         Ok(result.into_iter().next())
     }
 
-    #[instrument(level = "trace", skip(self))]
+    #[instrument(level = "info", skip(self))]
     pub async fn get_company_logo(&self, id: u64) -> Result<Option<Image>, Status> {
         let result: Vec<Image> = post(
             self.connection,
@@ -43,7 +43,7 @@ impl<'a> IgdbLookup<'a> {
         Ok(result.into_iter().next())
     }
 
-    #[instrument(level = "trace", skip(self))]
+    #[instrument(level = "info", skip(self))]
     pub async fn get_game(&self, id: u64) -> Result<IgdbGame, Status> {
         let result: Vec<IgdbGame> = post(
             self.connection,
@@ -60,7 +60,7 @@ impl<'a> IgdbLookup<'a> {
         }
     }
 
-    #[instrument(level = "trace", skip(self))]
+    #[instrument(level = "info", skip(self))]
     pub async fn get_games(&self, ids: &[u64]) -> Result<Vec<IgdbGame>, Status> {
         post::<Vec<IgdbGame>>(
             self.connection,
@@ -76,7 +76,7 @@ impl<'a> IgdbLookup<'a> {
         .await
     }
 
-    #[instrument(level = "trace", skip(self))]
+    #[instrument(level = "info", skip(self))]
     pub async fn get_artwork(&self, ids: &[u64]) -> Result<Vec<Image>, Status> {
         Ok(post(
             self.connection,
@@ -89,7 +89,7 @@ impl<'a> IgdbLookup<'a> {
         .await?)
     }
 
-    #[instrument(level = "trace", skip(self))]
+    #[instrument(level = "info", skip(self))]
     pub async fn get_screenshots(&self, ids: &[u64]) -> Result<Vec<Image>, Status> {
         Ok(post(
             self.connection,
@@ -102,7 +102,7 @@ impl<'a> IgdbLookup<'a> {
         .await?)
     }
 
-    #[instrument(level = "trace", skip(self))]
+    #[instrument(level = "info", skip(self))]
     pub async fn get_websites(&self, ids: &[u64]) -> Result<Vec<IgdbWebsite>, Status> {
         Ok(post(
             self.connection,
@@ -115,7 +115,7 @@ impl<'a> IgdbLookup<'a> {
         .await?)
     }
 
-    #[instrument(level = "trace", skip(self))]
+    #[instrument(level = "info", skip(self))]
     pub async fn get_collections(&self, ids: &[u64]) -> Result<Vec<IgdbAnnotation>, Status> {
         Ok(post::<Vec<IgdbAnnotation>>(
             self.connection,
@@ -128,7 +128,7 @@ impl<'a> IgdbLookup<'a> {
         .await?)
     }
 
-    #[instrument(level = "trace", skip(self))]
+    #[instrument(level = "info", skip(self))]
     pub async fn get_franchises(&self, ids: &[u64]) -> Result<Vec<IgdbAnnotation>, Status> {
         Ok(post::<Vec<IgdbAnnotation>>(
             self.connection,
@@ -141,7 +141,7 @@ impl<'a> IgdbLookup<'a> {
         .await?)
     }
 
-    #[instrument(level = "trace", skip(self))]
+    #[instrument(level = "info", skip(self))]
     pub async fn get_involved_companies(
         &self,
         ids: &[u64],
@@ -157,7 +157,7 @@ impl<'a> IgdbLookup<'a> {
         .await?)
     }
 
-    #[instrument(level = "trace", skip(self))]
+    #[instrument(level = "info", skip(self))]
     pub async fn get_companies(&self, ids: &[u64]) -> Result<Vec<IgdbCompany>, Status> {
         Ok(post::<Vec<IgdbCompany>>(
             self.connection,
@@ -170,7 +170,7 @@ impl<'a> IgdbLookup<'a> {
         .await?)
     }
 
-    #[instrument(level = "trace", skip(self))]
+    #[instrument(level = "info", skip(self))]
     pub async fn get_release_dates(&self, ids: &[u64]) -> Result<Vec<ReleaseDate>, Status> {
         Ok(post::<Vec<ReleaseDate>>(
             self.connection,

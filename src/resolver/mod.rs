@@ -1,7 +1,7 @@
 mod client;
 mod handlers;
 mod igdb;
-mod models;
+pub mod models;
 pub mod routes;
 
 pub use client::ResolveApi;

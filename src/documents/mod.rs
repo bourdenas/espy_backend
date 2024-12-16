@@ -25,7 +25,7 @@ mod wikipedia_data;
 pub use annual_review::AnnualReview;
 pub use collection::Collection;
 pub use company::Company;
-pub use external_game::ExternalGame;
+pub use external_game::*;
 pub use frontpage::Frontpage;
 pub use game_digest::GameDigest;
 pub use game_entry::*;

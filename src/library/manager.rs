@@ -9,7 +9,7 @@ use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
-use tracing::{error, instrument, trace_span, Instrument};
+use tracing::{error, info_span, instrument, Instrument};
 
 use super::firestore::{self, external_games, games};
 
@@ -25,7 +25,8 @@ impl LibraryManager {
         }
     }
 
-    pub async fn batch_recon_store_entries(
+    #[instrument(level = "info", skip(self, firestore, resolver, store_entries))]
+    pub async fn add_in_library(
         &self,
         firestore: Arc<FirestoreApi>,
         resolver: Arc<ResolveApi>,
@@ -62,7 +63,7 @@ impl LibraryManager {
                 async move {
                     igdb_resolve(firestore, resolver, user_id, not_found_games).await;
                 }
-                .instrument(trace_span!("spawn_igdb_resolve")),
+                .instrument(info_span!("spawn_igdb_resolve")),
             );
         }
 
@@ -84,15 +85,15 @@ impl LibraryManager {
 
         // For games that were not found in ExternalGames generate candidates
         // by searching their titles in IGDB.
-        if !externals.missing.is_empty() {
+        if !externals.not_found.is_empty() {
             let firestore = Arc::clone(&firestore);
             let user_id = self.user_id.clone();
-            let missing = externals.missing.clone();
+            let missing = externals.not_found.clone();
             tokio::spawn(
                 async move {
                     search_candidates(firestore, resolver, user_id, missing).await;
                 }
-                .instrument(trace_span!("spawn_search_candidates")),
+                .instrument(info_span!("spawn_search_candidates")),
             );
         }
 
@@ -103,7 +104,7 @@ impl LibraryManager {
                 .matches
                 .into_iter()
                 .map(|m| m.store_entry)
-                .chain(externals.missing)
+                .chain(externals.not_found)
                 .collect_vec(),
         )
         .await?;

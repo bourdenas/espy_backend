@@ -1,5 +1,6 @@
 use chrono::{DateTime, Datelike, Utc};
 use serde::{Deserialize, Serialize};
+use valuable::Valuable;
 
 use super::{EspyGenre, GameDigest, GogData, IgdbGame, Scores, SteamData};
 
@@ -245,7 +246,58 @@ impl From<IgdbGame> for GameEntry {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[derive(Serialize, Deserialize, Valuable, Clone, Copy, Debug)]
+pub enum GamePlatform {
+    PC,
+    DOS,
+    C64,
+    Amiga,
+    AtariST,
+    Linux,
+    Mac,
+    Android,
+    IOS,
+    PS1,
+    PS2,
+    PS3,
+    PS4,
+    PS5,
+    Xbox,
+    Xbox360,
+    XboxOne,
+    XboxXS,
+    Switch,
+    Other,
+}
+
+impl From<u64> for GamePlatform {
+    fn from(platform_id: u64) -> Self {
+        match platform_id {
+            6 => GamePlatform::PC,
+            13 => GamePlatform::DOS,
+            15 => GamePlatform::C64,
+            16 => GamePlatform::Amiga,
+            63 => GamePlatform::AtariST,
+            3 => GamePlatform::Linux,
+            14 => GamePlatform::Mac,
+            34 => GamePlatform::Android,
+            39 => GamePlatform::IOS,
+            7 => GamePlatform::PS1,
+            8 => GamePlatform::PS2,
+            9 => GamePlatform::PS3,
+            48 => GamePlatform::PS4,
+            167 => GamePlatform::PS5,
+            11 => GamePlatform::Xbox,
+            12 => GamePlatform::Xbox360,
+            49 => GamePlatform::XboxOne,
+            169 => GamePlatform::XboxXS,
+            130 => GamePlatform::Switch,
+            _ => GamePlatform::Other,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Valuable, Clone, Copy, Debug)]
 pub enum GameCategory {
     Main,
     Dlc,
@@ -280,6 +332,10 @@ impl GameCategory {
             GameCategory::Expansion | GameCategory::StandaloneExpansion
         )
     }
+
+    pub fn is_remaster(&self) -> bool {
+        matches!(self, GameCategory::Remaster | GameCategory::Remake)
+    }
 }
 
 impl From<u64> for GameCategory {
@@ -312,7 +368,7 @@ impl std::fmt::Display for GameCategory {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[derive(Serialize, Deserialize, Valuable, Clone, Copy, Debug)]
 pub enum GameStatus {
     Unknown,
     Released,

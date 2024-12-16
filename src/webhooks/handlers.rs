@@ -1,42 +1,46 @@
 use crate::{
     api::{FirestoreApi, GogScrape, MetacriticApi, SteamDataApi, SteamScrape},
-    documents::{ExternalGame, GameEntry, IgdbExternalGame, IgdbGame, Keyword},
+    documents::{ExternalGame, GameEntry, IgdbExternalGame, IgdbGame, Keyword, StoreName},
     library::firestore,
+    log_error,
+    logging::{DiffEvent, LogWebhooksRequest, RejectEvent},
     resolver::ResolveApi,
     Status,
 };
 use chrono::Utc;
 use std::{convert::Infallible, sync::Arc};
-use tracing::{instrument, trace_span, warn, Instrument};
+use tracing::{info_span, instrument, Instrument};
 use warp::http::StatusCode;
 
-use super::{
-    event_logs::{ExternalGameEvent, KeywordsEvent, UpdateGameEvent},
-    filtering::GameFilter,
-    prefiltering::IgdbPrefilter,
-};
+use super::{filtering::GameFilter, prefiltering::IgdbPrefilter};
 
-#[instrument(level = "trace", skip(igdb_game, firestore, resolver, game_filter))]
+#[instrument(
+    name = "add_game",
+    level = "info",
+    skip(igdb_game, firestore, resolver, game_filter)
+)]
 pub async fn add_game_webhook(
     igdb_game: IgdbGame,
     firestore: Arc<FirestoreApi>,
     resolver: Arc<ResolveApi>,
     game_filter: Arc<GameFilter>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let event = UpdateGameEvent::new(
-        igdb_game.id,
-        igdb_game.name.clone(),
-        ADD_GAME_HANDLER.to_owned(),
-    );
+    LogWebhooksRequest::add_game(&igdb_game);
 
     if !IgdbPrefilter::filter(&igdb_game) {
-        event.log_prefilter_reject(IgdbPrefilter::explain(&igdb_game));
+        RejectEvent::prefilter(IgdbPrefilter::explain(&igdb_game));
         return Ok(StatusCode::OK);
     }
 
-    tokio::spawn(async move {
-        handle_add_game(igdb_game, firestore, resolver, game_filter, event).await;
-    });
+    tokio::spawn(
+        async move {
+            let result = handle_add_game(igdb_game, firestore, resolver, game_filter).await;
+            if let Err(status) = result {
+                log_error!(status);
+            }
+        }
+        .instrument(info_span!("spawn_add_game")),
+    );
 
     Ok(StatusCode::OK)
 }
@@ -46,45 +50,47 @@ async fn handle_add_game(
     firestore: Arc<FirestoreApi>,
     resolver: Arc<ResolveApi>,
     game_filter: Arc<GameFilter>,
-    log_event: UpdateGameEvent,
-) {
+) -> Result<(), Status> {
     match resolver.resolve(igdb_game).await {
         Ok(mut game_entry) => {
             if !game_filter.apply(&game_entry) {
-                log_event.log_reject(game_filter.explain(&game_entry));
+                RejectEvent::filter(game_filter.explain(&game_entry));
             } else if let Err(status) = firestore::games::write(&firestore, &mut game_entry).await {
-                log_event.log_error(status);
-            } else {
-                log_event.log_added()
+                return Err(status);
             }
         }
-        Err(status) => log_event.log_error(status),
+        Err(status) => return Err(status),
     }
+
+    Ok(())
 }
 
-#[instrument(level = "trace", skip(igdb_game, firestore, resolver, game_filter))]
+#[instrument(
+    name = "update_game",
+    level = "info",
+    skip(igdb_game, firestore, resolver, game_filter)
+)]
 pub async fn update_game_webhook(
     igdb_game: IgdbGame,
     firestore: Arc<FirestoreApi>,
     resolver: Arc<ResolveApi>,
     game_filter: Arc<GameFilter>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let event = UpdateGameEvent::new(
-        igdb_game.id,
-        igdb_game.name.clone(),
-        UPDATE_GAME_HANDLER.to_owned(),
-    );
+    LogWebhooksRequest::update_game(&igdb_game);
 
     if !IgdbPrefilter::filter(&igdb_game) {
-        event.log_prefilter_reject(IgdbPrefilter::explain(&igdb_game));
+        RejectEvent::prefilter(IgdbPrefilter::explain(&igdb_game));
         return Ok(StatusCode::OK);
     }
 
     tokio::spawn(
         async move {
-            handle_update_game(igdb_game, firestore, resolver, game_filter, event).await;
+            let result = handle_update_game(igdb_game, firestore, resolver, game_filter).await;
+            if let Err(status) = result {
+                log_error!(status);
+            }
         }
-        .instrument(trace_span!("spawn_handle_update_game")),
+        .instrument(info_span!("spawn_update_game")),
     );
 
     Ok(StatusCode::OK)
@@ -95,39 +101,34 @@ async fn handle_update_game(
     firestore: Arc<FirestoreApi>,
     resolver: Arc<ResolveApi>,
     game_filter: Arc<GameFilter>,
-    log_event: UpdateGameEvent,
-) {
+) -> Result<(), Status> {
     match firestore::games::read(&firestore, igdb_game.id).await {
-        Ok(mut game_entry) => match game_entry.igdb_game.diff(&igdb_game) {
-            diff if diff.empty() => {
-                if needs_steam_update(&game_entry) {
-                    match update_steam_data(firestore, &mut game_entry, igdb_game).await {
-                        Ok(()) => log_event.log_updated(diff),
-                        Err(status) => log_event.log_error(status),
+        Ok(mut game_entry) => {
+            let diff = game_entry.igdb_game.diff(&igdb_game);
+            DiffEvent::diff(&diff);
+
+            if diff.needs_resolve() {
+                match resolver.resolve(igdb_game).await {
+                    Ok(mut game_entry) => {
+                        firestore::games::write(&firestore, &mut game_entry).await?
                     }
-                } else {
-                    log_event.log_no_update()
+                    Err(status) => return Err(status),
                 }
+            } else if needs_steam_update(&game_entry) {
+                update_steam_data(firestore, &mut game_entry, igdb_game).await?
+            } else if diff.is_not_empty() {
+                firestore::games::write(&firestore, &mut game_entry).await?
+            } else {
+                // TODO: log ignore update
             }
-            diff if diff.needs_resolve() => match resolver.resolve(igdb_game).await {
-                Ok(mut game_entry) => {
-                    match firestore::games::write(&firestore, &mut game_entry).await {
-                        Ok(()) => log_event.log_updated(diff),
-                        Err(status) => log_event.log_error(status),
-                    }
-                }
-                Err(status) => log_event.log_error(status),
-            },
-            diff => match update_steam_data(firestore, &mut game_entry, igdb_game).await {
-                Ok(()) => log_event.log_updated(diff),
-                Err(status) => log_event.log_error(status),
-            },
-        },
-        Err(Status::NotFound(_)) => {
-            handle_add_game(igdb_game, firestore, resolver, game_filter, log_event).await
         }
-        Err(status) => log_event.log_error(status),
+        Err(Status::NotFound(_)) => {
+            handle_add_game(igdb_game, firestore, resolver, game_filter).await?
+        }
+        Err(status) => return Err(status),
     }
+
+    Ok(())
 }
 
 fn needs_steam_update(game_entry: &GameEntry) -> bool {
@@ -163,11 +164,11 @@ async fn update_steam_data(
                         let steam = SteamDataApi::new();
                         steam.retrieve_steam_data(&steam_appid).await
                     }
-                    .instrument(trace_span!("spawn_steam_request")),
+                    .instrument(info_span!("spawn_steam_request")),
                 ))
             }),
             Err(status) => {
-                warn!("{status}");
+                log_error!(status);
                 None
             }
         };
@@ -181,7 +182,7 @@ async fn update_steam_data(
             );
             Some(tokio::spawn(
                 async move { SteamScrape::scrape(&website).await }
-                    .instrument(trace_span!("spawn_steam_scrape")),
+                    .instrument(info_span!("spawn_steam_scrape")),
             ))
         }
         None => None,
@@ -191,98 +192,97 @@ async fn update_steam_data(
     let slug = MetacriticApi::guess_id(&game_entry.igdb_game.url).to_owned();
     let metacritic_handle = tokio::spawn(
         async move { MetacriticApi::get_score(&slug).await }
-            .instrument(trace_span!("spawn_metacritic_request")),
+            .instrument(info_span!("spawn_metacritic_scrape")),
     );
 
     if let Some(handle) = steam_handle {
         match handle.await {
             Ok(result) => match result {
                 Ok(steam_data) => game_entry.add_steam_data(steam_data),
-                Err(status) => warn!("{status}"),
+                Err(status) => log_error!(status),
             },
-            Err(status) => warn!("{status}"),
+            Err(status) => log_error!(status),
         }
     }
 
     if let Some(handle) = steam_tags_handle {
         match handle.await {
-            Ok(result) => {
-                if let Some(steam_scrape_data) = result {
+            Ok(result) => match result {
+                Ok(steam_scrape_data) => {
                     if let Some(steam_data) = &mut game_entry.steam_data {
                         steam_data.user_tags = steam_scrape_data.user_tags;
                     }
                 }
-            }
-            Err(status) => warn!("{status}"),
+                Err(status) => log_error!(status),
+            },
+            Err(status) => log_error!(status),
         }
     }
 
     match metacritic_handle.await {
-        Ok(response) => {
-            if let Some(metacritic) = response {
-                game_entry
-                    .scores
-                    .add_metacritic(metacritic, game_entry.release_date);
+        Ok(result) => match result {
+            Ok(response) => {
+                if let Some(metacritic) = response {
+                    game_entry
+                        .scores
+                        .add_metacritic(metacritic, game_entry.release_date);
+                }
             }
-        }
-        Err(status) => warn!("{status}"),
+            Err(status) => log_error!(status),
+        },
+        Err(status) => log_error!(status),
     }
 
     firestore::games::write(&firestore, game_entry).await
 }
 
-#[instrument(level = "trace", skip(external_game, firestore))]
+#[instrument(name = "external_game", level = "info", skip(external_game, firestore))]
 pub async fn external_games_webhook(
     external_game: IgdbExternalGame,
     firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
     let mut external_game = ExternalGame::from(external_game);
-    let event = ExternalGameEvent::new();
+    LogWebhooksRequest::external_game(&external_game);
 
-    if !external_game.is_supported_store() {
-        event.log_unsupported(external_game);
+    if matches!(external_game.store_name, StoreName::other(_)) {
         return Ok(StatusCode::OK);
     }
 
-    tokio::spawn(async move {
-        match external_game.store_name.as_str() {
-            "gog" => {
-                if let Some(url) = &external_game.store_url {
-                    match GogScrape::scrape(url).await {
-                        Ok(gog_data) => external_game.gog_data = Some(gog_data),
-                        Err(status) => warn!("GOG scraping failed: {status}"),
+    tokio::spawn(
+        async move {
+            match external_game.store_name {
+                StoreName::gog => {
+                    if let Some(url) = &external_game.store_url {
+                        match GogScrape::scrape(url).await {
+                            Ok(gog_data) => external_game.gog_data = Some(gog_data),
+                            Err(status) => log_error!(status),
+                        }
                     }
                 }
+                _ => {}
             }
-            _ => {}
-        }
 
-        let result = firestore::external_games::write(&firestore, &external_game).await;
-
-        match result {
-            Ok(()) => event.log(external_game),
-            Err(status) => event.log_error(external_game, status),
+            let result = firestore::external_games::write(&firestore, &external_game).await;
+            if let Err(status) = result {
+                log_error!(status);
+            }
         }
-    });
+        .instrument(info_span!("spawn_external_games")),
+    );
 
     Ok(StatusCode::OK)
 }
 
-#[instrument(level = "trace", skip(keyword, firestore))]
+#[instrument(name = "keyword", level = "info", skip(keyword, firestore))]
 pub async fn keywords_webhook(
     keyword: Keyword,
     firestore: Arc<FirestoreApi>,
 ) -> Result<impl warp::Reply, Infallible> {
-    let result = firestore::keywords::write(&firestore, &keyword).await;
-    let event = KeywordsEvent::new(keyword);
+    LogWebhooksRequest::keyword(&keyword);
 
-    match result {
-        Ok(()) => event.log(),
-        Err(status) => event.log_error(status),
+    if let Err(status) = firestore::keywords::write(&firestore, &keyword).await {
+        log_error!(status);
     }
 
     Ok(StatusCode::OK)
 }
-
-const ADD_GAME_HANDLER: &str = "post_add_game";
-const UPDATE_GAME_HANDLER: &str = "post_update_game";

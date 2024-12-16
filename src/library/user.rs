@@ -49,7 +49,7 @@ impl User {
     }
 
     /// Sync user library with connected storefronts to retrieve updates.
-    #[instrument(level = "trace", skip(self, keys))]
+    #[instrument(level = "info", skip(self, keys))]
     pub async fn sync_accounts(
         &mut self,
         keys: &util::keys::Keys,

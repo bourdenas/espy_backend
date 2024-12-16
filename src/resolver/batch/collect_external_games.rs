@@ -1,7 +1,7 @@
 use clap::Parser;
 use espy_backend::{
     api::{self, GogScrape},
-    documents::ExternalGame,
+    documents::{ExternalGame, StoreName},
     library::firestore,
     resolver::{IgdbBatchApi, IgdbConnection},
     util, Tracing,
@@ -50,8 +50,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         for external_game in external_games {
             let mut external_game = ExternalGame::from(external_game);
-            match external_game.store_name.as_str() {
-                "gog" => {
+            match external_game.store_name {
+                StoreName::gog => {
                     if let Some(url) = &external_game.store_url {
                         println!("Scrapping {}", url);
                         match GogScrape::scrape(url).await {

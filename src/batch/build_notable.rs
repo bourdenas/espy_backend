@@ -20,13 +20,9 @@ struct Opts {
 
 #[tokio::main]
 async fn main() -> Result<(), Status> {
+    Tracing::setup("build-notable")?;
+
     let opts: Opts = Opts::parse();
-
-    match opts.prod_tracing {
-        false => Tracing::setup("build-notable")?,
-        true => Tracing::setup_prod("build-notable")?,
-    }
-
     let user = &opts.user;
 
     let now = SystemTime::now()

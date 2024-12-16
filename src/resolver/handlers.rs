@@ -1,7 +1,7 @@
-use crate::{api::FirestoreApi, documents::IgdbGame, Status};
+use crate::{api::FirestoreApi, documents::IgdbGame, logging::LogResolverRequest, Status};
 
 use std::{convert::Infallible, sync::Arc};
-use tracing::{error, instrument};
+use tracing::instrument;
 use warp::http::StatusCode;
 
 use super::{
@@ -10,7 +10,7 @@ use super::{
     IgdbConnection,
 };
 
-#[instrument(level = "trace", skip(firestore, connection))]
+#[instrument(name = "retrieve", level = "info", skip(firestore, connection))]
 pub async fn post_retrieve(
     id: u64,
     firestore: Arc<FirestoreApi>,
@@ -19,39 +19,59 @@ pub async fn post_retrieve(
     let igdb = IgdbApi::new(connection);
     match igdb.get(id).await {
         Ok(igdb_game) => match igdb.resolve(firestore, igdb_game).await {
-            Ok(game_entry) => Ok(Box::new(warp::reply::json(&game_entry))),
-            Err(Status::NotFound(_)) => Ok(Box::new(StatusCode::NOT_FOUND)),
+            Ok(game_entry) => {
+                LogResolverRequest::retrieve(id, Some(game_entry.name.clone()), Status::Ok);
+                Ok(Box::new(warp::reply::json(&game_entry)))
+            }
+            Err(Status::NotFound(msg)) => {
+                LogResolverRequest::retrieve(id, None, Status::not_found(msg));
+                Ok(Box::new(StatusCode::NOT_FOUND))
+            }
             Err(status) => {
-                error!("post_digest: {status}");
+                LogResolverRequest::retrieve(id, None, status);
                 Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR))
             }
         },
-        Err(Status::NotFound(_)) => Ok(Box::new(StatusCode::NOT_FOUND)),
+        Err(Status::NotFound(msg)) => {
+            LogResolverRequest::retrieve(id, None, Status::not_found(msg));
+            Ok(Box::new(StatusCode::NOT_FOUND))
+        }
         Err(status) => {
-            error!("post_digest: {status}");
+            LogResolverRequest::retrieve(id, None, status);
             Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR))
         }
     }
 }
 
-#[instrument(level = "trace", skip(igdb_game, firestore, connection))]
+#[instrument(
+    name = "resolve",
+    level = "info",
+    skip(igdb_game, firestore, connection)
+)]
 pub async fn post_resolve(
     igdb_game: IgdbGame,
     firestore: Arc<FirestoreApi>,
     connection: Arc<IgdbConnection>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
+    let id = igdb_game.id;
     let igdb = IgdbApi::new(connection);
     match igdb.resolve(firestore, igdb_game).await {
-        Ok(game_entry) => Ok(Box::new(warp::reply::json(&game_entry))),
-        Err(Status::NotFound(_)) => Ok(Box::new(StatusCode::NOT_FOUND)),
+        Ok(game_entry) => {
+            LogResolverRequest::resolve(id, Some(game_entry.name.clone()), Status::Ok);
+            Ok(Box::new(warp::reply::json(&game_entry)))
+        }
+        Err(Status::NotFound(msg)) => {
+            LogResolverRequest::resolve(id, None, Status::not_found(msg));
+            Ok(Box::new(StatusCode::NOT_FOUND))
+        }
         Err(status) => {
-            error!("post_resolve: {status}");
+            LogResolverRequest::resolve(id, None, status);
             Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR))
         }
     }
 }
 
-#[instrument(level = "trace", skip(firestore, connection))]
+#[instrument(name = "digest", level = "info", skip(firestore, connection))]
 pub async fn post_digest(
     id: u64,
     firestore: Arc<FirestoreApi>,
@@ -60,22 +80,31 @@ pub async fn post_digest(
     let igdb = IgdbApi::new(connection);
     match igdb.get(id).await {
         Ok(igdb_game) => match igdb.resolve_digest(&firestore, igdb_game).await {
-            Ok(digest) => Ok(Box::new(warp::reply::json(&digest))),
-            Err(Status::NotFound(_)) => Ok(Box::new(StatusCode::NOT_FOUND)),
+            Ok(digest) => {
+                LogResolverRequest::digest(id, Some(digest.name.clone()), Status::Ok);
+                Ok(Box::new(warp::reply::json(&digest)))
+            }
+            Err(Status::NotFound(msg)) => {
+                LogResolverRequest::digest(id, None, Status::not_found(msg));
+                Ok(Box::new(StatusCode::NOT_FOUND))
+            }
             Err(status) => {
-                error!("post_digest: {status}");
+                LogResolverRequest::digest(id, None, status);
                 Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR))
             }
         },
-        Err(Status::NotFound(_)) => Ok(Box::new(StatusCode::NOT_FOUND)),
+        Err(Status::NotFound(msg)) => {
+            LogResolverRequest::digest(id, None, Status::not_found(msg));
+            Ok(Box::new(StatusCode::NOT_FOUND))
+        }
         Err(status) => {
-            error!("post_digest: {status}");
+            LogResolverRequest::digest(id, None, status);
             Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR))
         }
     }
 }
 
-#[instrument(level = "trace", skip(firestore, connection))]
+#[instrument(name = "search", level = "info", skip(firestore, connection))]
 pub async fn post_search(
     request: SearchRequest,
     firestore: Arc<FirestoreApi>,
@@ -87,9 +116,12 @@ pub async fn post_search(
         .await
     {
         Ok(candidates) => Ok(Box::new(warp::reply::json(&candidates))),
-        Err(Status::NotFound(_)) => Ok(Box::new(StatusCode::NOT_FOUND)),
+        Err(Status::NotFound(msg)) => {
+            LogResolverRequest::search(request, &vec![], Status::not_found(msg));
+            Ok(Box::new(StatusCode::NOT_FOUND))
+        }
         Err(status) => {
-            error!("post_search: {status}");
+            LogResolverRequest::search(request, &vec![], status);
             Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR))
         }
     }
