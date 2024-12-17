@@ -24,8 +24,15 @@ impl SteamDataApi {
         };
 
         self.qps.wait();
+        let news = match SteamApi::get_app_news(steam_appid).await {
+            Ok(result) => result,
+            Err(_) => vec![],
+        };
+
+        self.qps.wait();
         let mut steam_data = SteamApi::get_app_details(steam_appid).await?;
         steam_data.score = score;
+        steam_data.news = news;
 
         Ok(steam_data)
     }

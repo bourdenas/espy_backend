@@ -38,6 +38,10 @@ pub struct SteamData {
     pub score: Option<SteamScore>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub news: Vec<NewsItem>,
+
+    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metacritic: Option<Metacritic>,
 
@@ -105,6 +109,21 @@ pub struct SteamScore {
 
     #[serde(default)]
     pub review_score_desc: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct NewsItem {
+    gid: String,
+    date: u64,
+    pub feedname: String,
+
+    url: String,
+    title: String,
+    contents: String,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    tags: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]

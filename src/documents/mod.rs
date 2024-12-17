@@ -37,7 +37,7 @@ pub use library_entry::{Library, LibraryEntry};
 pub use notable::Notable;
 pub use recent::{Recent, RecentEntry};
 pub use scores::*;
-pub use steam_data::{SteamData, SteamScore};
+pub use steam_data::{NewsItem, SteamData, SteamScore};
 pub use store_entry::{FailedEntries, StoreEntry};
 pub use storefront::Storefront;
 pub use timeline::*;

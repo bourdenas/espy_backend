@@ -1,5 +1,5 @@
 use crate::{
-    documents::{SteamData, SteamScore, StoreEntry},
+    documents::{NewsItem, SteamData, SteamScore, StoreEntry},
     logging::SteamEvent,
     traits::Storefront,
     Status,
@@ -232,20 +232,6 @@ struct SteamAppNewsResponse {
 struct SteamAppNews {
     appid: u64,
     count: usize,
-
-    #[serde(default)]
-    newsitems: Vec<NewsItem>,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug)]
-pub struct NewsItem {
-    gid: u64,
-    title: String,
-    url: String,
-    contents: String,
-    date: u64,
-    feedname: String,
-    tags: Vec<String>,
 
     #[serde(default)]
     newsitems: Vec<NewsItem>,
