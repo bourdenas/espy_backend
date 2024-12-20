@@ -229,7 +229,7 @@ async fn build_timeline(
     undated.sort_by(|a, b| b.scores.cmp(&a.scores));
 
     let mut releases = vec![ReleaseEvent {
-        label: "?".to_owned(),
+        label: "TBA".to_owned(),
         year: "2050".to_owned(),
         games: undated,
     }];
