@@ -1,10 +1,8 @@
 use std::{
-    cmp::min,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use chrono::Utc;
 use clap::Parser;
 use espy_backend::{
     api,
@@ -42,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     };
     let end_year = match opts.year {
         Some(year) => year + 1,
-        None => 2025,
+        None => 2026,
     };
 
     for year in start_year..end_year {
@@ -54,15 +52,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         )
         .expect("Failed to parse start date")
         .timestamp();
-        let end = min(
-            chrono::DateTime::parse_from_str(
-                &format!("{}-01-01 00:00:00 +0000", year + 1),
-                "%Y-%m-%d %H:%M:%S %z",
-            )
-            .expect("Failed to parse end date")
-            .timestamp(),
-            Utc::now().timestamp(),
-        );
+        let end = chrono::DateTime::parse_from_str(
+            &format!("{}-01-01 00:00:00 +0000", year + 1),
+            "%Y-%m-%d %H:%M:%S %z",
+        )
+        .expect("Failed to parse end date")
+        .timestamp();
 
         let firestore = Arc::new(api::FirestoreApi::connect().await?);
 
@@ -185,6 +180,7 @@ fn is_below_fold(game: &GameEntry, filter: &GameFilter) -> bool {
         || (game.release_year() >= 2000
             && game.scores.espy_score.is_none()
             && game.scores.popularity.unwrap_or_default() < 1000
+            && game.scores.hype.unwrap_or_default() < 8
             && filter.is_notable(&game).is_none())
 }
 
