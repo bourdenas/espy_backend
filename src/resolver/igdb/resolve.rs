@@ -13,8 +13,11 @@ use crate::{
     },
     library, Status,
 };
+
 use async_recursion::async_recursion;
 use itertools::Itertools;
+use lazy_static::lazy_static;
+use regex::Regex;
 use tracing::{error, instrument, trace_span, warn, Instrument};
 
 use super::{endpoints, request::post, IgdbConnection, IgdbLookup};
@@ -253,6 +256,15 @@ fn adjust_companies(
     }
 }
 
+fn extract_steam_appid(url: &str) -> Option<String> {
+    lazy_static! {
+        static ref RE: Regex =
+            Regex::new(r"https?:\/\/store\.steampowered\.com\/app\/(?P<appid>\d+)").unwrap();
+    }
+    RE.captures(url)
+        .and_then(|cap| cap.name("appid").map(|appid| appid.as_str().to_owned()))
+}
+
 /// Returns a fully resolved GameEntry from IGDB that goes beyond the GameDigest doc.
 #[async_recursion]
 #[instrument(level = "info", skip(connection, firestore, game_entry))]
@@ -262,20 +274,6 @@ pub async fn resolve_game_info(
     game_entry: &mut GameEntry,
 ) -> Result<(), Status> {
     let igdb_game = &game_entry.igdb_game;
-
-    let steam_handle = match &game_entry.steam_data {
-        Some(steam_data) => {
-            let website = format!(
-                "https://store.steampowered.com/app/{}/",
-                steam_data.steam_appid
-            );
-            Some(tokio::spawn(
-                async move { SteamScrape::scrape(&website).await }
-                    .instrument(trace_span!("spawn_steam_scrape")),
-            ))
-        }
-        None => None,
-    };
 
     if !igdb_game.keywords.is_empty() {
         game_entry.keywords = get_keywords(firestore, &igdb_game.keywords).await?;
@@ -306,6 +304,40 @@ pub async fn resolve_game_info(
             );
         }
     }
+
+    // It is often the case that external_games collection does not contain the
+    // Steam connection. Extract the steam_appid from the url if any.
+    if game_entry.steam_data.is_none() {
+        let steam_appid = game_entry
+            .websites
+            .iter()
+            .find(|website| matches!(website.authority, WebsiteAuthority::Steam))
+            .and_then(|website| extract_steam_appid(&website.url));
+
+        if let Some(steam_appid) = steam_appid {
+            let steam = SteamDataApi::new();
+            game_entry.add_steam_data(steam.retrieve_steam_data(&steam_appid).await?);
+        }
+    }
+
+    // NOTE: This is a new immutable borrow for `game_entry` in order for borrow
+    // checker to drop the original immutable borrow and allow the mutable
+    // borrow needed above to add retrieved steam_data.
+    let igdb_game = &game_entry.igdb_game;
+
+    let steam_scrape_handle = match &game_entry.steam_data {
+        Some(steam_data) => {
+            let website = format!(
+                "https://store.steampowered.com/app/{}/",
+                steam_data.steam_appid
+            );
+            Some(tokio::spawn(
+                async move { SteamScrape::scrape(&website).await }
+                    .instrument(trace_span!("spawn_steam_scrape")),
+            ))
+        }
+        None => None,
+    };
 
     // Skip screenshots if they already exist from steam data.
     if !igdb_game.screenshots.is_empty() && game_entry.steam_data.is_none() {
@@ -359,6 +391,7 @@ pub async fn resolve_game_info(
             game_entry.remasters = digests;
         }
     }
+
     if matches!(
         game_entry.category,
         GameCategory::Bundle | GameCategory::Version
@@ -374,7 +407,7 @@ pub async fn resolve_game_info(
         }
     }
 
-    if let Some(handle) = steam_handle {
+    if let Some(handle) = steam_scrape_handle {
         match handle.await {
             Ok(result) => match result {
                 Ok(steam_scrape_data) => {
