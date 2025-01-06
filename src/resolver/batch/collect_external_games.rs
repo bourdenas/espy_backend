@@ -51,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         for external_game in external_games {
             let mut external_game = ExternalGame::from(external_game);
             match external_game.store_name {
-                StoreName::gog => {
+                StoreName::Gog => {
                     if let Some(url) = &external_game.store_url {
                         println!("Scrapping {}", url);
                         match GogScrape::scrape(url).await {

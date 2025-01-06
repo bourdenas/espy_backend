@@ -47,7 +47,7 @@ pub async fn resolve_game_digest(
     // Spawn a task to retrieve steam data.
     let steam_handle = match external_games
         .iter()
-        .find(|e| matches!(e.store_name, StoreName::steam))
+        .find(|e| matches!(e.store_name, StoreName::Steam))
     {
         Some(steam_external) => {
             let steam_appid = steam_external.store_id.clone();
@@ -193,7 +193,7 @@ pub async fn resolve_game_digest(
 
     if let Some(gog_external) = external_games
         .into_iter()
-        .find(|e| matches!(e.store_name, StoreName::gog))
+        .find(|e| matches!(e.store_name, StoreName::Gog))
     {
         if let Some(gog_data) = gog_external.gog_data {
             game_entry.add_gog_data(gog_data);

@@ -23,20 +23,21 @@ pub struct ExternalGame {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "lowercase")]
 pub enum StoreName {
-    steam,
-    gog,
-    egs,
-    other(u64),
+    Steam,
+    Gog,
+    Egs,
+    Other(u64),
 }
 
 impl Display for StoreName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            StoreName::steam => write!(f, "steam"),
-            StoreName::gog => write!(f, "gog"),
-            StoreName::egs => write!(f, "egs"),
-            StoreName::other(id) => write!(f, "other({id})"),
+            StoreName::Steam => write!(f, "steam"),
+            StoreName::Gog => write!(f, "gog"),
+            StoreName::Egs => write!(f, "egs"),
+            StoreName::Other(id) => write!(f, "other({id})"),
         }
     }
 }
@@ -44,10 +45,10 @@ impl Display for StoreName {
 impl From<u64> for StoreName {
     fn from(id: u64) -> Self {
         match id {
-            1 => StoreName::steam,
-            5 => StoreName::gog,
-            26 => StoreName::egs,
-            id => StoreName::other(id),
+            1 => StoreName::Steam,
+            5 => StoreName::Gog,
+            26 => StoreName::Egs,
+            id => StoreName::Other(id),
         }
     }
 }

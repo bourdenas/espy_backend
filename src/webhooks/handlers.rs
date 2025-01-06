@@ -244,14 +244,14 @@ pub async fn external_games_webhook(
     let mut external_game = ExternalGame::from(external_game);
     LogWebhooksRequest::external_game(&external_game);
 
-    if matches!(external_game.store_name, StoreName::other(_)) {
+    if matches!(external_game.store_name, StoreName::Other(_)) {
         return Ok(StatusCode::OK);
     }
 
     tokio::spawn(
         async move {
             match external_game.store_name {
-                StoreName::gog => {
+                StoreName::Gog => {
                     if let Some(url) = &external_game.store_url {
                         match GogScrape::scrape(url).await {
                             Ok(gog_data) => external_game.gog_data = Some(gog_data),
