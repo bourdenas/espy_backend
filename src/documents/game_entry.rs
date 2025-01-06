@@ -101,6 +101,10 @@ pub struct GameEntry {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub steam_appid: Option<u64>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub steam_data: Option<SteamData>,
 
     #[serde(default)]
@@ -153,6 +157,7 @@ impl GameEntry {
 
     pub fn add_steam_data(&mut self, steam_data: SteamData) {
         self.scores.add_steam(&steam_data, self.release_date);
+        self.steam_appid = Some(steam_data.steam_appid);
         self.steam_data = Some(steam_data);
     }
 
