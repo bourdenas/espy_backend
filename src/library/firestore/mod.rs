@@ -17,5 +17,6 @@ pub mod wikipedia;
 pub mod wishlist;
 pub mod year;
 
+mod streaming;
 mod utils;
 pub use utils::BatchReadResult;
