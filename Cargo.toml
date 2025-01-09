@@ -50,6 +50,10 @@ name = "refresh_library_entries"
 path = "src/batch/refresh_library_entries.rs"
 
 [[bin]]
+name = "steam_update"
+path = "src/batch/steam_update.rs"
+
+[[bin]]
 name = "wikipedia_scrape"
 path = "src/batch/wikipedia_scrape.rs"
 
