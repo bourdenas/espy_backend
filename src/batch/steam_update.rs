@@ -68,8 +68,7 @@ impl SteamProcessor {
         let steam_data = self.steam.retrieve_steam_data(&steam_appid).await?;
         game_entry.add_steam_data(steam_data);
 
-        let website = format!("https://store.steampowered.com/app/{steam_appid}/");
-        let scraped_data = SteamScrape::scrape(&website).await?;
+        let scraped_data = SteamScrape::scrape(&steam_appid).await?;
         if let Some(steam_data) = &mut game_entry.steam_data {
             steam_data.user_tags = scraped_data.user_tags;
         }

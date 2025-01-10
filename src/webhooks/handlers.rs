@@ -176,12 +176,9 @@ async fn update_steam_data(
     // Spawn a task to scrape steam user tags.
     let steam_tags_handle = match &game_entry.steam_data {
         Some(steam_data) => {
-            let website = format!(
-                "https://store.steampowered.com/app/{}/",
-                steam_data.steam_appid
-            );
+            let steam_appid = steam_data.steam_appid.to_string();
             Some(tokio::spawn(
-                async move { SteamScrape::scrape(&website).await }
+                async move { SteamScrape::scrape(&steam_appid).await }
                     .instrument(info_span!("spawn_steam_scrape")),
             ))
         }

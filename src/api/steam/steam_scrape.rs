@@ -13,7 +13,8 @@ pub struct SteamScrape {}
 
 impl SteamScrape {
     #[instrument(name = "steam::scrape_app_page", level = "info")]
-    pub async fn scrape(url: &str) -> Result<SteamScrapeData, Status> {
+    pub async fn scrape(steam_appid: &str) -> Result<SteamScrapeData, Status> {
+        let url = format!("https://store.steampowered.com/app/{steam_appid}/");
         let mut request_headers = header::HeaderMap::new();
         request_headers.insert(
             header::COOKIE,
@@ -26,7 +27,7 @@ impl SteamScrape {
             .build()
             .unwrap();
 
-        let text = match client.get(url).send().await {
+        let text = match client.get(&url).send().await {
             Ok(resp) => match resp.text().await {
                 Ok(text) => Ok(text),
                 Err(e) => Err(e),
@@ -41,7 +42,7 @@ impl SteamScrape {
                 return Err(Status::from(e));
             }
         };
-        SteamEvent::scrape_app_page(url.to_owned(), None);
+        SteamEvent::scrape_app_page(url, None);
 
         let soup = Soup::new(&text);
         let user_tags = match soup.class(GLANCE_TAGS).find() {
