@@ -69,11 +69,7 @@ impl WikipediaProcessor {
         }
     }
 
-    async fn process(
-        &self,
-        firestore: &FirestoreApi,
-        game_entry: &mut GameEntry,
-    ) -> Result<(), Status> {
+    async fn process(&self, firestore: &FirestoreApi, game_entry: GameEntry) -> Result<(), Status> {
         let website = game_entry
             .websites
             .iter()

@@ -61,7 +61,7 @@ impl SteamProcessor {
     async fn process(
         &self,
         firestore: &FirestoreApi,
-        game_entry: &mut GameEntry,
+        mut game_entry: GameEntry,
     ) -> Result<(), Status> {
         let steam_appid = format!("{}", game_entry.steam_appid.unwrap());
 
@@ -74,7 +74,7 @@ impl SteamProcessor {
             steam_data.user_tags = scraped_data.user_tags;
         }
 
-        library::firestore::games::write(firestore, game_entry).await?;
+        library::firestore::games::write(firestore, &mut game_entry).await?;
 
         Ok(())
     }

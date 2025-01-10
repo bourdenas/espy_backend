@@ -79,7 +79,7 @@ macro_rules! stream_documents {
                             .unwrap()
                             .as_millis();
 
-                        if let Err(status) = $processor.process(&firestore, &mut game_entry).await {
+                        if let Err(status) = $processor.process(&firestore, game_entry).await {
                             ::tracing::error!("{status}");
                         }
 
@@ -95,4 +95,30 @@ macro_rules! stream_documents {
             }
         }
     };
+}
+
+#[macro_export]
+macro_rules! collect_games {
+    (filter: $filter:expr) => {{
+        use futures::TryStreamExt;
+
+        let firestore = std::sync::Arc::new(::espy_backend::api::FirestoreApi::connect().await?);
+
+        let mut documents: ::futures::stream::BoxStream<
+            ::firestore::FirestoreResult<espy_backend::documents::GameEntry>,
+        > = firestore
+            .db()
+            .fluent()
+            .select()
+            .from("games")
+            .filter($filter)
+            .order_by([(
+                ::firestore::path!(espy_backend::documents::GameEntry::release_date),
+                ::firestore::FirestoreQueryDirection::Ascending,
+            )])
+            .obj()
+            .stream_query_with_errors()
+            .await?;
+        documents.try_collect::<Vec<GameEntry>>().await
+    }};
 }

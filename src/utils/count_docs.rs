@@ -29,7 +29,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .fluent()
             .select()
             .from(collection.as_str())
-            // .filter(|q| q.for_all([q.field(path!(documents::GameEntry::release_date)).equal(0)]))
+            // .filter(|q| {
+            //     q.for_all([
+            //         q.field(path!(
+            //             documents::GameEntry::scores,
+            //             documents::Scores::popularity
+            //         ))
+            //         .greater_than_or_equal(100),
+            //         q.field(path!(documents::GameEntry::steam_appid))
+            //             .is_not_null(),
+            //         q.for_any([
+            //             q.field(path!(documents::GameEntry::release_date))
+            //                 .greater_than_or_equal(1420066800), // 01/01/2015
+            //             q.field(path!(documents::GameEntry::release_date)).equal(0),
+            //         ]),
+            //     ])
+            // })
             .aggregate(|a| a.fields([a.field(path!(AggregationStats::count)).count()]))
             .obj()
             .query()

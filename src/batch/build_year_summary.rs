@@ -5,8 +5,9 @@ use std::{
 
 use clap::Parser;
 use espy_backend::{
-    api,
-    documents::*,
+    api::{self},
+    collect_games,
+    documents::{AnnualReview, CompanyDigest, GameDigest, GameEntry, GameStatus},
     library::{
         self,
         firestore::{notable, year},
@@ -14,8 +15,7 @@ use espy_backend::{
     webhooks::filtering::GameFilter,
     Tracing,
 };
-use firestore::{path, FirestoreQueryDirection, FirestoreResult};
-use futures::{stream::BoxStream, TryStreamExt};
+use firestore::path;
 use itertools::Itertools;
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
@@ -43,6 +43,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         None => 2026,
     };
 
+    let firestore = Arc::new(api::FirestoreApi::connect().await?);
+    let notable = notable::read(&firestore).await?;
+    let filter = GameFilter::new(notable);
+
     for year in start_year..end_year {
         println!("Building library for year {year}...");
 
@@ -59,35 +63,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .expect("Failed to parse end date")
         .timestamp();
 
-        let firestore = Arc::new(api::FirestoreApi::connect().await?);
-
-        let game_entries: BoxStream<FirestoreResult<GameEntry>> = firestore
-            .db()
-            .fluent()
-            .select()
-            .from("games")
-            .filter(|q| {
+        let mut games = collect_games!(
+            filter: |q| {
                 q.for_all([
                     q.field(path!(GameEntry::release_date))
                         .greater_than_or_equal(start),
                     q.field(path!(GameEntry::release_date)).less_than(end),
                 ])
-            })
-            .order_by([(
-                path!(GameEntry::release_date),
-                FirestoreQueryDirection::Ascending,
-            )])
-            .obj()
-            .stream_query_with_errors()
-            .await?;
-        let mut games = game_entries.try_collect::<Vec<GameEntry>>().await?;
-        println!("Retrieved {} titles.", games.len());
+            }
+        )?;
 
+        println!("Retrieved {} titles.", games.len());
         games.retain(|game| game.category.is_main_category());
         println!("Retained {} titles.", games.len());
-
-        let notable = notable::read(&firestore).await?;
-        let filter = GameFilter::new(notable);
 
         #[derive(Hash, PartialEq, Eq, Debug)]
         enum Partition {
@@ -98,7 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         let mut partitions = games.into_iter().into_group_map_by(|game| {
             if filter.apply(&game) {
-                if !is_below_fold(game, &filter) {
+                if !is_below_fold(&game, &filter) {
                     Partition::Releases
                 } else if let Some(parent) = &game.parent {
                     if !is_parent_below_fold(&parent, &filter) {

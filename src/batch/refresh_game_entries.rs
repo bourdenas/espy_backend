@@ -38,13 +38,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let refresh_processor = RefreshProcessor::new(opts.resolver_backend);
     stream_games!(
         filter: |q| {
-            q.for_all([
-                q.field(path!(GameEntry::steam_appid)).is_not_null(),
-                q.for_any([
-                    q.field(path!(GameEntry::release_date))
-                        .greater_than_or_equal(start),
-                    q.field(path!(GameEntry::release_date)).equal(0),
-                ]),
+            q.for_any([
+                q.field(path!(GameEntry::release_date))
+                    .greater_than_or_equal(start),
+                q.field(path!(GameEntry::release_date)).equal(0),
             ])
         },
         refresh_processor
@@ -64,11 +61,7 @@ impl RefreshProcessor {
         }
     }
 
-    async fn process(
-        &self,
-        firestore: &FirestoreApi,
-        game_entry: &mut GameEntry,
-    ) -> Result<(), Status> {
+    async fn process(&self, firestore: &FirestoreApi, game_entry: GameEntry) -> Result<(), Status> {
         let mut game_entry = self.resolver.retrieve(game_entry.id).await?;
         library::firestore::games::write(firestore, &mut game_entry).await?;
         Ok(())

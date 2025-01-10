@@ -59,7 +59,7 @@ impl GenrePredictorProcessor {
     async fn process(
         &self,
         firestore: &FirestoreApi,
-        game_entry: &mut GameEntry,
+        mut game_entry: GameEntry,
     ) -> Result<(), Status> {
         let wiki_data = match wikipedia::read(&firestore, game_entry.id).await {
             Ok(wiki_data) => Some(wiki_data),
@@ -118,7 +118,7 @@ impl GenrePredictorProcessor {
             )
             .await?;
 
-            library::firestore::games::write(&firestore, game_entry).await?;
+            library::firestore::games::write(&firestore, &mut game_entry).await?;
             if let Some(parent) = &mut parent {
                 library::firestore::games::write(&firestore, parent).await?;
             }
