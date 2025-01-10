@@ -29,6 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     .expect("Failed to parse start date")
     .timestamp();
 
+    let steam_processor = SteamProcessor::new();
     stream_games!(
         batch: 400,
         filter: |q| {
@@ -45,29 +46,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             path!(GameEntry::release_date),
             FirestoreQueryDirection::Ascending,
         )],
-        retrieve_steam
+        steam_processor
     );
 
     Ok(())
 }
 
-async fn retrieve_steam(
-    firestore: &FirestoreApi,
-    game_entry: &mut GameEntry,
-) -> Result<(), Status> {
-    let steam_appid = format!("{}", game_entry.steam_appid.unwrap());
+struct SteamProcessor {
+    steam: SteamDataApi,
+}
 
-    let steam = SteamDataApi::new();
-    let steam_data = steam.retrieve_steam_data(&steam_appid).await?;
-    game_entry.add_steam_data(steam_data);
-
-    let website = format!("https://store.steampowered.com/app/{steam_appid}/");
-    let scraped_data = SteamScrape::scrape(&website).await?;
-    if let Some(steam_data) = &mut game_entry.steam_data {
-        steam_data.user_tags = scraped_data.user_tags;
+impl SteamProcessor {
+    fn new() -> Self {
+        SteamProcessor {
+            steam: SteamDataApi::new(),
+        }
     }
 
-    library::firestore::games::write(firestore, game_entry).await?;
+    async fn process(
+        &self,
+        firestore: &FirestoreApi,
+        game_entry: &mut GameEntry,
+    ) -> Result<(), Status> {
+        let steam_appid = format!("{}", game_entry.steam_appid.unwrap());
 
-    Ok(())
+        let steam_data = self.steam.retrieve_steam_data(&steam_appid).await?;
+        game_entry.add_steam_data(steam_data);
+
+        let website = format!("https://store.steampowered.com/app/{steam_appid}/");
+        let scraped_data = SteamScrape::scrape(&website).await?;
+        if let Some(steam_data) = &mut game_entry.steam_data {
+            steam_data.user_tags = scraped_data.user_tags;
+        }
+
+        library::firestore::games::write(firestore, game_entry).await?;
+
+        Ok(())
+    }
 }

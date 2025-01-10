@@ -1,16 +1,16 @@
 #[macro_export]
 macro_rules! stream_games {
-    (batch: $batch:expr, filter: $filter:expr, ordering: $ordering:expr, $process:expr) => {
-        $crate::stream_documents!(collection: "games", document: ::espy_backend::documents::GameEntry, batch: $batch, filter: $filter, ordering: $ordering, $process)
+    (batch: $batch:expr, filter: $filter:expr, ordering: $ordering:expr, $processor:expr) => {
+        $crate::stream_documents!(collection: "games", document: ::espy_backend::documents::GameEntry, batch: $batch, filter: $filter, ordering: $ordering, $processor)
     };
-    (filter: $filter:expr, ordering: $ordering:expr, $process:expr) => {
-        $crate::stream_documents!(collection: "games", document: ::espy_backend::documents::GameEntry, batch: 400, filter: $filter, ordering: $ordering, $process)
+    (filter: $filter:expr, ordering: $ordering:expr, $processor:expr) => {
+        $crate::stream_documents!(collection: "games", document: ::espy_backend::documents::GameEntry, batch: 400, filter: $filter, ordering: $ordering, $processor)
     };
 }
 
 #[macro_export]
 macro_rules! stream_documents {
-    (collection: $collection:literal, document: $Document:ty, batch: $batch:expr, filter: $filter:expr, ordering: $ordering:expr, $process:expr) => {
+    (collection: $collection:literal, document: $Document:ty, batch: $batch:expr, filter: $filter:expr, ordering: $ordering:expr, $processor:expr) => {
         use futures::StreamExt;
 
         let mut i = 0;
@@ -52,7 +52,7 @@ macro_rules! stream_documents {
                             .unwrap()
                             .as_millis();
 
-                        if let Err(status) = $process(&firestore, &mut game_entry).await {
+                        if let Err(status) = $processor.process(&firestore, &mut game_entry).await {
                             ::tracing::error!("{status}");
                         }
 
