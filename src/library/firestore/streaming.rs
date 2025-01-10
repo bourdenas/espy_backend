@@ -1,16 +1,43 @@
 #[macro_export]
 macro_rules! stream_games {
     (batch: $batch:expr, filter: $filter:expr, ordering: $ordering:expr, $processor:expr) => {
-        $crate::stream_documents!(collection: "games", document: ::espy_backend::documents::GameEntry, batch: $batch, filter: $filter, ordering: $ordering, $processor)
+        $crate::stream_documents!(
+            collection: "games",
+            document: ::espy_backend::documents::GameEntry,
+            batch: $batch,
+            filter: $filter,
+            ordering: $ordering,
+            $processor
+        )
     };
     (filter: $filter:expr, ordering: $ordering:expr, $processor:expr) => {
-        $crate::stream_documents!(collection: "games", document: ::espy_backend::documents::GameEntry, batch: 400, filter: $filter, ordering: $ordering, $processor)
+        $crate::stream_documents!(
+            collection: "games",
+            document: ::espy_backend::documents::GameEntry,
+            batch: 400,
+            filter: $filter,
+            ordering: $ordering,
+            $processor
+        )
+    };
+    (filter: $filter:expr, $processor:expr) => {
+        $crate::stream_documents!(
+            collection: "games",
+            document: ::espy_backend::documents::GameEntry,
+            batch: 400,
+            filter: $filter,
+            ordering: [(
+                ::firestore::path!(espy_backend::documents::GameEntry::release_date),
+                ::firestore::FirestoreQueryDirection::Ascending,
+            )],
+            $processor
+        )
     };
 }
 
 #[macro_export]
 macro_rules! stream_documents {
-    (collection: $collection:literal, document: $Document:ty, batch: $batch:expr, filter: $filter:expr, ordering: $ordering:expr, $processor:expr) => {
+    (collection: $collection:literal, document: $Document:ty, batch: $batch:expr, filter: $filter:expr, ordering: $ordering:tt, $processor:expr) => {
         use futures::StreamExt;
 
         let mut i = 0;

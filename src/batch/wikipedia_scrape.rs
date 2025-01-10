@@ -4,7 +4,7 @@ use espy_backend::{
     documents::{GameEntry, WebsiteAuthority, WikipediaData},
     library, stream_games, Status, Tracing,
 };
-use firestore::{struct_path::path, FirestoreQueryDirection};
+use firestore::struct_path::path;
 use tracing::error;
 
 #[derive(Parser)]
@@ -52,10 +52,6 @@ async fn main() -> Result<(), Status> {
                 q.field(path!(GameEntry::release_date)).equal(0),
             ])
         },
-        ordering: [(
-            path!(GameEntry::release_date),
-            FirestoreQueryDirection::Ascending,
-        )],
         wikipedia_processor
     );
 

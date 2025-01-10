@@ -4,7 +4,7 @@ use espy_backend::{
     documents::GameEntry,
     library, stream_games, Status,
 };
-use firestore::{path, FirestoreQueryDirection};
+use firestore::path;
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
 #[derive(Parser)]
@@ -31,7 +31,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let steam_processor = SteamProcessor::new();
     stream_games!(
-        batch: 400,
         filter: |q| {
             q.for_all([
                 q.field(path!(GameEntry::steam_appid)).is_not_null(),
@@ -42,10 +41,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 ]),
             ])
         },
-        ordering: [(
-            path!(GameEntry::release_date),
-            FirestoreQueryDirection::Ascending,
-        )],
         steam_processor
     );
 

@@ -6,7 +6,7 @@ use espy_backend::{
     library::{self, firestore::wikipedia},
     stream_games, Status, Tracing,
 };
-use firestore::{path, FirestoreQueryDirection};
+use firestore::path;
 use tracing::warn;
 
 #[derive(Parser)]
@@ -33,17 +33,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let predict_processor = GenrePredictorProcessor::new(opts.predictor_url);
     stream_games!(
-        batch: 500,
         filter: |q| {
             q.for_any([
                 q.field(path!(GameEntry::release_date)).greater_than_or_equal(start),
                 q.field(path!(GameEntry::release_date)).equal(0),
             ])
         },
-        ordering: [(
-            path!(GameEntry::release_date),
-            FirestoreQueryDirection::Ascending,
-        )],
         predict_processor
     );
 
