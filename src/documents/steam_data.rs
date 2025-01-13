@@ -117,9 +117,13 @@ pub struct NewsItem {
     date: u64,
     pub feedname: String,
 
-    url: String,
-    title: String,
-    contents: String,
+    pub url: String,
+    pub title: String,
+    pub contents: String,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image: Option<String>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]

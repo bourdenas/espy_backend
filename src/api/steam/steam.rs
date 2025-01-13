@@ -5,6 +5,8 @@ use crate::{
     Status,
 };
 use async_trait::async_trait;
+use lazy_static::lazy_static;
+use regex::Regex;
 use reqwest::{header, ClientBuilder};
 use std::collections::HashMap;
 use tracing::instrument;
@@ -126,8 +128,23 @@ impl SteamApi {
             status
         })?;
 
+        lazy_static! {
+            static ref RE: Regex =
+                Regex::new(r"\{STEAM_CLAN_IMAGE\}\/(?P<url>[\w\/\-\.]+)[ ]?").unwrap();
+        }
+
         let mut newsitems = resp.appnews.newsitems;
         newsitems.retain(|item| item.feedname == STEAM_UPDATE_FEEDNAME);
+        for item in newsitems.iter_mut() {
+            let url = RE
+                .captures(&item.contents)
+                .and_then(|cap| cap.name("url").map(|url| url.as_str().to_owned()));
+            if let Some(url) = url {
+                item.image = Some(format!("https://clan.fastly.steamstatic.com/images/{url}"))
+            }
+
+            item.contents = RE.replace_all(&item.contents, "").to_string();
+        }
 
         SteamEvent::get_app_news(steam_appid.to_owned(), None);
         Ok(newsitems)
