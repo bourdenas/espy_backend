@@ -1,5 +1,5 @@
 use crate::{
-    api::{FirestoreApi, GogScrape, MetacriticApi, SteamDataApi, SteamScrape},
+    api::{FirestoreApi, GogScrape, MetacriticApi, SteamDataApi},
     documents::{ExternalGame, GameEntry, IgdbExternalGame, IgdbGame, Keyword, StoreName},
     library::firestore,
     log_error,
@@ -162,7 +162,7 @@ async fn update_steam_data(
                 Some(tokio::spawn(
                     async move {
                         let steam = SteamDataApi::new();
-                        steam.retrieve_steam_data(&steam_appid).await
+                        steam.retrieve_all_data(&steam_appid).await
                     }
                     .instrument(info_span!("spawn_steam_request")),
                 ))
@@ -172,18 +172,6 @@ async fn update_steam_data(
                 None
             }
         };
-
-    // Spawn a task to scrape steam user tags.
-    let steam_tags_handle = match &game_entry.steam_data {
-        Some(steam_data) => {
-            let steam_appid = steam_data.steam_appid.to_string();
-            Some(tokio::spawn(
-                async move { SteamScrape::scrape(&steam_appid).await }
-                    .instrument(info_span!("spawn_steam_scrape")),
-            ))
-        }
-        None => None,
-    };
 
     // Spawn a task to retrieve metacritic score.
     let slug = MetacriticApi::guess_id(&game_entry.igdb_game.url).to_owned();
@@ -196,20 +184,6 @@ async fn update_steam_data(
         match handle.await {
             Ok(result) => match result {
                 Ok(steam_data) => game_entry.add_steam_data(steam_data),
-                Err(status) => log_error!(status),
-            },
-            Err(status) => log_error!(status),
-        }
-    }
-
-    if let Some(handle) = steam_tags_handle {
-        match handle.await {
-            Ok(result) => match result {
-                Ok(steam_scrape_data) => {
-                    if let Some(steam_data) = &mut game_entry.steam_data {
-                        steam_data.user_tags = steam_scrape_data.user_tags;
-                    }
-                }
                 Err(status) => log_error!(status),
             },
             Err(status) => log_error!(status),

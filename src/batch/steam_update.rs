@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use chrono::Utc;
 use clap::Parser;
 use espy_backend::{
-    api::{FirestoreApi, SteamDataApi, SteamScrape},
+    api::{FirestoreApi, SteamDataApi},
     documents::{DayUpdates, GameEntry, Update},
     library, stream_games, Status,
 };
@@ -80,7 +80,7 @@ impl SteamProcessor {
     ) -> Result<(), Status> {
         let steam_appid = format!("{}", game_entry.steam_appid.unwrap());
 
-        let steam_data = match self.steam.retrieve_steam_data(&steam_appid).await {
+        let steam_data = match self.steam.retrieve_all_data(&steam_appid).await {
             Ok(steam_data) => steam_data,
             Err(status) => {
                 warn!("retrieve_steam_data(): {status}");
@@ -88,11 +88,6 @@ impl SteamProcessor {
             }
         };
         game_entry.add_steam_data(steam_data);
-
-        let scraped_data = SteamScrape::scrape(&steam_appid).await?;
-        if let Some(steam_data) = &mut game_entry.steam_data {
-            steam_data.user_tags = scraped_data.user_tags;
-        }
 
         library::firestore::games::write(firestore, &mut game_entry).await?;
 

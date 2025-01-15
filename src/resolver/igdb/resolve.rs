@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    api::{CompanyNormalizer, FirestoreApi, MetacriticApi, SteamDataApi, SteamScrape},
+    api::{CompanyNormalizer, FirestoreApi, MetacriticApi, SteamDataApi},
     documents::{
         Collection, CollectionDigest, CollectionType, Company, CompanyDigest, CompanyRole,
         GameCategory, GameDigest, GameEntry, IgdbGame, IgdbInvolvedCompany, SteamData, StoreName,
@@ -57,7 +57,7 @@ pub async fn resolve_game_digest(
             Some(tokio::spawn(
                 async move {
                     let steam = SteamDataApi::new();
-                    steam.retrieve_steam_data(&steam_appid).await
+                    steam.retrieve_digest_data(&steam_appid).await
                 }
                 .instrument(trace_span!("spawn_steam_request")),
             ))
@@ -171,6 +171,8 @@ pub async fn resolve_game_digest(
         Err(status) => warn!("{status}"),
     }
 
+    // Retrieve wikipedia data if the Metacritic score is missing of Steam data
+    // are missing in order to adjust developers.
     if game_entry.steam_data.is_none() || game_entry.scores.metacritic.is_none() {
         match library::firestore::wikipedia::read(&firestore, game_entry.id).await {
             Ok(wiki_data) => {
@@ -305,18 +307,26 @@ pub async fn resolve_game_info(
         }
     }
 
-    // It is often the case that external_games collection does not contain the
-    // Steam connection. Extract the steam_appid from the url if any.
-    if game_entry.steam_data.is_none() {
-        let steam_appid = game_entry
-            .websites
-            .iter()
-            .find(|website| matches!(website.authority, WebsiteAuthority::Steam))
-            .and_then(|website| extract_steam_appid(&website.url));
-
-        if let Some(steam_appid) = steam_appid {
+    match &mut game_entry.steam_data {
+        // If Steam data already exist it will only contain the fields needed
+        // for the GameDigest. This will fill the remaining data for GameEntry.
+        Some(steam_data) => {
             let steam = SteamDataApi::new();
-            game_entry.add_steam_data(steam.retrieve_steam_data(&steam_appid).await?);
+            steam.retrieve_expanded_data(steam_data).await?;
+        }
+        // It is often the case that external_games collection does not contain the
+        // Steam connection. Extract the steam_appid from the url if any.
+        None => {
+            let steam_appid = game_entry
+                .websites
+                .iter()
+                .find(|website| matches!(website.authority, WebsiteAuthority::Steam))
+                .and_then(|website| extract_steam_appid(&website.url));
+
+            if let Some(steam_appid) = steam_appid {
+                let steam = SteamDataApi::new();
+                game_entry.add_steam_data(steam.retrieve_all_data(&steam_appid).await?);
+            }
         }
     }
 
@@ -324,17 +334,6 @@ pub async fn resolve_game_info(
     // checker to drop the original immutable borrow and allow the mutable
     // borrow needed above to add retrieved steam_data.
     let igdb_game = &game_entry.igdb_game;
-
-    let steam_scrape_handle = match &game_entry.steam_data {
-        Some(steam_data) => {
-            let steam_appid = steam_data.steam_appid.to_string();
-            Some(tokio::spawn(
-                async move { SteamScrape::scrape(&steam_appid).await }
-                    .instrument(trace_span!("spawn_steam_scrape")),
-            ))
-        }
-        None => None,
-    };
 
     // Skip screenshots if they already exist from steam data.
     if !igdb_game.screenshots.is_empty() && game_entry.steam_data.is_none() {
@@ -401,20 +400,6 @@ pub async fn resolve_game_info(
 
         if let Ok(digests) = get_digests(connection, firestore, &game_ids).await {
             game_entry.contents = digests;
-        }
-    }
-
-    if let Some(handle) = steam_scrape_handle {
-        match handle.await {
-            Ok(result) => match result {
-                Ok(steam_scrape_data) => {
-                    if let Some(steam_data) = &mut game_entry.steam_data {
-                        steam_data.user_tags = steam_scrape_data.user_tags;
-                    }
-                }
-                Err(status) => warn!("{status}"),
-            },
-            Err(status) => warn!("{status}"),
         }
     }
 
