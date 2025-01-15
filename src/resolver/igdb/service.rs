@@ -34,9 +34,7 @@ impl IgdbApi {
         firestore: &FirestoreApi,
         igdb_game: IgdbGame,
     ) -> Result<GameDigest, Status> {
-        Ok(GameDigest::from(
-            resolve_game_digest(&self.connection, firestore, igdb_game).await?,
-        ))
+        Ok(resolve_game_digest(&self.connection, firestore, igdb_game).await?)
     }
 
     #[instrument(level = "trace", skip(self, firestore, igdb_game))]
@@ -46,25 +44,16 @@ impl IgdbApi {
         igdb_game: IgdbGame,
     ) -> Result<GameEntry, Status> {
         let counter = IgdbResolveCounter::new();
-        let mut game_entry =
-            match resolve_game_digest(&self.connection, &firestore, igdb_game).await {
-                Ok(entry) => entry,
-                Err(status) => {
-                    counter.log_error(&status);
-                    return Err(status);
-                }
-            };
-
-        match resolve_game_info(&self.connection, &firestore, &mut game_entry).await {
-            Ok(()) => {}
+        match resolve_game_entry(&self.connection, &firestore, igdb_game).await {
+            Ok(game_entry) => {
+                counter.log(&game_entry);
+                Ok(game_entry)
+            }
             Err(status) => {
                 counter.log_error(&status);
-                return Err(status);
+                Err(status)
             }
         }
-        counter.log(&game_entry);
-
-        Ok(game_entry)
     }
 
     /// Returns an IgdbGame based on external id info in IGDB.

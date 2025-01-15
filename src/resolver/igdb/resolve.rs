@@ -22,17 +22,55 @@ use tracing::{error, instrument, trace_span, warn, Instrument};
 
 use super::{endpoints, request::post, IgdbConnection, IgdbLookup};
 
-/// Returns a GameEntry from IGDB that can build the GameDigest doc.
+/// Resolves a GameDigest from an IgdbGame.
 ///
-/// Updates Firestore structures with fresh game digest data.
+/// This has side-effects updating Firestore structures with fresh data like
+/// update companies and collections documents with updated GameDigest.
 #[instrument(level = "info", skip(connection, firestore, igdb_game))]
 pub async fn resolve_game_digest(
+    connection: &IgdbConnection,
+    firestore: &FirestoreApi,
+    igdb_game: IgdbGame,
+) -> Result<GameDigest, Status> {
+    let game_entry = resolve_phase_1(connection, firestore, igdb_game).await?;
+    let game_entry = resolve_phase_2(connection, firestore, game_entry).await?;
+    Ok(GameDigest::from(game_entry))
+}
+
+/// Resolves a GameEntry from an IgdbGame.
+///
+/// This has side-effects updating Firestore structures with fresh data like
+/// update companies and collections documents with updated GameDigest.
+#[instrument(level = "info", skip(connection, firestore, igdb_game))]
+pub async fn resolve_game_entry(
+    connection: &IgdbConnection,
+    firestore: &FirestoreApi,
+    igdb_game: IgdbGame,
+) -> Result<GameEntry, Status> {
+    let game_entry = resolve_phase_1(connection, firestore, igdb_game).await?;
+    let game_entry = resolve_phase_2(connection, firestore, game_entry).await?;
+    resolve_phase_3(connection, firestore, game_entry).await
+}
+
+/// Phase 1 resolves all data necessary to make a filtering decision.
+///
+/// Signals  used are scores / popularity / hype, whether it's a GOG classic
+/// and exceptions based on notable companies and game collections.
+#[instrument(level = "info", skip(connection, firestore, igdb_game))]
+async fn resolve_phase_1(
     connection: &IgdbConnection,
     firestore: &FirestoreApi,
     igdb_game: IgdbGame,
 ) -> Result<GameEntry, Status> {
     let mut game_entry = GameEntry::from(igdb_game);
     let igdb_game = &game_entry.igdb_game;
+
+    // Spawn a task to retrieve metacritic score.
+    let slug = MetacriticApi::guess_id(&igdb_game.url).to_owned();
+    let metacritic_handle = tokio::spawn(
+        async move { MetacriticApi::get_score(&slug).await }
+            .instrument(trace_span!("spawn_metacritic_request")),
+    );
 
     let external_games = match library::firestore::external_games::get_external_games(
         firestore,
@@ -65,18 +103,6 @@ pub async fn resolve_game_digest(
         None => None,
     };
 
-    // Spawn a task to retrieve metacritic score.
-    let slug = MetacriticApi::guess_id(&igdb_game.url).to_owned();
-    let metacritic_handle = tokio::spawn(
-        async move { MetacriticApi::get_score(&slug).await }
-            .instrument(trace_span!("spawn_metacritic_request")),
-    );
-
-    if let Some(cover) = igdb_game.cover {
-        let lookup = IgdbLookup::new(connection);
-        game_entry.cover = lookup.get_cover(cover).await?;
-    }
-
     let mut collections = [
         match igdb_game.collection {
             Some(id) => vec![id],
@@ -91,22 +117,6 @@ pub async fn resolve_game_digest(
         game_entry
             .collections
             .extend(get_collections(connection, firestore, &collections).await?);
-    }
-
-    let mut franchises = [
-        match igdb_game.franchise {
-            Some(id) => vec![id],
-            None => vec![],
-        },
-        igdb_game.franchises.clone(),
-    ]
-    .concat();
-    if !franchises.is_empty() {
-        franchises.sort();
-        franchises.dedup();
-        game_entry
-            .franchises
-            .extend(get_franchises(connection, firestore, &franchises).await?);
     }
 
     if !igdb_game.involved_companies.is_empty() {
@@ -125,6 +135,16 @@ pub async fn resolve_game_digest(
         }
     }
 
+    // Attach GOG data if stored in the external games.
+    if let Some(gog_external) = external_games
+        .into_iter()
+        .find(|e| matches!(e.store_name, StoreName::Gog))
+    {
+        if let Some(gog_data) = gog_external.gog_data {
+            game_entry.add_gog_data(gog_data);
+        }
+    }
+
     let mut steam_data = None;
     if let Some(handle) = steam_handle {
         match handle.await {
@@ -136,10 +156,6 @@ pub async fn resolve_game_digest(
         }
     }
 
-    game_entry.release_date = get_release_timestamp(connection, &igdb_game, &steam_data)
-        .await?
-        .unwrap_or_default();
-
     if let Some(steam_data) = steam_data {
         adjust_companies(
             &mut game_entry,
@@ -147,14 +163,6 @@ pub async fn resolve_game_digest(
             &steam_data.publishers,
         );
         game_entry.add_steam_data(steam_data);
-    }
-
-    match library::firestore::genres::read(firestore, game_entry.id).await {
-        Ok(genres) => game_entry.espy_genres = genres.espy_genres,
-        Err(Status::NotFound(_)) => {
-            library::firestore::genres::needs_annotation(firestore, &game_entry).await?
-        }
-        Err(status) => error!("Genre lookup failed: {status}"),
     }
 
     match metacritic_handle.await {
@@ -171,9 +179,9 @@ pub async fn resolve_game_digest(
         Err(status) => warn!("{status}"),
     }
 
-    // Retrieve wikipedia data if the Metacritic score is missing of Steam data
+    // Retrieve Wikipedia data if the Metacritic score is missing of Steam data
     // are missing in order to adjust developers.
-    if game_entry.steam_data.is_none() || game_entry.scores.metacritic.is_none() {
+    if game_entry.scores.metacritic.is_none() || game_entry.steam_data.is_none() {
         match library::firestore::wikipedia::read(&firestore, game_entry.id).await {
             Ok(wiki_data) => {
                 if game_entry.scores.metacritic.is_none() && wiki_data.score.is_some() {
@@ -196,13 +204,49 @@ pub async fn resolve_game_digest(
         }
     }
 
-    if let Some(gog_external) = external_games
-        .into_iter()
-        .find(|e| matches!(e.store_name, StoreName::Gog))
-    {
-        if let Some(gog_data) = gog_external.gog_data {
-            game_entry.add_gog_data(gog_data);
+    Ok(game_entry)
+}
+
+/// Phase 2 resolves all data necessary to create a GameDigest.
+/// It expects that phase 1 already ran.
+#[instrument(level = "info", skip(connection, firestore, game_entry))]
+async fn resolve_phase_2(
+    connection: &IgdbConnection,
+    firestore: &FirestoreApi,
+    mut game_entry: GameEntry,
+) -> Result<GameEntry, Status> {
+    if let Some(cover) = game_entry.igdb_game.cover {
+        let lookup = IgdbLookup::new(connection);
+        game_entry.cover = lookup.get_cover(cover).await?;
+    }
+
+    let mut franchises = [
+        match game_entry.igdb_game.franchise {
+            Some(id) => vec![id],
+            None => vec![],
+        },
+        game_entry.igdb_game.franchises.clone(),
+    ]
+    .concat();
+    if !franchises.is_empty() {
+        franchises.sort();
+        franchises.dedup();
+        game_entry
+            .franchises
+            .extend(get_franchises(connection, firestore, &franchises).await?);
+    }
+
+    game_entry.release_date =
+        get_release_timestamp(connection, &game_entry.igdb_game, &game_entry.steam_data)
+            .await?
+            .unwrap_or_default();
+
+    match library::firestore::genres::read(firestore, game_entry.id).await {
+        Ok(genres) => game_entry.espy_genres = genres.espy_genres,
+        Err(Status::NotFound(_)) => {
+            // library::firestore::genres::needs_annotation(firestore, &game_entry).await?
         }
+        Err(status) => error!("Genre lookup failed: {status}"),
     }
 
     // TODO: Remove these updates from the critical path.
@@ -267,14 +311,15 @@ fn extract_steam_appid(url: &str) -> Option<String> {
         .and_then(|cap| cap.name("appid").map(|appid| appid.as_str().to_owned()))
 }
 
-/// Returns a fully resolved GameEntry from IGDB that goes beyond the GameDigest doc.
+/// Phase 3 resolves all remaining data for a fully resolved GameEntry.
+/// It expects that phase 1 & 2 already ran.
 #[async_recursion]
 #[instrument(level = "info", skip(connection, firestore, game_entry))]
-pub async fn resolve_game_info(
+async fn resolve_phase_3(
     connection: &IgdbConnection,
     firestore: &FirestoreApi,
-    game_entry: &mut GameEntry,
-) -> Result<(), Status> {
+    mut game_entry: GameEntry,
+) -> Result<GameEntry, Status> {
     let igdb_game = &game_entry.igdb_game;
 
     if !igdb_game.keywords.is_empty() {
@@ -403,7 +448,7 @@ pub async fn resolve_game_info(
         }
     }
 
-    Ok(())
+    Ok(game_entry)
 }
 
 /// Returns IgdbGames included in the bundle of `bundle_id`.
@@ -433,9 +478,7 @@ async fn get_digest(
 
     let lookup = IgdbLookup::new(connection);
     let igdb_game = lookup.get_game(id).await?;
-    Ok(GameDigest::from(
-        resolve_game_digest(connection, firestore, igdb_game).await?,
-    ))
+    Ok(resolve_game_digest(connection, firestore, igdb_game).await?)
 }
 
 #[instrument(level = "trace", skip(connection, firestore))]
@@ -455,9 +498,7 @@ async fn get_digests(
     if !result.not_found.is_empty() {
         let games = lookup.get_games(&result.not_found).await?;
         for igdb_game in games {
-            digests.push(GameDigest::from(
-                resolve_game_digest(connection, firestore, igdb_game).await?,
-            ));
+            digests.push(resolve_game_digest(connection, firestore, igdb_game).await?);
         }
     }
     Ok(digests)
