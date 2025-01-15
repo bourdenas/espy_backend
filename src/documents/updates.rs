@@ -18,9 +18,5 @@ pub struct Update {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub image: Option<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub cover: Option<String>,
 }

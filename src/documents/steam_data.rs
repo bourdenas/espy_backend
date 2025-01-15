@@ -122,10 +122,6 @@ pub struct NewsItem {
     pub contents: String,
 
     #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub image: Option<String>,
-
-    #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     tags: Vec<String>,
 }

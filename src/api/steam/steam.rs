@@ -136,13 +136,6 @@ impl SteamApi {
         let mut newsitems = resp.appnews.newsitems;
         newsitems.retain(|item| item.feedname == STEAM_UPDATE_FEEDNAME);
         for item in newsitems.iter_mut() {
-            let url = RE
-                .captures(&item.contents)
-                .and_then(|cap| cap.name("url").map(|url| url.as_str().to_owned()));
-            if let Some(url) = url {
-                item.image = Some(format!("https://clan.fastly.steamstatic.com/images/{url}"))
-            }
-
             item.contents = RE.replace_all(&item.contents, "").to_string();
         }
 

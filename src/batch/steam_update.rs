@@ -8,6 +8,7 @@ use espy_backend::{
     library, stream_games, Status,
 };
 use firestore::path;
+use tracing::warn;
 
 /// Espy util for refreshing IGDB and Steam data for GameEntries.
 #[derive(Parser)]
@@ -79,7 +80,13 @@ impl SteamProcessor {
     ) -> Result<(), Status> {
         let steam_appid = format!("{}", game_entry.steam_appid.unwrap());
 
-        let steam_data = self.steam.retrieve_steam_data(&steam_appid).await?;
+        let steam_data = match self.steam.retrieve_steam_data(&steam_appid).await {
+            Ok(steam_data) => steam_data,
+            Err(status) => {
+                warn!("retrieve_steam_data(): {status}");
+                return Err(status);
+            }
+        };
         game_entry.add_steam_data(steam_data);
 
         let scraped_data = SteamScrape::scrape(&steam_appid).await?;
@@ -99,7 +106,7 @@ impl SteamProcessor {
                 }
 
                 self.updates_by_day
-                    .entry(date.format("%Y %m %d").to_string())
+                    .entry(date.format("%Y_%m_%d").to_string())
                     .or_insert_with(Vec::new)
                     .push(Update {
                         game_id: game_entry.id,
@@ -107,7 +114,6 @@ impl SteamProcessor {
                         url: item.url,
                         title: item.title,
                         contents: item.contents,
-                        image: item.image,
                         cover: match &game_entry.cover {
                             Some(image) => Some(image.image_id.clone()),
                             None => None,
