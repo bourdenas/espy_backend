@@ -1,7 +1,10 @@
+use std::collections::BTreeMap;
+
+use chrono::Utc;
 use clap::Parser;
 use espy_backend::{
     api::{FirestoreApi, SteamDataApi, SteamScrape},
-    documents::GameEntry,
+    documents::{DayUpdates, GameEntry, Update},
     library, stream_games, Status,
 };
 use firestore::path;
@@ -11,6 +14,9 @@ use firestore::path;
 struct Opts {
     #[clap(long, default_value = "2015")]
     start_year: u64,
+
+    #[clap(long, default_value = "0")]
+    offset: u32,
 
     #[clap(long, default_value = "false")]
     cleanup: bool,
@@ -29,8 +35,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     .expect("Failed to parse start date")
     .timestamp();
 
-    let steam_processor = SteamProcessor::new();
+    let mut steam_processor = SteamProcessor::new();
     stream_games!(
+        offset: opts.offset,
         filter: |q| {
             q.for_all([
                 q.field(path!(GameEntry::steam_appid)).is_not_null(),
@@ -44,22 +51,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         steam_processor
     );
 
+    let firestore = FirestoreApi::connect().await?;
+    for (date, updates) in steam_processor.updates_by_day {
+        library::firestore::updates::write(&firestore, &DayUpdates { date, updates }).await?;
+    }
+
     Ok(())
 }
 
 struct SteamProcessor {
     steam: SteamDataApi,
+    updates_by_day: BTreeMap<String, Vec<Update>>,
 }
 
 impl SteamProcessor {
     fn new() -> Self {
         SteamProcessor {
             steam: SteamDataApi::new(),
+            updates_by_day: BTreeMap::new(),
         }
     }
 
     async fn process(
-        &self,
+        &mut self,
         firestore: &FirestoreApi,
         mut game_entry: GameEntry,
     ) -> Result<(), Status> {
@@ -74,6 +88,33 @@ impl SteamProcessor {
         }
 
         library::firestore::games::write(firestore, &mut game_entry).await?;
+
+        let now = Utc::now();
+        if let Some(steam_data) = game_entry.steam_data {
+            for item in steam_data.news {
+                let date = chrono::DateTime::from_timestamp(item.date as i64, 0).unwrap();
+
+                if date.signed_duration_since(now).num_days().abs() > 60 {
+                    continue;
+                }
+
+                self.updates_by_day
+                    .entry(date.format("%Y %m %d").to_string())
+                    .or_insert_with(Vec::new)
+                    .push(Update {
+                        game_id: game_entry.id,
+                        date: item.date,
+                        url: item.url,
+                        title: item.title,
+                        contents: item.contents,
+                        image: item.image,
+                        cover: match &game_entry.cover {
+                            Some(image) => Some(image.image_id.clone()),
+                            None => None,
+                        },
+                    });
+            }
+        }
 
         Ok(())
     }

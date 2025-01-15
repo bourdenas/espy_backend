@@ -114,7 +114,7 @@ pub struct SteamScore {
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct NewsItem {
     gid: String,
-    date: u64,
+    pub date: u64,
     pub feedname: String,
 
     pub url: String,

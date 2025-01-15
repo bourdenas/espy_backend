@@ -11,6 +11,7 @@ pub mod notable;
 pub mod storefront;
 pub mod timeline;
 pub mod unresolved;
+pub mod updates;
 pub mod user_annotations;
 pub mod user_data;
 pub mod wikipedia;
