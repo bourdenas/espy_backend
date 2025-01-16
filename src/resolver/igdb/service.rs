@@ -5,10 +5,13 @@ use crate::{
     api::FirestoreApi,
     documents::{GameDigest, GameEntry, IgdbExternalGame, IgdbGame, StoreEntry},
     logging::IgdbResolveCounter,
+    resolver::models::ResolveResponse,
     Status,
 };
 
-use super::{endpoints, request::post, resolve::*, IgdbConnection, IgdbLookup};
+use super::{
+    endpoints, filtering::GameFilter, request::post, resolve::*, IgdbConnection, IgdbLookup,
+};
 
 #[derive(Clone)]
 pub struct IgdbApi {
@@ -49,6 +52,33 @@ impl IgdbApi {
                 counter.log(&game_entry);
                 Ok(game_entry)
             }
+            Err(status) => {
+                counter.log_error(&status);
+                Err(status)
+            }
+        }
+    }
+
+    #[instrument(level = "trace", skip(self, firestore, game_filter, igdb_game))]
+    pub async fn resolve_filter(
+        &self,
+        firestore: Arc<FirestoreApi>,
+        game_filter: Arc<GameFilter>,
+        igdb_game: IgdbGame,
+    ) -> Result<ResolveResponse, Status> {
+        let counter = IgdbResolveCounter::new();
+        match resolve_filter_game_entry(&self.connection, &firestore, game_filter, igdb_game).await
+        {
+            Ok(response) => match response {
+                ResolveResponse::Success(game_entry) => {
+                    counter.log(&game_entry);
+                    Ok(ResolveResponse::Success(game_entry))
+                }
+                ResolveResponse::Reject(reason) => {
+                    counter.log_reject(&reason);
+                    Ok(ResolveResponse::Reject(reason))
+                }
+            },
             Err(status) => {
                 counter.log_error(&status);
                 Err(status)

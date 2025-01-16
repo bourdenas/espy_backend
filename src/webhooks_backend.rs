@@ -1,11 +1,5 @@
 use clap::Parser;
-use espy_backend::{
-    api::FirestoreApi,
-    library::firestore::notable,
-    resolver::ResolveApi,
-    webhooks::{self, filtering::GameFilter},
-    Status, Tracing,
-};
+use espy_backend::{api::FirestoreApi, resolver::ResolveApi, webhooks, Status, Tracing};
 use std::{env, sync::Arc};
 use tracing::info;
 use warp::{self, Filter};
@@ -46,19 +40,12 @@ async fn main() -> Result<(), Status> {
     };
 
     let firestore = FirestoreApi::connect().await?;
-    let notable = notable::read(&firestore).await?;
-    let classifier = GameFilter::new(notable);
     let resolver = ResolveApi::new(opts.resolver_backend);
 
     info!("webhooks handler started");
 
     warp::serve(
-        webhooks::routes::routes(
-            Arc::new(firestore),
-            Arc::new(resolver),
-            Arc::new(classifier),
-        )
-        .with(
+        webhooks::routes::routes(Arc::new(firestore), Arc::new(resolver)).with(
             warp::cors()
                 .allow_methods(vec!["POST"])
                 .allow_headers(vec!["Content-Type", "Authorization"])

@@ -6,7 +6,7 @@ use crate::{
     Status,
 };
 
-use super::models::SearchRequest;
+use super::models::{ResolveRequest, ResolveResponse, SearchRequest};
 
 #[derive(Clone)]
 pub struct ResolveApi {
@@ -24,9 +24,17 @@ impl ResolveApi {
         response
     }
 
-    pub async fn resolve(&self, igdb_game: IgdbGame) -> Result<GameEntry, Status> {
+    pub async fn resolve(
+        &self,
+        igdb_game: IgdbGame,
+        filter: bool,
+    ) -> Result<ResolveResponse, Status> {
         let id = igdb_game.id;
-        let response = post(&format!("{}/resolve", &self.url), igdb_game).await;
+        let response = post(
+            &format!("{}/resolve", &self.url),
+            ResolveRequest { igdb_game, filter },
+        )
+        .await;
         ResolveEvent::resolve(id, &response);
         response
     }

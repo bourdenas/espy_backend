@@ -1,12 +1,12 @@
-use crate::{api::FirestoreApi, documents::IgdbGame, logging::LogResolverRequest, Status};
+use crate::{api::FirestoreApi, logging::LogResolverRequest, Status};
 
 use std::{convert::Infallible, sync::Arc};
 use tracing::instrument;
 use warp::http::StatusCode;
 
 use super::{
-    igdb::{IgdbApi, IgdbSearch},
-    models::SearchRequest,
+    igdb::{filtering::GameFilter, IgdbApi, IgdbSearch},
+    models::{ResolveRequest, ResolveResponse, SearchRequest},
     IgdbConnection,
 };
 
@@ -46,19 +46,39 @@ pub async fn post_retrieve(
 #[instrument(
     name = "resolve",
     level = "info",
-    skip(igdb_game, firestore, connection)
+    skip(request, firestore, filter, connection)
 )]
 pub async fn post_resolve(
-    igdb_game: IgdbGame,
+    request: ResolveRequest,
     firestore: Arc<FirestoreApi>,
+    filter: Arc<GameFilter>,
     connection: Arc<IgdbConnection>,
 ) -> Result<Box<dyn warp::Reply>, Infallible> {
-    let id = igdb_game.id;
+    let id = request.igdb_game.id;
     let igdb = IgdbApi::new(connection);
-    match igdb.resolve(firestore, igdb_game).await {
-        Ok(game_entry) => {
-            LogResolverRequest::resolve(id, Some(game_entry.name.clone()), Status::Ok);
-            Ok(Box::new(warp::reply::json(&game_entry)))
+
+    let response = match request.filter {
+        true => {
+            igdb.resolve_filter(firestore, filter, request.igdb_game)
+                .await
+        }
+        false => match igdb.resolve(firestore, request.igdb_game).await {
+            Ok(game_entry) => Ok(ResolveResponse::Success(game_entry)),
+            Err(status) => Err(status),
+        },
+    };
+
+    match response {
+        Ok(response) => {
+            match &response {
+                ResolveResponse::Success(game_entry) => {
+                    LogResolverRequest::resolve(id, Some(game_entry.name.clone()), Status::Ok)
+                }
+                ResolveResponse::Reject(_reason) => {
+                    LogResolverRequest::resolve(id, None, Status::Ok)
+                }
+            }
+            Ok(Box::new(warp::reply::json(&response)))
         }
         Err(Status::NotFound(msg)) => {
             LogResolverRequest::resolve(id, None, Status::not_found(msg));

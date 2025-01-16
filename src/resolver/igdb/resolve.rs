@@ -1,6 +1,7 @@
 use std::{
     cmp::Ordering,
     collections::HashMap,
+    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -11,7 +12,9 @@ use crate::{
         GameCategory, GameDigest, GameEntry, IgdbGame, IgdbInvolvedCompany, SteamData, StoreName,
         Website, WebsiteAuthority,
     },
-    library, Status,
+    library,
+    resolver::models::ResolveResponse,
+    Status,
 };
 
 use async_recursion::async_recursion;
@@ -20,7 +23,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use tracing::{error, instrument, trace_span, warn, Instrument};
 
-use super::{endpoints, request::post, IgdbConnection, IgdbLookup};
+use super::{endpoints, filtering::GameFilter, request::post, IgdbConnection, IgdbLookup};
 
 /// Resolves a GameDigest from an IgdbGame.
 ///
@@ -50,6 +53,29 @@ pub async fn resolve_game_entry(
     let game_entry = resolve_phase_1(connection, firestore, igdb_game).await?;
     let game_entry = resolve_phase_2(connection, firestore, game_entry).await?;
     resolve_phase_3(connection, firestore, game_entry).await
+}
+
+/// Resolves a GameEntry from an IgdbGame.
+///
+/// This has side-effects updating Firestore structures with fresh data like
+/// update companies and collections documents with updated GameDigest.
+#[instrument(level = "info", skip(connection, firestore, game_filter, igdb_game))]
+pub async fn resolve_filter_game_entry(
+    connection: &IgdbConnection,
+    firestore: &FirestoreApi,
+    game_filter: Arc<GameFilter>,
+    igdb_game: IgdbGame,
+) -> Result<ResolveResponse, Status> {
+    let game_entry = resolve_phase_1(connection, firestore, igdb_game).await?;
+
+    if game_filter.apply(&game_entry) {
+        let game_entry = resolve_phase_2(connection, firestore, game_entry).await?;
+        Ok(ResolveResponse::Success(
+            resolve_phase_3(connection, firestore, game_entry).await?,
+        ))
+    } else {
+        Ok(ResolveResponse::Reject(game_filter.explain(&game_entry)))
+    }
 }
 
 /// Phase 1 resolves all data necessary to make a filtering decision.

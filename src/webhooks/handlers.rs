@@ -4,7 +4,7 @@ use crate::{
     library::firestore,
     log_error,
     logging::{DiffEvent, LogWebhooksRequest, RejectEvent},
-    resolver::ResolveApi,
+    resolver::{models::ResolveResponse, ResolveApi},
     Status,
 };
 use chrono::Utc;
@@ -12,18 +12,17 @@ use std::{convert::Infallible, sync::Arc};
 use tracing::{info_span, instrument, Instrument};
 use warp::http::StatusCode;
 
-use super::{filtering::GameFilter, prefiltering::IgdbPrefilter};
+use super::prefiltering::IgdbPrefilter;
 
 #[instrument(
     name = "add_game",
     level = "info",
-    skip(igdb_game, firestore, resolver, game_filter)
+    skip(igdb_game, firestore, resolver)
 )]
 pub async fn add_game_webhook(
     igdb_game: IgdbGame,
     firestore: Arc<FirestoreApi>,
     resolver: Arc<ResolveApi>,
-    game_filter: Arc<GameFilter>,
 ) -> Result<impl warp::Reply, Infallible> {
     LogWebhooksRequest::add_game(&igdb_game);
 
@@ -34,7 +33,7 @@ pub async fn add_game_webhook(
 
     tokio::spawn(
         async move {
-            let result = handle_add_game(igdb_game, firestore, resolver, game_filter).await;
+            let result = handle_add_game(igdb_game, firestore, resolver).await;
             if let Err(status) = result {
                 log_error!(status);
             }
@@ -45,36 +44,15 @@ pub async fn add_game_webhook(
     Ok(StatusCode::OK)
 }
 
-async fn handle_add_game(
-    igdb_game: IgdbGame,
-    firestore: Arc<FirestoreApi>,
-    resolver: Arc<ResolveApi>,
-    game_filter: Arc<GameFilter>,
-) -> Result<(), Status> {
-    match resolver.resolve(igdb_game).await {
-        Ok(mut game_entry) => {
-            if !game_filter.apply(&game_entry) {
-                RejectEvent::filter(game_filter.explain(&game_entry));
-            } else if let Err(status) = firestore::games::write(&firestore, &mut game_entry).await {
-                return Err(status);
-            }
-        }
-        Err(status) => return Err(status),
-    }
-
-    Ok(())
-}
-
 #[instrument(
     name = "update_game",
     level = "info",
-    skip(igdb_game, firestore, resolver, game_filter)
+    skip(igdb_game, firestore, resolver)
 )]
 pub async fn update_game_webhook(
     igdb_game: IgdbGame,
     firestore: Arc<FirestoreApi>,
     resolver: Arc<ResolveApi>,
-    game_filter: Arc<GameFilter>,
 ) -> Result<impl warp::Reply, Infallible> {
     LogWebhooksRequest::update_game(&igdb_game);
 
@@ -85,7 +63,7 @@ pub async fn update_game_webhook(
 
     tokio::spawn(
         async move {
-            let result = handle_update_game(igdb_game, firestore, resolver, game_filter).await;
+            let result = handle_update_game(igdb_game, firestore, resolver).await;
             if let Err(status) = result {
                 log_error!(status);
             }
@@ -100,7 +78,6 @@ async fn handle_update_game(
     igdb_game: IgdbGame,
     firestore: Arc<FirestoreApi>,
     resolver: Arc<ResolveApi>,
-    game_filter: Arc<GameFilter>,
 ) -> Result<(), Status> {
     match firestore::games::read(&firestore, igdb_game.id).await {
         Ok(mut game_entry) => {
@@ -108,9 +85,11 @@ async fn handle_update_game(
             DiffEvent::diff(&diff);
 
             if diff.needs_resolve() {
-                match resolver.resolve(igdb_game).await {
-                    Ok(mut game_entry) => {
-                        firestore::games::write(&firestore, &mut game_entry).await?
+                match resolver.resolve(igdb_game, false).await {
+                    Ok(response) => {
+                        if let ResolveResponse::Success(mut game_entry) = response {
+                            firestore::games::write(&firestore, &mut game_entry).await?
+                        }
                     }
                     Err(status) => return Err(status),
                 }
@@ -122,9 +101,25 @@ async fn handle_update_game(
                 // TODO: log ignore update
             }
         }
-        Err(Status::NotFound(_)) => {
-            handle_add_game(igdb_game, firestore, resolver, game_filter).await?
-        }
+        Err(Status::NotFound(_)) => handle_add_game(igdb_game, firestore, resolver).await?,
+        Err(status) => return Err(status),
+    }
+
+    Ok(())
+}
+
+async fn handle_add_game(
+    igdb_game: IgdbGame,
+    firestore: Arc<FirestoreApi>,
+    resolver: Arc<ResolveApi>,
+) -> Result<(), Status> {
+    match resolver.resolve(igdb_game, true).await {
+        Ok(response) => match response {
+            ResolveResponse::Success(mut game_entry) => {
+                firestore::games::write(&firestore, &mut game_entry).await?
+            }
+            ResolveResponse::Reject(reason) => RejectEvent::filter(reason),
+        },
         Err(status) => return Err(status),
     }
 

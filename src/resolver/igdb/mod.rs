@@ -1,6 +1,7 @@
 mod batch;
 mod connection;
 pub mod endpoints;
+pub mod filtering;
 mod lookups;
 mod ranking;
 mod request;

@@ -86,10 +86,6 @@ name = "collect_external_games"
 path = "src/resolver/batch/collect_external_games.rs"
 
 [[bin]]
-name = "collect_games"
-path = "src/resolver/batch/collect_games.rs"
-
-[[bin]]
 name = "collect_genres"
 path = "src/resolver/batch/collect_genres.rs"
 

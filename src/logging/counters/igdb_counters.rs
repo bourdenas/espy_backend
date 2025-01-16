@@ -2,7 +2,7 @@ use std::time::SystemTime;
 
 use tracing::info;
 
-use crate::{documents::GameEntry, Status};
+use crate::{documents::GameEntry, resolver::filtering::RejectionReason, Status};
 
 pub struct IgdbCounters;
 
@@ -41,6 +41,20 @@ impl IgdbResolveCounter {
             "IGDB resolve: '{}' ({})",
             &game_entry.name,
             &game_entry.id,
+        )
+    }
+
+    pub fn log_reject(self, rejection: &RejectionReason) {
+        info!(
+            labels.log_type = COUNTERS,
+            counter.group = IGDB,
+            counter.name = "resolve_reject",
+            counter.latency = SystemTime::now()
+                .duration_since(self.start)
+                .unwrap()
+                .as_millis(),
+            "IGDB resolve rejected: {:?}",
+            &rejection.reason,
         )
     }
 

@@ -7,6 +7,7 @@ use crate::{
     documents::{GameDigest, GameEntry},
     log_event,
     logging::LogEvent,
+    resolver::models::ResolveResponse,
     Status,
 };
 
@@ -29,12 +30,17 @@ impl ResolveEvent {
         }))
     }
 
-    pub fn resolve(id: u64, response: &Result<GameEntry, Status>) {
+    pub fn resolve(id: u64, response: &Result<ResolveResponse, Status>) {
         log_event!(LogEvent::Resolve(ResolveEvent {
             method: "resolve".to_owned(),
             request: Request::Id(id),
             response: match response {
-                Ok(game_entry) => Response::Success(game_entry.name.clone()),
+                Ok(response) => match response {
+                    ResolveResponse::Success(game_entry) =>
+                        Response::Success(game_entry.name.clone()),
+                    ResolveResponse::Reject(reason) =>
+                        Response::Reject(format!("{:?}", reason.reason)),
+                },
                 Err(status) => Response::Error(status.to_string()),
             },
         }))
@@ -72,6 +78,7 @@ enum Request {
 #[derive(Serialize, Deserialize, Valuable, Clone, Debug)]
 enum Response {
     Success(String),
+    Reject(String),
     Search(usize),
     Error(String),
 }

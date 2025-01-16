@@ -12,7 +12,7 @@ use espy_backend::{
         self,
         firestore::{notable, year},
     },
-    webhooks::filtering::GameFilter,
+    resolver::filtering::GameFilter,
     Tracing,
 };
 use firestore::path;

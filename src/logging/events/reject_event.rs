@@ -7,10 +7,8 @@ use crate::{
     documents::{GameCategory, GamePlatform, GameStatus},
     log_event,
     logging::LogEvent,
-    webhooks::{
-        filtering::{self, RejectionException, RejectionReason},
-        prefiltering::PrefilterRejectionReason,
-    },
+    resolver::filtering::{Exception, NotableFor, Reason, RejectionException, RejectionReason},
+    webhooks::prefiltering::PrefilterRejectionReason,
 };
 
 #[derive(Serialize, Deserialize, Valuable, Clone, Default, Debug)]
@@ -63,9 +61,9 @@ impl RejectEvent {
     pub fn filter(reason: RejectionReason) {
         log_event!(LogEvent::Reject(RejectEvent {
             reason: Some(match reason.reason {
-                filtering::Reason::NoScoreLowPopularity => "filter.metrics".to_owned(),
-                filtering::Reason::FutureReleaseNoHype => "filter.hype".to_owned(),
-                filtering::Reason::Unknown => "filter.unknown".to_owned(),
+                Reason::NoScoreLowPopularity => "filter.metrics".to_owned(),
+                Reason::FutureReleaseNoHype => "filter.hype".to_owned(),
+                Reason::Unknown => "filter.unknown".to_owned(),
             }),
             category: Some(reason.category),
             status: Some(reason.status),
@@ -79,13 +77,13 @@ impl RejectEvent {
     pub fn exception(reason: RejectionException) {
         log_event!(LogEvent::Reject(RejectEvent {
             exception: Some(match reason.exception {
-                filtering::Exception::Expansion => "exception.expansion".to_owned(),
-                filtering::Exception::Remaster => "exception.remaster".to_owned(),
-                filtering::Exception::Notable(notable) => match notable {
-                    filtering::NotableFor::Developer(dev) => format!("exception.dev.{dev}"),
-                    filtering::NotableFor::Collection(col) => format!("exception.col.{col}"),
+                Exception::Expansion => "exception.expansion".to_owned(),
+                Exception::Remaster => "exception.remaster".to_owned(),
+                Exception::Notable(notable) => match notable {
+                    NotableFor::Developer(dev) => format!("exception.dev.{dev}"),
+                    NotableFor::Collection(col) => format!("exception.col.{col}"),
                 },
-                filtering::Exception::GogClassic => "exception.classic".to_owned(),
+                Exception::GogClassic => "exception.classic".to_owned(),
             }),
             category: Some(reason.category),
             status: Some(reason.status),
